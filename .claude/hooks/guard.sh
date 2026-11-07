@@ -1,6 +1,6 @@
 #!/bin/sh
 # 훅 입구 (desktop 의 .claude/hooks/guard.sh 와 같은 모양) — 검사가 필요한 입력일 때만 node 검사 스크립트를 띄운다:
-# git push · gh pr merge 명령, 또는 catalog.json · dist/ 를 가리키는 파일 편집.
+# git push · git commit · gh pr merge 명령, 또는 catalog.json · dist/ 를 가리키는 파일 편집.
 # 훅 셸(/bin/sh)은 로그인 설정을 읽지 않아 nvm 등으로 깐 node 가 PATH 에 없을 수 있다 — 여러 곳에서 찾고,
 # 그래도 없으면 그 명령을 막는다(종료 코드 2). 검사 없이 통과되는 일이 없게 한다.
 #   sh .claude/hooks/guard.sh <검사 이름>   (예: block-protected-push)
@@ -9,7 +9,7 @@ script="$1"
 input=$(cat)
 
 case "$input" in
-  *git*push* | *gh*pr*merge* | *catalog.json* | *dist/*) ;;
+  *git*push* | *git*commit* | *gh*pr*merge* | *catalog.json* | *dist/*) ;;
   *) exit 0 ;;
 esac
 

@@ -1,0 +1,67 @@
+// .claude/rules/plugin.md 중 코드로 판정되는 규칙 — 머지 전 npm test 로 막는다 (규칙 번호는 plugin.md).
+// 앱이 아는 필드·권한·id 모양은 desktop 이 정본이다: src/services/extensions/manifest.ts 의 KNOWN, shared/extensions.ts 의
+// EXTENSION_PERMISSIONS · EXTENSION_ID. desktop 이 바뀌면 여기를 같이 고친다 (/convention-review 가 옆에 desktop 이 있으면 대조한다).
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'tools', 'mcp', 'settings', 'settingsCheck', 'settingsPer']
+const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage']
+const ID = /^[a-z0-9-]{3,40}$/
+const VERSION = /^\d+\.\d+\.\d+$/
+
+const root = path.resolve(import.meta.dirname, '..')
+const pluginsDir = path.join(root, 'plugins')
+
+type Manifest = { id?: string; version?: string; permissions?: string[]; mcp?: { args?: string[] }; entry?: string } & Record<string, unknown>
+
+const plugins = readdirSync(pluginsDir, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => {
+    const file = ['plugin.json', 'extension.json'].map((name) => path.join(pluginsDir, entry.name, name)).find((candidate) => existsSync(candidate))
+    return { folder: entry.name, manifest: file ? (JSON.parse(readFileSync(file, 'utf8')) as Manifest) : undefined }
+  })
+
+describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugins/%s', (folder, { manifest }) => {
+  it('manifest 가 있다', () => {
+    expect(manifest, 'plugin.json 이 없습니다').toBeDefined()
+  })
+  if (!manifest) return
+
+  it('1 · 폴더 이름 = id', () => {
+    expect(manifest.id).toBe(folder)
+  })
+
+  it('2 · id 3~40자 소문자·숫자·- , version 주.부.수', () => {
+    expect(manifest.id).toMatch(ID)
+    expect(manifest.version).toMatch(VERSION)
+  })
+
+  it('3 · 앱이 아는 필드만', () => {
+    expect(Object.keys(manifest).filter((field) => !KNOWN_FIELDS.includes(field))).toEqual([])
+  })
+
+  it('5 · 아는 권한만, mcp 선언 ↔ mcp 권한', () => {
+    const permissions = manifest.permissions ?? []
+    expect(permissions.filter((permission) => !PERMISSIONS.includes(permission))).toEqual([])
+    expect(permissions.includes('mcp')).toBe(manifest.mcp !== undefined)
+  })
+
+  it('7 · 패널이 바깥 script · stylesheet 를 싣지 않는다', () => {
+    const entry = typeof manifest.entry === 'string' ? path.join(pluginsDir, folder, manifest.entry) : undefined
+    if (!entry || !entry.endsWith('.html') || !existsSync(entry)) return
+    const html = readFileSync(entry, 'utf8')
+    expect(html.match(/<(?:script|link)\b[^>]*\b(?:src|href)\s*=\s*["']?(?:https?:)?\/\/[^"'\s>]+/gi) ?? []).toEqual([])
+  })
+
+  it('8 · mcp.args 에 비밀 값을 넣지 않는다', () => {
+    expect((manifest.mcp?.args ?? []).filter((arg) => arg.includes('${secret:'))).toEqual([])
+  })
+})
+
+it('9 · 루트 package.json 의존성은 버전 고정', () => {
+  const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as Record<string, Record<string, string> | undefined>
+  const all = { ...pkg.dependencies, ...pkg.devDependencies }
+  const loose = Object.entries(all).filter(([, version]) => !/^(?:npm:[^@]+@|npm:@[^@]+@)?\d+\.\d+\.\d+$/.test(version))
+  expect(loose).toEqual([])
+})
