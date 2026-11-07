@@ -10,5 +10,5 @@ if (!file) process.exit(0)
 const root = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd()
 const relative = path.relative(root, path.resolve(root, file)).split(path.sep).join('/')
 if (relative === 'catalog.json' || relative.startsWith('dist/')) {
-  block(`${relative} 는 손으로 고치지 않습니다. npm run release 로 바꿔 주세요 (docs/guides/publish.html).`)
+  block(`${relative} 는 손으로 고치지 않습니다. npm run release 로 바꿔 주세요 (docs/guides/publish.md).`)
 }

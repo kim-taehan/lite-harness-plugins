@@ -11,13 +11,13 @@ lite-harness-desktop 앱에 까는 플러그인의 원본과 카탈로그.
 
 | 하려는 일 | 읽을 것 |
 |---|---|
-| 앱의 어디에 닿을 수 있는지, 무엇이 막혀 있는지 | `docs/architecture.html` |
-| 화면(패널) 플러그인 — manifest, 앱 통로, 권한 | `docs/guides/first-panel.html` |
-| AI 가 쓰는 도구(MCP 서버) — 설정 폼, settingsCheck, 스킬, 번들 | `docs/guides/mcp-plugin.html` |
-| 화면 언어 팩 · 코드 문법 팩 | `docs/guides/locale-grammar.html` |
-| 저장소에 올리기 · 버전 · 목록에서 내리기 | `docs/guides/publish.html` |
+| 앱의 어디에 닿을 수 있는지, 무엇이 막혀 있는지 | `docs/architecture.md` |
+| 화면(패널) 플러그인 — manifest, 앱 통로, 권한 | `docs/guides/first-panel.md` |
+| AI 가 쓰는 도구(MCP 서버) — 설정 폼, settingsCheck, 스킬, 번들 | `docs/guides/mcp-plugin.md` |
+| 화면 언어 팩 · 코드 문법 팩 | `docs/guides/locale-grammar.md` |
+| 저장소에 올리기 · 버전 · 목록에서 내리기 | `docs/guides/publish.md` |
 
-가이드와 desktop 코드가 어긋나면 desktop 코드가 정본이다(`docs/architecture.html` 의 "정본" 표).
+가이드와 desktop 코드가 어긋나면 desktop 코드가 정본이다(`docs/architecture.md` 의 "정본" 표).
 그때는 코드를 따르고 가이드도 같은 PR 에서 고친다.
 개발표준은 `.claude/rules/plugin.md` 에만 적는다 — 가이드는 그 이유와 예제, 여기에는 링크만 둔다.
 커밋 전에 `/convention-review` 로 변경을 표준과 대조한다.
@@ -26,8 +26,8 @@ lite-harness-desktop 앱에 까는 플러그인의 원본과 카탈로그.
 
 ## 명령
 - `npm test` — 플러그인 테스트 + catalog ↔ dist 정합 + 표준 검사 (머지 조건)
-- `npm run release <폴더…>` · `--all` · `--zip <파일>` — dist 와 catalog.json 갱신 (자세한 건 `publish.html`)
+- `npm run release <폴더…>` · `--all` · `--zip <파일>` — dist 와 catalog.json 갱신 (자세한 건 `docs/guides/publish.md`)
 
 ## 디렉터리
 `plugins/` 원본(플러그인마다 폴더) · `scripts/` release·문법 팩 빌드 · `dist/` 배포 zip
-· `categories.json` 분류(`unlisted` 면 목록에서 내림) · `docs/` 가이드 사이트(GitHub Pages)
+· `categories.json` 분류(`unlisted` 면 목록에서 내림) · `docs/` 가이드(마크다운, GitHub Pages 로도 보임)
