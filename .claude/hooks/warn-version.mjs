@@ -31,5 +31,5 @@ const stale = folders.flatMap((folder) => {
 })
 if (stale.length === 0) process.exit(0)
 
-const message = `원본이 바뀌었는데 catalog.json 의 version 이 main 과 같은 플러그인: ${stale.join(', ')} — 이미 설치한 PC 에는 업데이트가 가지 않습니다. 의도한 게 아니면 version 을 올리고 npm run release 해 주세요 (docs/guides/publish.html 버전 규칙).`
+const message = `원본이 바뀌었는데 catalog.json 의 version 이 main 과 같은 플러그인: ${stale.join(', ')} — 이미 설치한 PC 에는 업데이트가 가지 않습니다. 의도한 게 아니면 version 을 올리고 npm run release 해 주세요 (docs/guides/publish.md 버전 규칙).`
 process.stdout.write(JSON.stringify({ systemMessage: message, hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: message } }))

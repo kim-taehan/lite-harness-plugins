@@ -1,0 +1,4 @@
+# GitHub Pages(main 의 /docs)가 이 폴더의 마크다운을 Jekyll 로 그린다. .md 사이 링크는 Pages 가 .html 로 바꿔 준다
+title: Lite Harness 플러그인 가이드
+description: 화면 · AI 도구 · 언어를 더하는 플러그인 만들기
+theme: jekyll-theme-primer
