@@ -1,6 +1,7 @@
 // .claude/rules/plugin.md 중 코드로 판정되는 규칙 — 머지 전 npm test 로 막는다 (규칙 번호는 plugin.md).
 // 앱이 아는 필드·권한·id 모양은 desktop 이 정본이다: src/services/extensions/manifest.ts 의 KNOWN, shared/extensions.ts 의
 // EXTENSION_PERMISSIONS · EXTENSION_ID. desktop 이 바뀌면 여기를 같이 고친다 (/convention-review 가 옆에 desktop 이 있으면 대조한다).
+import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -15,8 +16,19 @@ const pluginsDir = path.join(root, 'plugins')
 
 type Manifest = { id?: string; version?: string; type?: string; scope?: unknown; permissions?: string[]; mcp?: { args?: string[]; attach?: unknown }; entry?: string } & Record<string, unknown>
 
-// 이미 배포된 id — 20번(scope 필수)은 새 플러그인에만
-const published = new Set((JSON.parse(readFileSync(path.join(root, 'catalog.json'), 'utf8')) as { extensions: { id: string }[] }).extensions.map((entry) => entry.id))
+// 이미 배포된 id — 20번(scope 필수)은 새 플러그인에만. 이 브랜치의 catalog.json 은 새 플러그인을 release 한 PR 에서 이미 그 id 를
+// 담으므로 기준으로 쓰지 않는다: main(origin/main)의 catalog + 목록에서 내린(unlisted) id. origin/main 을 못 읽으면 이 브랜치의 catalog
+function publishedIds(): Set<string> {
+  let catalog: string
+  try {
+    catalog = execFileSync('git', ['show', 'origin/main:catalog.json'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    catalog = readFileSync(path.join(root, 'catalog.json'), 'utf8')
+  }
+  const categories = JSON.parse(readFileSync(path.join(root, 'categories.json'), 'utf8')) as Record<string, string>
+  return new Set([...(JSON.parse(catalog) as { extensions: { id: string }[] }).extensions.map((entry) => entry.id), ...Object.keys(categories).filter((id) => categories[id] === 'unlisted')])
+}
+const published = publishedIds()
 
 const plugins = readdirSync(pluginsDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())

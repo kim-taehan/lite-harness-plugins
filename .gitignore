@@ -1,5 +1,5 @@
 # 의존성
-node_modules/
+node_modules
 
 # 빌드 중간물 — build.mjs 가 만드는 build/<id>.zip, fetch-runtime.mjs 가 받는 build/vendor/
 # (배포물 dist/*.zip 과 catalog.json 은 올린다 — 앱이 이 저장소에서 바로 받아 간다)
