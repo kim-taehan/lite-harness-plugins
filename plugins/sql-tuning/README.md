@@ -4,19 +4,20 @@
 
 SQL 튜닝 도우미 — 개발 DB 의 실행계획 · 테이블 · 인덱스 · 통계를 AI 가 읽고 고친 SQL 과 인덱스를 제안한다 (#1051, 설계 `docs/guide/superpowers/specs/2026-11-02-sql-tuning-design.md`).
 도구 8개(`server/tools.ts`)와 스킬(`skills/sql-tuning`)은 **공통**이고, 두 가지 껍데기로 쓴다:
-- **litecode 플러그인** (#1072 · #1232) — `plugin.json`(패널 · MCP 서버 · 스킬 · 설정 칸 선언). DB 연결 정보는 앱의 설정 폼으로 받고, 작은 패널 `index.html` 은 카드 두 개(표준 · 연결)만 둔다. 앱이 `mcp` 선언대로 같은 `server/index.ts` 를 띄운다. 아래 "플러그인으로 쓰기"
+- **litecode 플러그인** (#1072 · #1232 · 0.10.0 서비스 #1614) — `plugin.json`(서비스 · 패널 · 스킬 · 설정 칸 선언). DB 연결 정보는 앱의 설정 폼으로 받고, 작은 패널 `index.html` 은 카드 두 개(표준 · 연결)만 둔다. 서비스(`service/index.mjs`)가 `host.mcp.register` 로 같은 `server/index.ts` 를 앱에 등록하고, 앱이 별도 프로세스로 띄운다. 아래 "플러그인으로 쓰기"
 - **표준 MCP 서버(stdio)** — `server/index.ts`. davis-code 등 다른 호스트에서. 아래 "MCP 서버로 쓰기"
 
-- 범위: `scope` 없음(배포된 옛 플러그인 — 다음 업데이트 때 정한다, 표준 21번). 연결 정보는 `settingsPer: "project"` 라 프로젝트마다 따로.
-- 권한: `secrets`(DB 비밀번호를 비밀 칸으로) · `mcp`(도구 서버) · `project`(패널이 이 프로젝트의 표준 문서를 읽음) · `projectWrite`(패널에서 `.litecode/sql-standard.md` 를 고침).
+- 범위: `"project"`(0.10.0 에서 적음 — 표준 21번). 프로젝트마다 DB 가 다르므로 켠 프로젝트에서만 쓰이고, 연결 정보는 `settingsPer: "project"` 라 프로젝트마다 따로.
+- 권한: `service`(서비스 선언과 짝 — MCP 서버 등록과 패널 중계) · `secrets`(DB 비밀번호를 비밀 칸으로 — 서비스는 값을 읽지 못하고 `${secret:password}` 로 서버 프로세스의 환경 변수로만 간다) · `project`(패널이 이 프로젝트의 표준 문서를 읽음) · `projectWrite`(패널에서 `.litecode/sql-standard.md` 를 고침).
 
 ## 구성
 
 - `server/index.ts` — MCP 입구. 연결은 `DATABASE_URL`, 없으면 `SQL_TUNING_DB` · `_HOST` · `_PORT` · `_SERVICE` · `_USER` · `_PASSWORD` 칸으로 만든다(`connect.ts` `databaseUrlFromEnv`). 스킴으로 어댑터를 고른다(`oracle://` · `postgres://`)
-- `plugin.json` — `settings` 칸(`db` · `host` · `port` · `service` · `user` · `password`(secret) · `schema`)을 앱이 설치 2 단계와 설정 › 기능 › 플러그인 › [고치기] 에 폼으로 그린다. `mcp` 선언: 명령 `server/sql-tuning.mjs`(묶은 서버), env 는 그 칸 값 자리표시(`${storage:<키>}` · `${secret:password}` — 0.7.0 패널이 저장한 값과 같은 키라 그대로 쓰인다). 값을 바꾸면 앱이 다음 호출에 서버를 다시 띄운다. 도구 목록은 앱이 서버에게 묻는다
+- `plugin.json` — `settings` 칸(`db` · `host` · `port` · `service` · `user` · `password`(secret) · `schema`)을 앱이 설치 2 단계와 설정 › 기능 › 플러그인 › [고치기] 에 폼으로 그린다. `service` 선언(`service.mjs`) — `mcp` 선언은 0.10.0 에서 서비스로 옮겼다.
+- `service/index.mjs` — 서비스 원본(`build.mjs` 가 `service.mjs` 한 파일로 묶는다). ① `host.mcp.register` 로 MCP 서버를 등록한다: 명령 `server/sql-tuning.mjs`(묶은 서버), env 는 칸 값 자리표시(`${storage:<키>}` · `${secret:password}` — 0.7.0 이후 같은 키라 저장한 값이 그대로 쓰인다), 10분 쉬면 내린다. 값을 바꾸면 앱이 다음 호출에 서버를 다시 띄운다. 도구 목록은 앱이 서버에게 묻는다 ② 패널이 `service.call` 로 부르는 메서드(`readFile` · `fileInfo` · `writeFile` · `removeFile` · `openFile` · `projectInfo` · `settingsSummary` · `settingsCheck` · `settingsOpen` · `bundledFile`)를 같은 이름의 앱 호출(`host.call`)로 중계하고, 실패하면 오류 코드를 `{ ok: false, code }` 로 돌려준다
 - `server/tools.ts` — 도구 8개: `explain`(실행 안 함) · `table_info` · `top_queries` · `runtime_plan`(실제 실행) · `impact_check`(인덱스 전 영향) · `captured_sql`(애플리케이션이 실제로 보낸 SQL · Oracle 바인드 값 표본 — MyBatis · JPA 코드의 진짜 SQL, #1056) · `compare`(원래 · 고친 쿼리를 여러 바인드 값으로 실제 실행해 비교) · `query`(확인용, 행 수 제한)
 - `server/status.ts` — [연결 확인] 도구 `server_status`(인자 없음): 비어 있는 필수 칸이 있으면 그 이름, 다 있으면 `SELECT 1` 한 번으로 "연결됨 — Oracle tuner@host:1521/FREEPDB1 (12ms)" 또는 "연결 실패 — …: <오류>" 한 줄. litecode 는 manifest `settingsCheck` 로 AI 목록에서 뺀다(davis-code 에서는 목록에 보이지만 설명이 "설정 폼 전용")
-- `index.html` — 오른쪽 패널(0.9.0~, 결과 기록 없음). 연결 정보는 0.9.1 부터 `settingsPer: "project"` — 모든 프로젝트로 켜도 프로젝트마다 따로 (#1252). **표준** 카드: 이 프로젝트에 쓰이는 표준 — 프로젝트 파일 `.litecode/sql-standard.md`(팀 공유, 규칙 수 = 규칙 번호 `SQL-\d+` 같은 것이 든 줄, 고친 날) 또는 플러그인 기본(zip 의 `references/sql-standard.md`) 또는 없음, 앞 규칙 몇 개. [고치기](편집 · 미리보기 → 저장하면 프로젝트 파일) · [.md 로 바꾸기](고른 .md 내용을 프로젝트 파일로) · [플러그인 기본으로](프로젝트 파일 지우기). 쓰기는 앱 권한 `projectWrite`(`project.writeFile` · `removeFile` — `.litecode/` 바로 아래 .md 만). **연결** 카드: 앱의 `settings.summary`(비밀번호는 저장됐나만) · [연결 확인](`settings.check`) · [연결 정보 고치기](`settings.open` — 앱의 설정 폼)
+- `index.html` — 오른쪽 패널(0.9.0~, 결과 기록 없음. 0.10.0 부터 앱과는 `service.call` 한 통로만 쓴다). 연결 정보는 0.9.1 부터 `settingsPer: "project"` — 모든 프로젝트로 켜도 프로젝트마다 따로 (#1252). **표준** 카드: 이 프로젝트에 쓰이는 표준 — 프로젝트 파일 `.litecode/sql-standard.md`(팀 공유, 규칙 수 = 규칙 번호 `SQL-\d+` 같은 것이 든 줄, 고친 날) 또는 플러그인 기본(zip 의 `references/sql-standard.md`) 또는 없음, 앞 규칙 몇 개. [고치기](편집 · 미리보기 → 저장하면 프로젝트 파일) · [.md 로 바꾸기](고른 .md 내용을 프로젝트 파일로) · [플러그인 기본으로](프로젝트 파일 지우기). 쓰기는 앱 권한 `projectWrite`(`project.writeFile` · `removeFile` — `.litecode/` 바로 아래 .md 만). **연결** 카드: 앱의 `settings.summary`(비밀번호는 저장됐나만) · [연결 확인](`settings.check`) · [연결 정보 고치기](`settings.open` — 앱의 설정 폼)
 - `server/checksum.ts` — compare 의 결과 체크섬(행 순서와 상관없음)
 - `server/guard.ts` — 한 문장 · SELECT/WITH 만, 오류 글의 비밀번호 지우기
 - `server/adapters/oracle.ts`(node-oracledb thin — Oracle Client 불필요) · `server/adapters/postgres.ts`(pg)
@@ -29,7 +30,7 @@ TypeScript 를 그대로 `node` 로 돌린다(Node 22.18+ 의 타입 걷어 내�
 
 ## 플러그인으로 쓰기 (litecode)
 
-1. `node plugins/sql-tuning/build.mjs [--standard <사내 표준.md>]` → `build/sql-tuning.zip` (표준 없이 올릴 때는 `npm run release sql-tuning`). `--standard` 를 주면 그 문서를 스킬의 `references/sql-standard.md` 로 싣는다(Word · PDF · HWP 는 먼저 Markdown 으로). 앱이 스킬 폴더를 통째로 엔진에 옮기므로(#1081) AI 가 읽는다 (서버는 드라이버째 한 파일로 묶여 PC 에 Node 가 없어도 된다 — 앱이 자기 실행 파일로 돌린다)
+1. `node plugins/sql-tuning/build.mjs [--standard <사내 표준.md>] [--dir]` → `build/sql-tuning.zip`(`--dir` 이면 `build/sql-tuning/` 폴더 — 앱 개발 모드가 연결한다) (표준 없이 올릴 때는 `npm run release sql-tuning`). `--standard` 를 주면 그 문서를 스킬의 `references/sql-standard.md` 로 싣는다(Word · PDF · HWP 는 먼저 Markdown 으로). 앱이 스킬 폴더를 통째로 엔진에 옮기므로(#1081) AI 가 읽는다 (서버는 드라이버째 한 파일로 묶여 PC 에 Node 가 없어도 된다 — 앱이 자기 실행 파일로 돌린다)
 2. 설정 › 기능 › 플러그인 에서 zip 을 설치한다. 쓸 범위(이 프로젝트 · 모든 프로젝트)를 고르고, 다음 단계 폼에 DB 연결 정보를 넣어 [연결 확인] — "연결됨 — …" 이 보이면 된다
 3. 대화에서 튜닝을 요청한다. 스킬은 플러그인이 켜져 있는 동안 앱 스킬로 보인다
 4. (선택) 오른쪽 패널 `+` › SQL 튜닝 — 이 프로젝트의 표준 문서를 고치거나 바꾸고(새 대화부터 적용, 커밋하면 팀에도), 연결을 확인 · 고친다
