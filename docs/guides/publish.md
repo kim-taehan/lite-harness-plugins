@@ -65,7 +65,7 @@ npm run release -- --all           # 전부
 release 가 하는 일:
 
 1. 대상 전부의 분류를 먼저 확인합니다. 하나라도 빠지면 `dist` · `catalog` 를 건드리지 않고 멈춥니다.
-2. 폴더에 `build.mjs` 가 있으면 그것을 돌려 `build/<id>[-<platform>].zip` 을 받고, 없으면 폴더 안의 파일을 그대로 묶습니다(`changes.txt` · `README.md` · `.DS_Store` · `tests/` 빼고 — 문서와 테스트는 zip 에 들어가지 않습니다).
+2. 폴더에 `build.mjs` 가 있으면 그것을 돌려 `build/<id>[-<platform>].zip` 을 받고(zip 에 들어가는 파일은 `build.mjs` 가 정합니다 — 서비스는 `service.mjs` 로 묶어 싣습니다), 없으면 폴더 안의 파일을 그대로 묶습니다(`changes.txt` · `README.md` · `.DS_Store` · `tests/` 빼고 — 문서와 테스트는 zip 에 들어가지 않습니다).
 3. zip 을 `dist/<id>-<version>.zip` 에 두고 같은 id 의 옛 zip 은 지웁니다 — 되돌리기는 git 기록으로.
 4. sha256 · 크기 · details · permissions · type · category · changes 를 담아 `catalog.json` 의 그 항목을 갱신합니다.
 
@@ -98,7 +98,19 @@ main 에 머지되면 앱에서 [새로 확인] 을 눌러 목록에 보이는�
 - 버전은 `주.부.수`. 앱은 숫자로 비교해 **설치한 것보다 높을 때만** 업데이트를 띄우고, 낮은 버전으로는 바꾸지 않습니다.
 - **같은 버전에 내용만 바꿔 다시 올리지 않습니다** — 이미 설치한 PC 는 바뀐 줄 모릅니다. 고치면 버전을 올립니다.
 - 권한(`permissions`)이 늘어난 업데이트는 앱이 사용자에게 다시 묻습니다. 늘지 않았으면 묻지 않고 바꿉니다.
+- **서비스 플러그인**은 업데이트가 서비스를 새로 담았거나 `permissions` · `service.inject` · `service.events` · `service.api` · `scope` 를 바꿨으면, 사용자가 다시 동의하기 전까지 꺼집니다(카드에 "다시 동의해야 켜집니다"). 같은 선언으로 버전만 올리면 켜진 채 그대로입니다. 그래서 서비스 선언을 바꾸는 업데이트는 `changes.txt` 에 그 사실을 적습니다.
 - MCP 플러그인은 도구 목록을 버전마다 한 번 기억하니, 도구를 바꿨다면 반드시 버전을 올립니다.
+
+## 서비스 플러그인 올리기
+
+서비스(`service` 선언)를 담은 플러그인은 앱 안에서 도는 코드라서 zip 구성과 설치 뒤 동작이 조금 다릅니다. 만드는 법은 [서비스 플러그인 만들기](service-plugin.md).
+
+- **zip 구성** — `plugin.json` · `service.mjs`(번들 한 파일, ESM) · 패널 `index.html` · `skills/` · 서비스가 폴더에서 읽을 자산(wasm 같은 것). `build.mjs` 가 만듭니다. `README.md` · `tests/` · `changes.txt` 는 들어가지 않습니다.
+- **번들 한 파일** — 앱은 번들 바이트를 사본으로 옮겨 올려서, 옆 파일 `import` 나 `import.meta.url` 기준 경로는 설치 폴더를 가리키지 않습니다. 자산은 `host.dir`(플러그인 폴더) 에서 읽습니다.
+- **상한** — 번들 한 파일 4MB 이하, 읽고 올리는 데 5초 이내, 내릴 때 정리는 1초 이내입니다. `cordis` 를 가져오지 않고, `fetch(` · `node:http` · `WebSocket` 같은 직접 네트워크 흔적이 있으면 설치가 거절됩니다(`service-network-direct`) — 바깥 요청은 `host.fetch` 로만 합니다.
+- **`--dir` 개발 폴더** — `node plugins/<id>/build.mjs --dir` 가 같은 내용을 `build/<id>/` 로 냅니다(표준 17번). 개발 모드(설정 › 기능 › 플러그인 › 개발 중 › [폴더 연결])로 연결하면 선언을 고칠 때마다 재동의가 걸리지 않습니다(개발자 본인 폴더로 보고 동의한 것으로 침). 카드에 DEV 표시가 붙습니다.
+- **설치와 동의** — 설치 확인창에서 "앱 안에서 직접 실행됩니다. 출처를 확인했습니다" 에 동의하고 설치하면 그 자리에서 켜집니다. 창을 거치지 않은 설치(자동 동기화 등)는 꺼진 채입니다. 설치할 때 번들의 sha256 을 기록하고, 올릴 때마다 읽은 바이트가 같은 때만 올립니다.
+- **다시 설치** — 서비스 기록이 없는 이전 방식 설치본은 올라오지 않고 카드에 "다시 설치해야 합니다" 가 뜹니다. 옛 방식(`type: locale` · `grammar` 등)에서 서비스로 바꾼 업데이트는 서비스를 새로 담은 것이라 사용자가 한 번 동의해야 켜집니다. PR 과 `changes.txt` 에 "다시 설치 필요" 를 적습니다.
 
 ## 플랫폼 전용 플러그인
 
@@ -133,6 +145,7 @@ npm run release vi-pack      # → - vi-pack 목록에서 내림 (unlisted)
 
 - 폴더 이름과 manifest 의 `id` 가 같다
 - `version` 을 올렸다 (새 플러그인이면 `0.1.0` 부터)
+- 서비스 플러그인이면 `build.mjs --dir` 로 낸 폴더가 되고, zip 으로 설치해 동의 · 켜기까지 한 번 돌려 봤다
 - `categories.json` 에 한 줄 있다
 - zip 으로 직접 설치해 한 번 돌려 봤다
 - 권한은 쓰는 것만 적었다
@@ -145,4 +158,5 @@ npm run release vi-pack      # → - vi-pack 목록에서 내림 (unlisted)
 ## 다음
 
 - [가이드 목록](../README.md) — 다른 종류의 플러그인 만들기
+- [서비스 플러그인 만들기](service-plugin.md) — 서비스 번들과 호스트 API
 - [MCP 플러그인 만들기](mcp-plugin.md) — build.mjs 가 있는 플러그인

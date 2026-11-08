@@ -5,7 +5,8 @@
 UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화로 고르고, 테스트 코드를 만들어 PC 의 Chrome · Edge 로 단계마다 스크린샷을 찍으며 돌리고, 한 파일 HTML 결과서와 지난 수행 비교를 남긴다 (#1248, 계획 `docs/guide/superpowers/specs/2026-11-06-ui-test-plugin-design.md` 1 단계 — web, 2 단계 — 유지보수 · 보강, 0.2.0).
 
 - 범위: `"project"` — 대상 주소 · 계정 · 테스트 폴더가 프로젝트마다 다르다(`settingsPer: "project"`).
-- 권한: `secrets`(테스트 계정 비밀번호를 비밀 칸으로) · `mcp`(실행기 서버) · `project`(패널이 결과서를 앱 파일 보기로 엶) · `chat`(패널의 [보강] · [AI 에게 맡기기] 가 새 대화에 요청을 보냄).
+- 앱에 닿는 자리: 서비스(`service` — 앱 안에서 도는 얇은 중계 · 진행 밀어 보내기, 서버를 `host.mcp.register`, 스킬을 `host.skills.register` 로 올림) · 별도 프로세스 MCP 서버(실행기, playwright-core) · 스킬 · 패널.
+- 권한: `service`(서비스를 담는다) · `project`(서비스가 결과서를 앱 파일 보기로 엶) · `chat`(서비스가 [보강] · [AI 에게 맡기기] 의 새 대화 요청을 보냄). `secrets` 권한은 없다 — 비밀번호는 설정의 secret 칸에 저장되고 서버 env 의 `${secret:password}` 로 서버 프로세스에만 가며, 서비스는 비밀을 읽지 못한다(권한 검사 없이 앱이 풀어 준다).
 
 ## 2 단계 (0.2.0) — 유지보수 · 보강
 
@@ -15,7 +16,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 - **데이터 표**: 시나리오의 `## 데이터` 마크다운 표 → 행마다 새 창으로 한 번씩, 생성 코드는 `data.<열>` 로 읽는다. 결과 · 결과서 · 지난 수행 비교가 행마다(`04-나이 2행`)
 - **규칙 덮임**(어림값): suite.md `## 규칙`(`- [검증|업무] 규칙 — 다루는 시나리오`) → `list` · 패널에 "검증 규칙 5/7 · 업무 규칙 2/4" 와 안 다룬 규칙. 코드 커버리지가 아니다
 - **패널**: 시나리오 줄(코드 없음 · 코드 낡음 · 코드 바뀜 · 데이터 n행 · 확인 n · 마지막 결과) · [보강] · 실패면 [AI 에게 맡기기] · 안 다룬 규칙 누르기 — 모두 `chat.compose { text, send: true }`(새 대화에 요청을 바로 보냄, `chat` 권한). 고르기 · 고치기는 대화에서 스킬이(여러 개 고르기 카드)
-- **긴 수행**: 엔진의 MCP 도구 호출 기한은 `experimental.mcp_timeout` 300초(`src/services/opencode/engineConfig.ts` `MCP_CALL_TIMEOUT_MS`) — plugin.json 의 `timeoutMs` 30분은 앱 → 서버 구간일 뿐 엔진이 5분에 끊는다. 그래서 `run` 은 시작하고 최대 120초(`RUN_WAIT_MS`)만 기다려, 안 끝났으면 수행 id 를 돌려주고 AI 는 `report { suite, run }` 으로 다시 기다린다(한 번에 120초). 패널은 전처럼 `progress`
+- **긴 수행**: 엔진의 MCP 도구 호출 기한은 `experimental.mcp_timeout` 300초(`src/services/opencode/engineConfig.ts` `MCP_CALL_TIMEOUT_MS`) — plugin.json 의 `timeoutMs` 30분은 앱 → 서버 구간일 뿐 엔진이 5분에 끊는다. 그래서 `run` 은 시작하고 최대 120초(`RUN_WAIT_MS`)만 기다려, 안 끝났으면 수행 id 를 돌려주고 AI 는 `report { suite, run }` 으로 다시 기다린다(한 번에 120초). 수행 중의 진행은 서비스가 서버의 `progress` 를 1초마다 읽어 패널로 밀어 보낸다(`service.progress`)
 - **중단됨**: 대화가 `run` · `report` 호출을 멈추면(턴 멈춤 — MCP 요청 취소) 수행도 멈추고, 앱이 서버를 내리면(표준입력 닫힘 · SIGTERM) 브라우저를 닫고 돈 데까지 결과서 · 이력을 "중단됨(까닭)" 으로 남긴 뒤 끝난다. 남은 케이스는 멈춤
 - **결과서 크기**: 앱 파일 미리보기의 HTML 한도는 20MB(`HTML_PREVIEW_LIMIT`). 스크린샷은 화면 배율 0.75(1280×800 배치 → 960×600) · JPEG 60, 결과서에 넣는 사진 합은 13MB(`REPORT_IMAGE_BUDGET`, base64 로 약 17MB) — 넘치면 실패 순간을 먼저 남기고 단계 끝 사진을 빼며 결과서에 몇 장 뺐는지 적는다. 확장이 바깥 브라우저로 여는 통로는 앱에 없어 패널은 전처럼 프로젝트 안이면 미리보기, 밖이면 경로
 
@@ -34,7 +35,9 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 
 ## 구성
 
-- `plugin.json` — 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 · 결과서 폴더), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목), `mcp`(패널 전용 `progress` · `stop` · `shot`), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
+- `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 · 결과서 폴더), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
+- `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
+- `build.mjs` — 서비스를 `service.mjs` 한 파일로, 서버를 `server/ui-test.mjs` 로 묶는다(`--dir` 지원)
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run <묶음> [--failed] [--headed]`, 실패가 있으면 종료 코드 1
 - `server/tools.ts` — 도구 `list` · `run { suite, scenarios?: string[] | "failed", headed? }` · `report { suite, run? }` · `fingerprint { files }` (AI · 패널), `progress` · `stop` · `shot` (패널), `check` (설정 폼)
 - `server/failure.ts` — 실패 갈래 · 길잡이
@@ -44,8 +47,8 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 - `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 케이스마다 단계 표 · 오류 · 테스트 방법
 - `server/history.ts` — 이력 · 지난 수행과 비교(새로 실패 · 고쳐짐 · 그대로 실패)
 - `server/scenario.ts` — 시나리오 · suite.md 읽기, 지문
-- `skills/ui-test/` — 흐름(소스 읽기 → 초안 → 여러 개 고르기 → 저장 → 코드 → 수행 → 요약 → 테스트 방법), `references/formats.md` · `references/step-api.md`
-- `index.html` — 패널: 묶음 목록 · 최근 이력(결과서) · [다시 수행 ▾](전체 · 실패만 · 시나리오 고르기 · 보면서/화면 없이) · 지금 수행의 단계와 썸네일 · [멈추기]
+- `skills/ui-test/` — (서비스가 올린다 — manifest `skills` 선언은 없다) 흐름(소스 읽기 → 초안 → 여러 개 고르기 → 저장 → 코드 → 수행 → 요약 → 테스트 방법), `references/formats.md` · `references/step-api.md`
+- `index.html` — 패널: 묶음 목록 · 최근 이력(결과서) · [다시 수행 ▾](전체 · 실패만 · 시나리오 고르기 · 보면서/화면 없이) · 지금 수행의 단계와 썸네일 · [멈추기]. 앱과는 `service.call` 한 통로로만 말하고 진행은 `service.progress` 소식으로 받는다
 
 비밀번호는 env 로만 서버에 가고, 결과서 · 도구 결과 · 오류 글에서 한 번 더 지운다(password 칸 스크린샷은 브라우저가 가린 그대로). "확인(DB):" 단계는 실행기가 돌리지 않는다 — 결과서에 "대화에서만 확인", AI 가 DB 조회 도구가 있으면 대화에서 확인한다.
 
@@ -53,7 +56,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 
 ### 묶기 · 배포
 
-`npm run release ui-test` (묶기만 하려면 `node plugins/ui-test/build.mjs` → `build/ui-test.zip`, 약 3 MB). 서버는 MCP SDK 째 `server/ui-test.mjs` 한 파일로 묶고, playwright-core 는 esbuild 로 묶이지 않아(자기 폴더를 `__dirname` 으로 찾고 쓰지 않는 chromium-bidi 를 require) `server/node_modules/playwright-core` 에 파일 그대로 싣는다. 앱이 자기 실행 파일(Node)로 띄우므로 PC 에 Node 가 없어도 되고, 브라우저는 내려받지 않고 PC 의 Chrome(없으면 Edge)을 `channel` 로 쓴다.
+`npm run release ui-test` (묶기만 하려면 `node plugins/ui-test/build.mjs` → `build/ui-test.zip`, 약 3 MB, `--dir` 이면 `build/ui-test/` 폴더). 서비스는 `service.mjs` 한 파일로 묶는다. 서버는 MCP SDK 째 `server/ui-test.mjs` 한 파일로 묶고, playwright-core 는 esbuild 로 묶이지 않아(자기 폴더를 `__dirname` 으로 찾고 쓰지 않는 chromium-bidi 를 require) `server/node_modules/playwright-core` 에 파일 그대로 싣는다. 앱이 자기 실행 파일(Node)로 띄우므로 PC 에 Node 가 없어도 되고, 브라우저는 내려받지 않고 PC 의 Chrome(없으면 Edge)을 `channel` 로 쓴다.
 
 ### AI 없이 (CI)
 
@@ -61,4 +64,8 @@ zip 의 `server/` 폴더(러너 + `node_modules/playwright-core`)를 CI 에 두�
 
 ### 테스트
 
-`plugins/ui-test/tests/` (`npm test -- --project ui-test`) — 가짜 브라우저로만(단위 테스트는 브라우저를 띄우지 않는다).
+`plugins/ui-test/tests/` (`npm test -- --project ui-test`) — 가짜 브라우저로만(단위 테스트는 브라우저를 띄우지 않는다). `service.test.ts` 는 SDK 가짜 host 로 서비스의 중계 · 진행 밀어 보내기 · 감시 정리를 본다. **앱이 서비스를 올리고 패널이 `service.call` · `service.progress` 로 주고받는 것, 진짜 서버로 수행되는 것은 앱에서 확인**한다(못 봄).
+
+### 설치 2 단계 폼의 [연결 확인]
+
+`settingsCheck` 는 서비스가 올린 서버의 `check` 도구를 부른다. 설치 확인창의 2 단계 폼은 서비스가 아직 안 떠 있어 [연결 확인] 이 `check-unavailable` 이다 — 설치한 뒤 설정 화면에서 누른다. 서버 도구 이름은 manifest `mcp` 때와 같이 AI 에 `litecode_ui-test_<도구>` 로 보여 스킬은 그대로다.

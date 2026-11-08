@@ -53,6 +53,9 @@ export default (host) =>
       // 전체 화면 — 서비스가 그 패널 탭에 열고 닫는다(패널이 보이는 탭일 때만 된다)
       this.expose('fullscreen', (params, { directory }) => host.call('panel.fullscreen', { on: params?.on === true }, { directory }))
 
+      // 스킬 — "빛톨아" 같은 말에 AI 가 persona 도구로 그 말투로만 답하게 하는 지침. 서비스가 켜진 프로젝트에서만 보인다
+      host.skills.register({ name: 'token-pet', path: 'skills/token-pet/SKILL.md' })
+
       // AI 도구 — AI 에는 token-pet_persona · token-pet_say 로 보인다
       host.tools.register({
         name: 'persona',

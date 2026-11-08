@@ -60,14 +60,16 @@ code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--so
 <script>
 // UI 테스트 패널 (#1248, 시안 MrZMThmkHeChQyTtZCVDYJ ② · ④ · ⑤) — 묶음 목록 · 규칙 덮임(어림값) · 시나리오 줄(코드 낡음 · 코드 바뀜 · [보강] · [AI 에게 맡기기]) ·
 // 최근 이력(결과서 열기) · [다시 수행 ▾] · 지금 수행의 진행과 [멈추기].
-// 자기 MCP 서버의 도구를 mcp.call 로 부른다: list(json) · run · progress · stop · shot. 서버는 이 프로젝트 폴더에서 돈다 — 묶음 · 이력도 이 프로젝트 것만.
-// [보강] · [AI 에게 맡기기] · 안 다룬 규칙은 chat.compose(새 대화에 요청 글을 바로 보낸다)로 — 고르기 · 고치기는 대화에서 스킬이 한다
+// 서비스(service.mjs)에 service.call 로만 묻는다: list(json) · run · progress · stop · shot · openFile · ask. 서비스가 이 프로젝트의 MCP 서버를 부른다 — 묶음 · 이력도 이 프로젝트 것만.
+// 수행 중의 진행은 서비스가 밀어 보낸다(service.progress 소식) — 폴링하지 않는다.
+// [보강] · [AI 에게 맡기기] · 안 다룬 규칙은 ask(새 대화에 요청 글을 바로 보낸다)로 — 고르기 · 고치기는 대화에서 스킬이 한다
 // 앱과는 통로로만 말한다: parent.postMessage({ litecode: 1, id, method, params })
 
 let seq = 0
 const waiting = new Map()
 addEventListener('message', (event) => {
   const data = event.data
+  if (event.source === parent && data && data.litecode === 1 && data.event) return onEvent(data.event, data.data)
   if (event.source !== parent || !data || data.litecode !== 1 || !waiting.has(data.id)) return
   const done = waiting.get(data.id)
   waiting.delete(data.id)
@@ -80,13 +82,9 @@ function call(method, params) {
     parent.postMessage({ litecode: 1, id, method, params }, '*')
   })
 }
-/** 자기 MCP 도구 — 실패면 Error(글) */
-async function tool(name, args = {}) {
-  const result = await call('mcp.call', { tool: name, args })
-  if (result?.isError) throw new Error(result.text)
-  return result?.text ?? ''
-}
-const ERRORS = { 'no-project': '열린 프로젝트가 없습니다', 'mcp-failed': '플러그인 서버를 띄우지 못했습니다', 'not-on': '이 프로젝트에서 UI 테스트가 꺼져 있습니다' }
+/** 서비스의 메서드 — 서버 도구의 글을 그대로 돌려준다. 실패면 Error(글) */
+const tool = (name, args = {}) => call('service.call', { name, params: args })
+const ERRORS = { 'no-project': '열린 프로젝트가 없습니다', 'mcp-failed': '플러그인 서버를 띄우지 못했습니다', 'not-on': '이 프로젝트에서 UI 테스트가 꺼져 있습니다', 'service-off': 'UI 테스트 서비스가 꺼져 있습니다 — 설정 › 기능 › 플러그인에서 켜 주세요', 'service-failed': 'UI 테스트 서비스가 오류로 멈췄습니다' }
 const errorText = (error) => ERRORS[error?.message] || error?.message || String(error)
 
 const state = {
@@ -140,22 +138,30 @@ async function openReport(report) {
     state.message = `결과서: ${report}`
     return render()
   }
-  await call('project.openFile', { path: report }).catch((error) => ((state.message = errorText(error)), render()))
+  await tool('openFile', { path: report }).catch((error) => ((state.message = errorText(error)), render()))
 }
 
-let polling
-async function poll() {
+/** 진행을 받아 그린다 — 서비스가 밀어 보내거나(service.progress) 패널을 열 때 한 번 읽는다. 끝났으면 묶음 · 이력을 다시 읽는다 */
+function applyProgress(progress) {
+  const wasRunning = state.progress?.running
+  state.progress = progress
+  for (const item of state.progress?.cases ?? []) for (const step of [...item.steps, ...(item.rows ?? []).flatMap((row) => row.steps)]) for (const name of [step.shot, step.failShot]) if (name) thumb(name)
+  render()
+  if (wasRunning && !progress?.running) void load()
+}
+async function refreshProgress() {
   try {
-    state.progress = JSON.parse(await tool('progress'))
+    applyProgress(JSON.parse(await tool('progress')))
   } catch {
     // 서버가 다시 뜨는 중
   }
-  for (const item of state.progress?.cases ?? []) for (const step of [...item.steps, ...(item.rows ?? []).flatMap((row) => row.steps)]) for (const name of [step.shot, step.failShot]) if (name) thumb(name)
-  render()
-  if (state.progress?.running) polling = setTimeout(poll, 1000)
-  else {
-    polling = undefined
-    void load()
+}
+/** 서비스 소식 — progress(수행 진행) · runError(수행 시작·진행 실패) */
+function onEvent(event, data) {
+  if (event === 'service.progress') return data?.stale ? void refreshProgress() : applyProgress(data)
+  if (event === 'service.runError') {
+    state.message = data?.message ?? ''
+    render()
   }
 }
 
@@ -174,21 +180,18 @@ async function rerun(suite, scenarios) {
   state.picking = undefined
   state.message = ''
   const args = { suite, headed: state.headed, ...(scenarios && { scenarios }) }
-  // run 은 끝날 때까지 돌아오지 않는다 — 진행은 progress 로 본다
+  // 서비스가 수행을 시작하고 진행을 밀어 보낸다 — 여기서는 시작이 막혔을 때만 알린다
   tool('run', args).then(
     () => undefined,
     (error) => ((state.message = errorText(error)), render()),
   )
-  setTimeout(() => {
-    if (!polling) poll()
-  }, 400)
 }
 
 /** 대화로 넘기기 — 새 대화를 열어 요청 글을 바로 보낸다 (chat 권한) */
 async function ask(text) {
   state.message = ''
   try {
-    await call('chat.compose', { text, send: true })
+    await tool('ask', { text })
   } catch (error) {
     state.message = errorText(error)
     render()
@@ -402,7 +405,11 @@ addEventListener('click', (event) => {
   }
 })
 
-void load().then(poll)
+void (async () => {
+  try { await call('events.subscribe', { events: ['service.progress', 'service.runError'] }) } catch { /* 권한 없음 */ }
+  await load()
+  await refreshProgress()
+})()
 </script>
 </body>
 </html>
