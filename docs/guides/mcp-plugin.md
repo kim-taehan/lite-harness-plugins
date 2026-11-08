@@ -74,8 +74,8 @@ build.mjs                묶기 — build/hello-mcp.zip 을 만든다 (--dir 이
 | 필드 | 규칙 |
 |---|---|
 | `mcp` | `mcp` 권한과 **같이만** — 한쪽만 있으면 거절. `command` 는 zip 안의 실행 파일(빌드 결과 경로) |
-| `mcp.env` | 자리표시 `${storage:<키>}` · `${secret:<키>}` · `${extensionDir}` · `${dataDir}`. 설정 칸에 선언된 키면 설정 값을, 아니면 패널 저장 칸 값을 넣습니다. 값이 바뀌면 다음 호출에 새 값으로 서버를 다시 띄웁니다 |
-| `mcp.args` | `${extensionDir}` · `${dataDir}` 만 — 비밀 값은 프로세스 목록에 보이는 args 에 넣지 않습니다 |
+| `mcp.env` | 자리표시 `${storage:<키>}` · `${secret:<키>}` · `${extensionDir}` · `${dataDir}` · `${projectDataDir}`(프로젝트별 자료 폴더). 설정 칸에 선언된 키면 설정 값을, 아니면 패널 저장 칸 값을 넣습니다. 값이 바뀌면 다음 호출에 새 값으로 서버를 다시 띄웁니다 |
+| `mcp.args` | `${extensionDir}` · `${dataDir}` · `${projectDataDir}` 만 — 비밀 값은 프로세스 목록에 보이는 args 에 넣지 않습니다 |
 | `mcp.idleMs` · `timeoutMs` | 쉬면 내리는 시간(기본 10분) · 호출 한 번의 기한(기본 5분) |
 | `mcp.panelTools` | AI 목록에 올리지 않고 패널의 `mcp.call` 로만 부르는 도구 |
 | `mcp.attach` | `"litecode"`(기본) · `"server"` — 엔진에 붙이는 방식. 아래 [엔진에 붙이는 방식 고르기](#엔진에-붙이는-방식-고르기) |

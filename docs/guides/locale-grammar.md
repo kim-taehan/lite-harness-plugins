@@ -94,11 +94,11 @@ ls node_modules/code-grammar-ruby/*.wasm      # 패키지가 wasm 을 싣고 있
 
 > wasm 을 싣지 않은 문법 패키지도 있습니다. 그럴 때는 다른 배포본(예: `@tree-sitter-grammars/…`)을 찾습니다 — kotlin 팩이 그렇게 받습니다. 패키지의 라이선스 파일은 팩 폴더에 `LICENSE` 로 같이 둡니다.
 
-### 5. extension.json
+### 5. plugin.json
 
-문법 팩은 아직 `extension.json` 이름을 씁니다 — 묶기 스크립트(`scripts/grammar-pack.mjs`)가 이 이름을 읽습니다. 앱은 두 이름 다 읽습니다.
+새 팩은 `plugin.json` 으로 씁니다(표준 4번). 묶기 스크립트(`scripts/grammar-pack.mjs`)는 `plugin.json` 을 먼저, 없으면 옛 팩의 `extension.json` 을 읽습니다.
 
-`plugins/ruby-grammar/extension.json`
+`plugins/ruby-grammar/plugin.json`
 
 ```json
 {
@@ -156,7 +156,7 @@ packGrammar(import.meta.dirname, 'code-grammar-ruby')
 터미널
 
 ```sh
-node plugins/ruby-grammar/build.mjs     # → build/ruby-grammar.zip (extension.json · LICENSE · wasm)
+node plugins/ruby-grammar/build.mjs     # → build/ruby-grammar.zip (plugin.json · LICENSE · wasm)
 ```
 
 저장소로 올릴 때는 `categories.json` 에 `"ruby-grammar": "dev-tool"` 한 줄을 더합니다 — [저장소로 내보내기](publish.md).
