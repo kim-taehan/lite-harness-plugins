@@ -1,5 +1,5 @@
 // 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
-import type { ExposedCall, ServiceBase, ServiceCallMethod, ServiceContext, ServiceEventMap, ServiceEventName, ServiceHost, ServiceInjectKey, ServiceMcpServer, ServiceToolCall } from './litecode-service.js'
+import type { ExposedCall, ServiceBase, ServiceGrammar, ServiceCallMethod, ServiceContext, ServiceEventMap, ServiceEventName, ServiceHost, ServiceInjectKey, ServiceMcpServer, ServiceToolCall } from './litecode-service.js'
 
 export interface FakeHostOptions {
   /** 기본 'project' — manifest scope 와 같다 */
@@ -14,7 +14,12 @@ export interface FakeHostOptions {
   settings?: Record<string, unknown>
   /** host.call 이 메서드별로 돌려줄 값 — 앞문(허용 목록 · scope 의 not-on)은 진짜 호스트와 같고, 여기 없는 허용 메서드는 io-failed 로 던진다 */
   calls?: Partial<Record<ServiceCallMethod, (params: unknown, options: { directory?: string }) => unknown>>
+  /** 사용자가 허용한 주소(origin) — 주면 host.fetch(network.fetch)가 이 목록 밖 주소에 진짜 앱처럼 consent-required(ServiceCallError.origin 에 그 주소)로 던진다.
+   *  안 주면 주소를 따지지 않는다. 시험 중 allowOrigin 으로 늘린다 */
+  allowedOrigins?: readonly string[]
   id?: string
+  /** host.dir 이 돌려줄 플러그인 설치 폴더 경로 — 기본 '/fake/plugin' (시험용 폴더로) */
+  dir?: string
 }
 
 export interface FakeHost {
@@ -28,6 +33,8 @@ export interface FakeHost {
   disableProject(directory: string): void
   /** projectOn 을 불러 둔 프로젝트 */
   projectsOn(): string[]
+  /** 사용자가 그 주소를 허용한 것처럼 목록에 더한다 — allowedOrigins 를 줬을 때, 다음 host.fetch 부터 통한다 */
+  allowOrigin(origin: string): void
   /** 앱이 소식을 냈다 — 받기로 선언한 서비스에, 켜진 프로젝트 것만 준다 */
   emit<K extends ServiceEventName>(name: K, payload?: Partial<ServiceEventMap[K]> & { directory?: string }): Promise<void>
   /** 패널의 service.call 처럼 expose 한 메서드를 부른다 — 결과는 JSON 으로 오간 값(undefined 는 null) */
@@ -37,8 +44,10 @@ export interface FakeHost {
   pushes(): { event: string; data: unknown; directory?: string }[]
   /** host.locale.register 로 올려 둔 언어 팩 — 해제하면 빠진다 */
   locales(): { language: string; label: string; messages: Record<string, string>; version?: string }[]
+  /** host.grammars.register 로 올려 둔 문법(scope "app" 만 올린다) — 해제하면 빠진다 */
+  grammars(): ServiceGrammar[]
   /** host.skills.register · agents.register 로 올려 둔 것 — 해제하면 빠진다 */
-  skills(): ({ name: string } & ({ content: string } | { path: string }))[]
+  skills(): ({ name: string } & ({ content: string } | { path: string } | { dir: string }))[]
   agents(): ({ name: string } & ({ content: string } | { path: string }))[]
   /** host.lsp.register 로 올려 둔 언어 서버 */
   lspServers(): { languageId: string; extensions: string[]; command: string }[]

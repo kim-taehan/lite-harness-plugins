@@ -1,0 +1,27 @@
+[
+  {
+    "id": "rust",
+    "label": "Rust",
+    "extensions": [
+      "rs"
+    ],
+    "wasm": "tree-sitter-rust.wasm",
+    "definitions": {
+      "mod_item": "namespace",
+      "struct_item": "struct",
+      "union_item": "struct",
+      "enum_item": "enum",
+      "trait_item": "interface",
+      "impl_item": {
+        "field": "type",
+        "kinds": {
+          "*": "struct"
+        },
+        "name": "type"
+      },
+      "function_item": "function",
+      "function_signature_item": "function",
+      "type_item": "type"
+    }
+  }
+]
