@@ -57,6 +57,12 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
   it('8 · mcp.args 에 비밀 값을 넣지 않는다', () => {
     expect((manifest.mcp?.args ?? []).filter((arg) => arg.includes('${secret:'))).toEqual([])
   })
+
+  it('17 · mcp 플러그인의 build.mjs 는 --dir 을 받는다', () => {
+    const build = path.join(pluginsDir, folder, 'build.mjs')
+    if (!manifest.mcp || !existsSync(build)) return
+    expect(readFileSync(build, 'utf8'), 'build.mjs 가 --dir 을 받지 않습니다').toContain("'--dir'")
+  })
 })
 
 it('9 · 루트 package.json 의존성은 버전 고정', () => {
