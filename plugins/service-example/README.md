@@ -21,5 +21,5 @@
 ## 개발
 
 - 묶기: 의존성이 없어 `build.mjs` 없음 — release 가 폴더를 그대로 묶는다(`README.md` · `changes.txt` · `tests/` 빼고).
-- 테스트: `npm test -- --project service-example` — 구독하는 소식 · 프로젝트별 셈 · 프로젝트 없는 소식 버리기. **앱이 서비스를 올리고 패널이 묻는 것은 앱 PR 2 뒤에 앱에서 확인**한다(아직 못 봄). 소식에 실리는 `directory` 모양은 desktop `shared/extensions/serviceApi.ts` 설명을 따랐다.
+- 테스트: `npm test -- --project service-example` — 구독하는 소식 · 프로젝트별 셈 · 프로젝트 없는 소식 버리기. **앱이 서비스를 올리고 패널이 묻는 것은 앱 PR 2 뒤에 앱에서 확인**한다(아직 못 봄). 소식 값은 `{ directory, conversationId, outcome }`, `expose` 의 두 번째 인자는 `{ directory? }`(폴더를 모르면 없음)로 desktop 에 확인했다.
 - 배포: 목록에 내는 플러그인이 아니라 release 하지 않는다. 내려면 `categories.json` 의 `unlisted` 를 분류로 바꾼다.

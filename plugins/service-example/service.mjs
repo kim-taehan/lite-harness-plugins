@@ -9,7 +9,7 @@ export default ({ Service }) =>
       ctx.on('chat.turnEnded', ({ directory }) => {
         if (typeof directory === 'string') this.turns.set(directory, (this.turns.get(directory) ?? 0) + 1)
       })
-      // 패널이 service.call { name: 'count' } 로 묻는다 — 두 번째 인자는 호출한 프로젝트
-      this.expose('count', (_params, { directory }) => ({ turns: this.turns.get(directory) ?? 0 }))
+      // 패널이 service.call { name: 'count' } 로 묻는다 — 두 번째 인자 { directory? } 는 호출한 프로젝트, 폴더를 모르면 directory 가 없다
+      this.expose('count', (_params, { directory } = {}) => ({ turns: directory === undefined ? 0 : (this.turns.get(directory) ?? 0) }))
     }
   }
