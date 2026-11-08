@@ -1,6 +1,6 @@
 # File formats
 
-All files are plain Markdown in the project's test folder (default `ui-tests/`), committed with the project.
+All files are plain Markdown in the project's test folder (default `ui-tests/`) inside the project. Whether to commit them is the user's choice — don't add them to git or assume a team shares them.
 
 ## Scenario — `<test folder>/<suite>/01-<name>.md`
 
@@ -76,7 +76,7 @@ Environment: UI_TEST_BASE_URL (target), UI_TEST_USER, UI_TEST_PASSWORD (from the
 - `request` is the user's request text, `created` the date you made it. `url` is optional — leave it out to use the settings' target address (an address here wins over the setting).
 - `## 시나리오 순서` decides the run order. Files not listed run after, by name.
 - `## 규칙` (optional) — the screen's rules you extracted from the code: `- [검증] <rule> — <scenario numbers>` for validation, `- [업무] <rule> — …` for business rules, `— (없음)` when no scenario covers it yet. `list` and the panel count them ("검증 규칙 2/2 · 업무 규칙 1/2") — an estimate, not code coverage.
-- Copy the CI command line exactly as `list` prints it ("AI 없이: …") — it points at the plugin's bundled runner. To run in CI, the team copies the plugin's `server/` folder (runner + its `node_modules/playwright-core`) next to the repo or onto the CI machine and adjusts the path; the machine needs Node 20+ and Chrome or Edge.
+- Copy the CI command line exactly as `list` prints it ("AI 없이: …") — it points at the plugin's bundled runner. To run in CI, copy the plugin's `server/` folder (runner + its `node_modules/playwright-core`) next to the repo or onto the CI machine and adjust the path; the machine needs Node 20+ and Chrome or Edge.
 
 ## Generated code — `<test folder>/<suite>/01-<name>.spec.mjs`
 

@@ -17,7 +17,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 ## 프로젝트의 파일
 
 ```
-<project>/ui-tests/                    테스트 폴더 (설정 "테스트 폴더", 프로젝트 안만) — 커밋해 팀이 같이 쓴다
+<project>/ui-tests/                    테스트 폴더 (설정 "테스트 폴더", 프로젝트 안만) — 저장소에 올릴지는 사용자가 정한다
   <묶음>/suite.md                       요청 원문 · 만든 날 · 대상 · 시나리오 순서 · AI 없이 돌리는 명령
   <묶음>/01-<이름>.md                   시나리오 + ## 테스트 방법 (첫 성공 뒤 AI 가 쓴다)
   <묶음>/01-<이름>.spec.mjs             생성 코드 — 시나리오 옆에 같은 이름, import 없이 단계 API 만 쓴다
@@ -54,4 +54,4 @@ zip 의 `server/` 폴더(러너 + `node_modules/playwright-core`)를 CI 에 두�
 
 ## 테스트
 
-`tests/unit/extensions/ui-test/` — 가짜 브라우저로만(단위 테스트는 브라우저를 띄우지 않는다).
+`plugins/ui-test/tests/` (`npm test -- --project ui-test`) — 가짜 브라우저로만(단위 테스트는 브라우저를 띄우지 않는다).
