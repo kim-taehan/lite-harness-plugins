@@ -6,8 +6,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
-const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage']
+const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
+const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'lsp']
+// 선언과 권한이 짝인 필드 — desktop shared/extensions.ts 의 PLUGIN_DECLARATIONS 중 permission 이 있는 것 (<필드>-mismatch)
+const PAIRED = ['tools', 'mcp', 'lsp']
 const ID = /^[a-z0-9-]{3,40}$/
 const VERSION = /^\d+\.\d+\.\d+$/
 
@@ -56,10 +58,10 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
     expect(Object.keys(manifest).filter((field) => !KNOWN_FIELDS.includes(field))).toEqual([])
   })
 
-  it('5 · 아는 권한만, mcp 선언 ↔ mcp 권한', () => {
+  it('5 · 아는 권한만, tools · mcp · lsp 선언 ↔ 같은 이름 권한', () => {
     const permissions = manifest.permissions ?? []
     expect(permissions.filter((permission) => !PERMISSIONS.includes(permission))).toEqual([])
-    expect(permissions.includes('mcp')).toBe(manifest.mcp !== undefined)
+    for (const field of PAIRED) expect(permissions.includes(field), `${field} 선언과 ${field} 권한은 둘 다 있거나 둘 다 없어야 합니다`).toBe(manifest[field] !== undefined)
   })
 
   it('7 · 패널이 바깥 script · stylesheet 를 싣지 않는다', () => {

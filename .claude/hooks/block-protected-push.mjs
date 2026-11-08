@@ -1,15 +1,16 @@
 // main 에 바로 push 하지 못하게 막는다 — 브랜치를 만들어 PR 로 올린다 (desktop 과 같은 규칙).
-import { readHookInput, block, git } from './lib.mjs'
+import { readHookInput, block, git, gitArgs } from './lib.mjs'
 
 const PROTECTED = ['main']
 const { command, cwd } = await readHookInput()
 
-const push = command.match(/(?:^|[;&|\n])\s*(?:\S*\/)?git(?:\s+-[Cc]\s+\S+)*\s+push\b([^;&|\n]*)/)
-if (!push) process.exit(0)
+const push = gitArgs(command, 'push')
+if (push === undefined) process.exit(0)
 
-const args = push[1].trim().split(/\s+/).filter((a) => a && !a.startsWith('-'))
+const args = push.trim().split(/\s+/).filter((a) => a && !a.startsWith('-'))
 const refspecs = args.slice(1) // 첫 번째는 원격 이름
-const targets = refspecs.map((r) => r.split(':').pop().replace(/^refs\/heads\//, ''))
+// `+main` 은 강제 push — 앞의 + 를 떼고 본다
+const targets = refspecs.map((r) => r.split(':').pop().replace(/^\+/, '').replace(/^refs\/heads\//, ''))
 
 if (refspecs.length === 0) {
   let current = ''

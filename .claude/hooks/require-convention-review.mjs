@@ -1,11 +1,11 @@
 // git commit 전에 /convention-review 심사를 거쳤는지 확인한다 (.claude/rules/plugin.md, desktop 과 같은 방식).
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { readHookInput, block, git } from './lib.mjs'
+import { readHookInput, block, git, gitArgs } from './lib.mjs'
 import { conventionState, STATE_FILE } from './convention-state.mjs'
 
 const { command, cwd } = await readHookInput()
-if (!/(?:^|[;&|\n])\s*(?:\S*\/)?git(?:\s+-[Cc]\s+\S+)*\s+commit\b/.test(command)) process.exit(0)
+if (gitArgs(command, 'commit') === undefined) process.exit(0)
 
 let top = cwd
 try { top = git(cwd, 'rev-parse', '--show-toplevel').trim() } catch {}
