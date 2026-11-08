@@ -39,7 +39,7 @@ AI 가 대화 중에 부르는 도구를 MCP 서버로 싣습니다. 설치 때 
 plugin.json              manifest
 server/index.mjs         MCP 서버 원본 (빌드가 server/hello-mcp.mjs 한 파일로 묶는다)
 skills/hello-mcp/SKILL.md  같이 설치되는 스킬
-build.mjs                묶기 — build/hello-mcp.zip 을 만든다
+build.mjs                묶기 — build/hello-mcp.zip 을 만든다 (--dir 이면 build/hello-mcp/ 폴더)
 ```
 
 ## 2. plugin.json
@@ -158,10 +158,12 @@ Do not imitate the tool.
 
 esbuild 로 서버를 SDK 째 한 파일로 묶고, manifest · 스킬과 함께 zip 을 만듭니다. `npm run release hello-mcp` 는 이 파일을 먼저 돌리고 나온 `build/hello-mcp.zip` 을 그대로 올립니다.
 
+`--dir` 을 주면 zip 대신 같은 내용을 `build/hello-mcp/` 폴더로 냅니다. 원본 폴더는 묶기 전이라 앱이 그대로 띄울 수 없어서, 앱의 개발 모드에서는 이 폴더를 연결합니다([7. 고치면서 바로 확인하기](#7-고치면서-바로-확인하기)). MCP 서버가 있는 플러그인의 build.mjs 는 `--dir` 을 꼭 받아야 합니다(표준 17번).
+
 `plugins/hello-mcp/build.mjs`
 
 ```js
-// `node plugins/hello-mcp/build.mjs` → build/hello-mcp.zip
+// `node plugins/hello-mcp/build.mjs [--dir]` → build/hello-mcp.zip (--dir 이면 같은 내용을 build/hello-mcp/ 폴더로)
 // 서버(server/index.mjs)를 MCP SDK 째 server/hello-mcp.mjs 한 파일로 묶는다. zip 에는 plugin.json · server/hello-mcp.mjs · skills/
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
@@ -182,10 +184,11 @@ await build({
   logLevel: 'warning',
 })
 for (const name of ['plugin.json', 'skills']) cpSync(path.join(here, name), path.join(stage, name), { recursive: true })
-const out = path.join(root, 'build', 'hello-mcp.zip')
+const out = path.join(root, 'build', process.argv.includes('--dir') ? 'hello-mcp' : 'hello-mcp.zip')
 mkdirSync(path.dirname(out), { recursive: true })
-rmSync(out, { force: true })
-execFileSync('zip', ['-qry', out, '.'], { cwd: stage })
+rmSync(out, { recursive: true, force: true })
+if (process.argv.includes('--dir')) cpSync(stage, out, { recursive: true, verbatimSymlinks: true })
+else execFileSync('zip', ['-qry', out, '.'], { cwd: stage })
 rmSync(stage, { recursive: true, force: true })
 console.log(`✓ ${path.relative(root, out)}`)
 ```
@@ -193,8 +196,9 @@ console.log(`✓ ${path.relative(root, out)}`)
 터미널 (저장소 맨 위에서)
 
 ```sh
-npm ci                                # 처음 한 번
-node plugins/hello-mcp/build.mjs      # → build/hello-mcp.zip
+npm ci                                      # 처음 한 번
+node plugins/hello-mcp/build.mjs            # → build/hello-mcp.zip
+node plugins/hello-mcp/build.mjs --dir      # → build/hello-mcp/ (개발 모드에서 연결할 폴더)
 ```
 
 묶기 전에 서버만 따로 확인하려면 MCP Inspector 로 띄워 봅니다: `HELLO_GREETING=안녕 npx @modelcontextprotocol/inspector node plugins/hello-mcp/server/index.mjs` (망 밖 PC 에서).
@@ -207,6 +211,18 @@ node plugins/hello-mcp/build.mjs      # → build/hello-mcp.zip
 4. 새 대화에서 "홍길동에게 인사해 줘" — AI 가 스킬을 따라 `litecode_hello-mcp_greet` 를 부르는지 봅니다.
 
 값은 나중에 플러그인 카드의 **[고치기]** 로 바꿉니다. 바꾸면 다음 호출에서 서버가 새 env 로 다시 뜹니다.
+
+## 7. 고치면서 바로 확인하기
+
+> 앱의 개발 모드는 desktop 에서 만드는 중입니다([desktop #1348](https://github.com/kim-taehan/lite-harness-desktop/issues/1348)). 들어오기 전에는 6번처럼 version 을 올리고 zip 으로 다시 설치합니다.
+
+개발 모드는 `npm run dev` 로 띄운 앱(또는 플러그인 개발자용 설치본)에만 있습니다. 연결한 폴더가 바뀌면 zip 설치와 같은 검사를 거쳐 다시 설치하고, 서버를 내리고 도구 목록을 새로 묻습니다. version 은 올리지 않아도 됩니다.
+
+1. `node plugins/hello-mcp/build.mjs --dir` 로 `build/hello-mcp/` 를 만듭니다.
+2. 설정 › 기능 › 플러그인 › **개발 중 › [폴더 연결]** 에서 `build/hello-mcp/` 를 고릅니다. `plugins/hello-mcp/` 원본 폴더가 아닙니다.
+3. 원본을 고칠 때마다 1번 명령을 다시 돌립니다. 앱이 바뀐 폴더를 보고 다시 설치합니다.
+
+개발 실행은 설치본과 다른 데이터 폴더를 써서, 설정 폼 값(연결 정보 · 비밀 값)은 개발 실행에서 한 번 다시 넣어야 합니다.
 
 ## 패널을 같이 두려면
 
