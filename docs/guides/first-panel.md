@@ -22,9 +22,10 @@
 
 ## 플러그인은 어떻게 도나
 
-패널 플러그인은 zip 하나입니다. 맨 위에 `plugin.json`(manifest)이 있고, 그것이 가리키는 **한 파일짜리 HTML** 이 오른쪽 패널 탭이 됩니다.
+패널 플러그인은 zip 하나입니다. 맨 위에 `plugin.json`(manifest)이 있고, 그것이 가리키는 **진입 HTML** 이 오른쪽 패널 탭이 됩니다.
 
-- HTML 은 **sandbox iframe** 에서 돕니다. 외부 스크립트 · 스타일 · 이미지 · 글꼴과 `fetch` 는 CSP 로 막힙니다 — 스크립트와 스타일은 HTML 안에 인라인으로 넣습니다. 같은 zip 의 다른 파일도 패널에서 불러올 수 없습니다.
+- HTML 은 **sandbox iframe** 에서 돕니다. 바깥 스크립트 · 스타일 · 이미지 · 글꼴과 `fetch` 는 CSP 로 막힙니다.
+- 같은 zip 의 스크립트 · 스타일시트 · 이미지는 진입 HTML 이 상대 경로로 적으면 앱이 읽어 넣어 줍니다 — 아래 [같은 zip 의 파일 쓰기](#같은-zip-의-파일-쓰기). 작은 패널은 한 파일에 다 넣어도 됩니다.
 - 앱에 무언가를 부탁하는 길은 `parent.postMessage` 하나(**앱 통로**)입니다. 앱은 메시지가 어느 iframe 에서 왔는지로 플러그인을 알아보고, manifest 의 `permissions` 에 적힌 것만 들어 줍니다.
 
 ## 1. 폴더와 plugin.json
@@ -59,7 +60,7 @@
 
 ## 2. 패널 HTML
 
-한 파일 안에 화면 · 스타일 · 스크립트를 다 넣습니다. 맨 위 `call()` 이 앱 통로입니다 — 요청에 번호를 붙여 보내고, 같은 번호의 답을 기다립니다.
+이 예제는 짧아서 한 파일 안에 화면 · 스타일 · 스크립트를 다 넣습니다(나누는 법은 아래 [같은 zip 의 파일 쓰기](#같은-zip-의-파일-쓰기)). 맨 위 `call()` 이 앱 통로입니다 — 요청에 번호를 붙여 보내고, 같은 번호의 답을 기다립니다.
 
 `plugins/hello-panel/index.html`
 
@@ -163,6 +164,30 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 
 개발 모드가 없는 앱에서는 `version` 을 올리고(`0.1.1`) 3번처럼 다시 묶어 설치합니다. 설치 카드에 지금 버전이 같이 보이고 새 버전으로 바뀝니다. 저장소로 나갈 때는 버전이 높아야만 업데이트로 보이니, 올리기 전에 버전을 꼭 올리세요(표준 13번). 권한을 늘리면 앱이 사용자에게 다시 묻습니다.
 
+## 같은 zip 의 파일 쓰기
+
+패널이 커지면 스크립트 · 스타일 · 이미지를 따로 두어도 됩니다. iframe 은 파일을 직접 읽지 못해서, 앱이 진입 HTML 에 **직접 적힌** 참조만 설치 폴더에서 읽어 iframe 안에 넣어 줍니다.
+
+```html
+<link rel="stylesheet" href="style.css">
+<img src="img/logo.png" alt="">
+<script src="lib/chart.js"></script>
+<script src="app.js"></script>
+```
+
+| 넣어 주는 것 | 넣지 않는 것 |
+|---|---|
+| `<script src>` — `type` 이 없거나 classic JS 일 때 | `<script type="module">` · 실행 중에 고르는 동적 `import()` |
+| `<link rel="stylesheet" href>` | CSS 안의 `url()` · `@import` · 글꼴 |
+| `<img src>` | JS 가 나중에 만드는 `<img>` · `<script>` 의 주소 |
+
+- **경로**는 진입 HTML 이 있는 폴더 기준 상대 경로입니다. `?` · `#` 뒤는 떼고, URL 인코딩은 풉니다. 플러그인 폴더 안에 머무는 `..` 는 됩니다.
+- 폴더 밖으로 나가는 `..`, 절대 경로(`/` 로 시작), 스킴(`https:` · `data:` 등), 백슬래시(`\`), 폴더 밖을 가리키는 링크는 읽지 않습니다.
+- js · css 는 UTF-8 글로, 이미지(png · jpg · jpeg · gif · webp · svg · ico · bmp)는 `data:` 주소로 넣습니다.
+- **상한**은 앞에서부터 64개, 하나에 4MB, 합쳐서 32MB 입니다. 넘거나 못 읽은 파일은 조용히 빠지고 패널은 그대로 열립니다. 오류 코드가 없으니, 빠진 게 의심되면 파일 이름 · 경로부터 봅니다.
+- 글꼴과 CSS 배경 이미지는 넣어 주지 않습니다. 필요하면 CSS 안에 `data:` 주소로 직접 넣습니다.
+- CSP 는 그대로라 바깥 주소(CDN 등)는 여전히 막힙니다(표준 7번). 라이브러리는 zip 에 담아 상대 경로로 적습니다.
+
 ## 앱 통로와 권한
 
 패널이 부를 수 있는 것과 필요한 권한입니다. 권한이 없는 메서드를 부르면 `permission-missing` 이 돌아옵니다.
@@ -196,7 +221,7 @@ await call('panel.notify', { title: '분석 끝', body: '느린 쿼리 3개를 �
 
 ## 정리
 
-`plugin.json` 과 인라인 HTML 하나로 패널 플러그인을 만들고, 앱 통로로 저장 · 프로젝트 읽기 · 대화 열기를 했습니다. 실제 예로는 [token-pet](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/token-pet)(`usage` · `storage` · 전체 화면)이 같은 모양입니다.
+`plugin.json` 과 HTML 하나로 패널 플러그인을 만들고, 앱 통로로 저장 · 프로젝트 읽기 · 대화 열기를 했습니다. 실제 예로는 [token-pet](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/token-pet)(`usage` · `storage` · 전체 화면)이 같은 모양입니다.
 
 ## 다음
 
