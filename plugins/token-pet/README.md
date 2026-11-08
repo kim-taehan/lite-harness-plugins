@@ -16,7 +16,7 @@ AI 에 쓴 토큰만큼 자라는 도트 몬스터. 누르거나 말을 걸면 �
 
 | 파일 · 폴더 | 하는 일 |
 |---|---|
-| `extension.json` | manifest — 패널, `service`(`service.mjs`, 소식 `usage.changed`), 스킬 |
+| `plugin.json` | manifest — 패널, `service`(`service.mjs`, 소식 `usage.changed`), 스킬 |
 | `service/index.mjs` | 서비스 원본 — 사용량 소식을 받아 먹이를 주고 저장(storage `state`)하고 패널에 밀어 보낸다(`service.update`). 패널이 부르는 `state` · `setBg` · `talk` · `fullscreen`, AI 도구 `persona` · `say` |
 | `game.js` | 게임 규칙(기준 · 부화 · 진화 · 졸업). 서비스(묶음에 들어간다)와 패널(`<script src>`)이 같이 쓴다 |
 | `persona.js` | 종 · 단계 · 성격별 대사와 말투 규칙. 서비스와 패널이 같이 쓴다 |
