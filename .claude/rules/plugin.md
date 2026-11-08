@@ -3,7 +3,7 @@
 플러그인을 만들거나 고칠 때 지키는 규칙. 왜 그런지와 예제는 `docs/guides/` 가이드에 있다.
 - **[필수]** 는 어기면 위반이다. 커밋 전 `/convention-review` 가 잡고, `— 테스트` 가 붙은 것은 `tests/standards.test.ts` 가 머지 전에 한 번 더 막는다.
 - **[검토]** 는 위반이 아니라 확인 질문으로 남긴다.
-- 정본은 desktop 코드다: manifest 는 `src/services/extensions/manifest.ts`, 권한·id 는 `shared/extensions.ts`, 앱 통로는 `calls/methods.ts`. 여기와 어긋나면 코드를 따르고 이 파일을 고친다.
+- 정본은 desktop 코드다: manifest 는 `src/services/extensions/manifest.ts`, 권한·id 는 `shared/extensions.ts`, 앱 통로는 `calls/table.ts`. 여기와 어긋나면 코드를 따르고 이 파일을 고친다.
 
 ## manifest
 1. **[필수]** 폴더는 `plugins/<id>/` 하나 — 폴더 이름과 manifest 의 `id` 가 같다. 분류별 하위 폴더를 만들지 않는다. — 테스트

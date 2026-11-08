@@ -239,6 +239,19 @@ await call('settings.check')                      // [연결 확인] 과 같은 
 
 진행률 · 멈추기처럼 패널만 쓰는 도구는 `mcp.panelTools` 에 적어 AI 목록에서 뺍니다. 실제 예: [ui-test](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/ui-test) (`progress` · `stop` · `shot`).
 
+## 알림을 띄우려면
+
+MCP 서버는 앱 알림을 직접 낼 수 없습니다. 도구 결과가 엔진을 거쳐 AI 에게 가서, 앱이 중간에서 꺼낼 자리가 없기 때문입니다. 대신 두 길이 있습니다.
+
+- **패널에서** — `mcp.call` 결과를 받은 뒤 패널이 `panel.notify` 를 부릅니다. 모양과 상한은 [패널 가이드의 알림](first-panel.md#알림)을 따릅니다.
+- **`tools` 도구에서** — 한 번 실행하는 도구(`tools` 선언)는 stdout 결과 JSON 에 `notify` 를 같이 실을 수 있습니다. AI 가 부를 때도, 패널의 `tools.run` 으로 부를 때도 같은 검사 · 상한(60초에 5개)을 거치고, AI 에게는 `text` 만 갑니다.
+
+```json
+{ "text": "분석이 끝났습니다", "notify": { "title": "분석 끝", "body": "느린 쿼리 3개", "level": "success" } }
+```
+
+새 manifest 필드나 권한은 필요 없습니다.
+
 ## 정리
 
 MCP 서버 · 설정 칸 · [연결 확인] · 스킬을 담은 플러그인을 만들고, 앱의 Node 로 돌도록 한 파일로 묶었습니다. 더 큰 예는 [sql-tuning](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/sql-tuning)(DB 드라이버를 같이 묶음, `settingsPer: "project"`, secret 칸)과 [ui-test](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/ui-test)(묶이지 않는 패키지를 `server/node_modules` 로 옆에 싣기)입니다.
