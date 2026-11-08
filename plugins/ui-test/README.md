@@ -1,6 +1,11 @@
-# ui-test
+# ui-test — UI 테스트 (베타)
+
+## 역할
 
 UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화로 고르고, 테스트 코드를 만들어 PC 의 Chrome · Edge 로 단계마다 스크린샷을 찍으며 돌리고, 한 파일 HTML 결과서와 지난 수행 비교를 남긴다 (#1248, 계획 `docs/guide/superpowers/specs/2026-11-06-ui-test-plugin-design.md` 1 단계 — web, 2 단계 — 유지보수 · 보강, 0.2.0).
+
+- 범위: `"project"` — 대상 주소 · 계정 · 테스트 폴더가 프로젝트마다 다르다(`settingsPer: "project"`).
+- 권한: `secrets`(테스트 계정 비밀번호를 비밀 칸으로) · `mcp`(실행기 서버) · `project`(패널이 결과서를 앱 파일 보기로 엶) · `chat`(패널의 [보강] · [AI 에게 맡기기] 가 새 대화에 요청을 보냄).
 
 ## 2 단계 (0.2.0) — 유지보수 · 보강
 
@@ -27,7 +32,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 수행 이력(비교 기준 · 스크린샷)은 이 PC 의 플러그인 데이터 폴더에 프로젝트(실제 경로)마다 따로, 묶음마다 최근 20 개. 넘친 수행의 결과서 폴더도 지운다.
 파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다(`.gitignore` 도 고치지 않는다 — 결과서 폴더가 프로젝트 안이고 `.gitignore` 에 없으면 처음 한 번 AI 가 넣을지 묻는다).
 
-## 부분
+## 구성
 
 - `plugin.json` — 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 · 결과서 폴더), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목), `mcp`(패널 전용 `progress` · `stop` · `shot`), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run <묶음> [--failed] [--headed]`, 실패가 있으면 종료 코드 1
@@ -44,14 +49,16 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 
 비밀번호는 env 로만 서버에 가고, 결과서 · 도구 결과 · 오류 글에서 한 번 더 지운다(password 칸 스크린샷은 브라우저가 가린 그대로). "확인(DB):" 단계는 실행기가 돌리지 않는다 — 결과서에 "대화에서만 확인", AI 가 DB 조회 도구가 있으면 대화에서 확인한다.
 
-## zip
+## 개발
+
+### 묶기 · 배포
 
 `npm run release ui-test` (묶기만 하려면 `node plugins/ui-test/build.mjs` → `build/ui-test.zip`, 약 3 MB). 서버는 MCP SDK 째 `server/ui-test.mjs` 한 파일로 묶고, playwright-core 는 esbuild 로 묶이지 않아(자기 폴더를 `__dirname` 으로 찾고 쓰지 않는 chromium-bidi 를 require) `server/node_modules/playwright-core` 에 파일 그대로 싣는다. 앱이 자기 실행 파일(Node)로 띄우므로 PC 에 Node 가 없어도 되고, 브라우저는 내려받지 않고 PC 의 Chrome(없으면 Edge)을 `channel` 로 쓴다.
 
-## AI 없이 (CI)
+### AI 없이 (CI)
 
 zip 의 `server/` 폴더(러너 + `node_modules/playwright-core`)를 CI 에 두고, 프로젝트 폴더에서 `node <server>/ui-test.mjs run <묶음> --headless`. env: `UI_TEST_BASE_URL` · `UI_TEST_USER` · `UI_TEST_PASSWORD` · `UI_TEST_BROWSER` · `UI_TEST_DIR` · `UI_TEST_REPORT_DIR` (이력은 결과서 폴더의 `.history`). Node 20+ 와 Chrome 또는 Edge 가 필요하다.
 
-## 테스트
+### 테스트
 
 `plugins/ui-test/tests/` (`npm test -- --project ui-test`) — 가짜 브라우저로만(단위 테스트는 브라우저를 띄우지 않는다).

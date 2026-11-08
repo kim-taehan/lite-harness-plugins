@@ -65,7 +65,7 @@ npm run release -- --all           # 전부
 release 가 하는 일:
 
 1. 대상 전부의 분류를 먼저 확인합니다. 하나라도 빠지면 `dist` · `catalog` 를 건드리지 않고 멈춥니다.
-2. 폴더에 `build.mjs` 가 있으면 그것을 돌려 `build/<id>[-<platform>].zip` 을 받고, 없으면 폴더 안의 파일을 그대로 묶습니다(`changes.txt` · `.DS_Store` · `tests/` 빼고 — 테스트는 zip 에 들어가지 않습니다).
+2. 폴더에 `build.mjs` 가 있으면 그것을 돌려 `build/<id>[-<platform>].zip` 을 받고, 없으면 폴더 안의 파일을 그대로 묶습니다(`changes.txt` · `README.md` · `.DS_Store` · `tests/` 빼고 — 문서와 테스트는 zip 에 들어가지 않습니다).
 3. zip 을 `dist/<id>-<version>.zip` 에 두고 같은 id 의 옛 zip 은 지웁니다 — 되돌리기는 git 기록으로.
 4. sha256 · 크기 · details · permissions · type · category · changes 를 담아 `catalog.json` 의 그 항목을 갱신합니다.
 

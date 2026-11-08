@@ -14,6 +14,39 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 
 고르는 기준: 프로젝트마다 설정이나 다루는 코드가 다르면 `project`, 아니면 `app`. 플러그인은 각자 개인이 켜서 씁니다 — `project` 로 켠 기록도 내 PC 에만 남고 git 에 올라가지 않습니다. 자세한 동작과 주의할 점은 [플러그인 구조 · 적용 범위](architecture.md#적용-범위).
 
+## 플러그인마다 README.md
+
+플러그인 폴더마다 `README.md` 를 둡니다(표준 22번). 처음 보는 사람이 **무엇을 하는지(역할) → 무엇으로 되어 있는지(구성) → 어떻게 고치고 확인하고 올리는지(개발)** 를 이 파일 하나로 알게 하려는 것입니다.
+저장소에서 보는 문서라 zip 에는 들어가지 않습니다. 사용자가 앱에서 보는 설명은 manifest 의 `description` · `details`, 업데이트 글은 `changes.txt` 입니다.
+
+세 절은 꼭 이 제목으로 둡니다(테스트가 봅니다). 그 밖의 절(설정 · 한계 · 확인한 것 · 쓰는 법 등)은 플러그인에 맞게 더합니다.
+
+````markdown
+# <id> — <이름>
+
+<한두 줄 — 무엇을 하는 플러그인인가. manifest description 과 같은 뜻>
+
+## 역할
+
+- 하는 일: 사용자가 얻는 것
+- 앱에 닿는 자리: 패널 · AI 도구(mcp · tools) · 스킬 · 언어 서버(lsp) · 언어 팩 · 문법 팩 중 무엇
+- 범위: `scope`(app · project) 와 그렇게 고른 이유 (팩은 없음)
+- 권한: 권한마다 왜 필요한지 (없으면 "없음")
+
+## 구성
+
+| 파일 · 폴더 | 하는 일 |
+|---|---|
+| `plugin.json` | manifest — … |
+| … | … |
+
+## 개발
+
+- 묶기: `build.mjs` 가 하는 일과 `--dir` 개발 폴더 (없으면 "폴더를 그대로 묶음")
+- 테스트: `npm test -- --project <id>` 가 보는 것, 실제 서버 · DB 가 필요해 못 보는 것
+- 배포: `npm run release <id>` (플랫폼 전용이면 `--platform`)
+````
+
 ## 시작하기
 
 위에서부터 순서대로 읽으면 패널 → AI 도구 → 팩 → 배포까지 이어집니다.
@@ -22,6 +55,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 |---|---|---|
 | [첫 패널 플러그인 만들기](guides/first-panel.md) | `plugin.json` 과 `index.html` 로 오른쪽 패널 탭을 만들고, 앱 통로로 값을 저장하고 프로젝트 이름을 읽고 AI 에게 말을 보냅니다. | 15분 · storage · project · chat |
 | [MCP 플러그인 만들기](guides/mcp-plugin.md) | AI 가 부를 수 있는 도구를 MCP 서버로 싣습니다. 설정 칸 · 비밀 값 · [연결 확인] · 같이 설치되는 스킬, 그리고 `build.mjs` 로 한 파일에 묶기까지. | 30분 · mcp · settings · skills |
+| [언어 서버(LSP) 플러그인 만들기](guides/lsp-plugin.md) | 언어 서버를 실어 파일 보기와 AI 가 그 언어의 오류 · 정의 · 참조 · 설명을 정확하게 얻게 합니다. `lsp` 선언 · `${lspWorkspaceDir}` · 런타임 동봉 · 폐쇄망 설정 · 플랫폼 전용 묶기. | 30분 · lsp · build.mjs |
 | [언어 팩 · 문법 팩 만들기](guides/locale-grammar.md) | 코드 없이 데이터만 담는 플러그인. 앱 문구를 다른 언어로 바꾸는 언어 팩과, 파일 개요가 새 언어를 읽게 하는 tree-sitter 문법 팩. | 20분 · type: locale · grammar |
 | [저장소로 내보내기](guides/publish.md) | 만든 플러그인을 이 저장소에 올려 앱의 [플러그인 둘러보기] 에 보이게 합니다. 분류 · 바뀐 것 · `npm run release` · 버전 규칙. | 10분 · catalog.json · dist |
 

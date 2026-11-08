@@ -1,0 +1,24 @@
+# kotlin-grammar — Kotlin 문법 팩
+
+파일 개요가 Kotlin(.kt · .kts) 파일의 클래스 · 오브젝트 · 함수를 읽게 합니다.
+
+## 역할
+
+- 하는 일: 오른쪽 패널에서 Kotlin 파일(.kt · .kts)을 열면 경로 줄에 [개요] 가 생기고, 정의(class · function · type)를 목록으로 보인다. 설정 › 기능 의 코드 탐색이 켜져 있어야 한다.
+- 앱에 닿는 자리: 문법 팩(`type: "grammar"`) — 앱의 파일 개요가 이 wasm 문법으로 파일을 읽는다.
+- 범위: 없음(문법 팩은 `scope` 를 적지 않는다, 표준 20번).
+- 권한: 없음 — 화면도 실행하는 코드도 없다.
+
+## 구성
+
+| 파일 · 폴더 | 하는 일 |
+|---|---|
+| `extension.json` | manifest — `grammars[0]`: 언어 id `kotlin`, 확장자, wasm 이름(`tree-sitter-kotlin.wasm`), 정의 노드 → 개요 종류 표(`definitions`) |
+| `LICENSE` | 문법 패키지의 라이선스 (zip 에 같이 들어간다) |
+| `build.mjs` | 묶기 — `scripts/grammar-pack.mjs` 로 루트 `package.json` 의 `code-grammar-kotlin`(npm:@tree-sitter-grammars/tree-sitter-kotlin@1.1.0)에서 wasm 을 꺼내 manifest · LICENSE 와 함께 묶는다. wasm 은 폴더에 두지 않는다 |
+
+## 개발
+
+- 묶기: `node plugins/kotlin-grammar/build.mjs` → `build/kotlin-grammar.zip` (먼저 `npm ci`). 문법 버전을 올리려면 `package.json` 의 별칭 버전을 바꾸고 `definitions` 의 노드 이름이 그대로인지 본다.
+- 테스트: 자동 테스트 없음. 앱에 깔아 Kotlin 파일의 [개요] 에 정의가 다 보이는지 본다. 만드는 법은 `docs/guides/locale-grammar.md`.
+- 배포: `npm run release kotlin-grammar`. 아직 catalog 에 올린 적이 없다.

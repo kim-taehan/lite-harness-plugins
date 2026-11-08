@@ -29,6 +29,7 @@
               ├─ mcp ─────────▶ 앱 내장 MCP(appMcp) 에 <id>_<도구> 로 올림 ──▶ 엔진(opencode) ──▶ AI
               │                   └ 처음 부를 때 서버 프로세스를 띄움 (프로젝트마다 하나, stdio)
               ├─ tools ───────▶ 같은 자리, 부를 때마다 실행 파일 한 번 (stdin JSON → stdout JSON)
+              ├─ lsp ─────────▶ 언어 서버 (src/services/lsp) — 파일 보기의 밑줄 · 풍선, AI 의 code_* 도구 (폴더마다 하나)
               ├─ skills ──────▶ 앱 스킬 폴더로 복사 (userData/opencode/skills) ──▶ 엔진
               ├─ settings ────▶ 앱이 그리는 설정 폼 → storage · secrets → mcp.env 자리표시
               ├─ type locale ─▶ 화면 · 메인 문구 사전 (설정 › 일반 › 언어)
@@ -51,6 +52,7 @@
 | 대화 | 새 대화를 열고 입력창 채우기 · 바로 보내기, 대화 제목 · 열기 | — | `chat` |
 | AI 도구 (서버) | MCP 서버를 실어 AI 가 부르는 도구로 올림, 패널도 같은 서버를 부름. 앱 MCP `litecode` 안에(기본) 또는 플러그인 이름의 별도 서버로(`mcp.attach: "server"`) | `mcp` | `mcp` |
 | AI 도구 (한 번 실행) | 부를 때마다 실행 파일 하나를 돌림 | `tools` | `tools` |
+| 언어 서버 | 그 확장자 파일이 필요할 때 폴더마다 띄워 LSP 로 이음 — 파일 보기의 오류 밑줄 · 마우스 풍선 · 문제 목록, AI 의 `code_diagnostics` 등, 코드 탐색의 정의 · 참조. 만드는 법은 [언어 서버 플러그인](guides/lsp-plugin.md) | `lsp` | `lsp` |
 | 스킬 | 켜져 있는 동안 앱 스킬로 보임, 패널이 자기 스킬에 `.md` 덧씌우기(`skills.*`) | `skills` | 없음 |
 | 설정 폼 | 설치 2단계 · [고치기] 에 앱이 그리는 폼, [연결 확인] | `settings` · `settingsCheck` | 없음 |
 | 비밀 값 | 토큰 · 비밀번호를 이 기기에 암호화 (`secrets.*`) | — | `secrets` |
@@ -208,6 +210,7 @@ plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.j
 | 상한 값 (알림 상한 포함) | `src/services/extensions/install/limits.ts` |
 | 설치 · 부팅 · 분배 | `src/services/extensions/extensions.ts` · `install/store.ts` · `data.ts` |
 | MCP 서버 · 도구 · 스킬 · 범위 | `mcp/servers.ts` · `tools/runner.ts` · `skills.ts` · `scope/` |
+| 언어 서버 선언 · 띄우기 | `lsp/lspDeclaration.ts` · `lsp/lspLaunch.ts`, 잇기는 `src/services/lsp/` |
 | 알림 | `notify/notices.ts` |
 | 앱 소식 (이벤트 ↔ 권한) | `shared/extensions.ts` 의 `PANEL_EVENT_PERMISSIONS` · 구독은 `calls/table.ts` 의 `events.subscribe` |
 | 에이전트 | `agents/register.ts` · 검사는 `manifest.ts` (`agents-invalid`) |

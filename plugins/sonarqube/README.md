@@ -1,8 +1,14 @@
-# sonarqube
+# sonarqube — SonarQube
+
+## 역할
 
 SonarQube 확장 — 이미 돌고 있는 SonarQube 서버에 주소 + 계정(아이디·비밀번호)으로 붙어 지금 프로젝트를 분석하고 결과를 오른쪽 패널에서 본다 (이슈 #545 패널, #964 바깥 서버).
 서버는 확장에 들어 있지 않다 — 사용자 PC 의 Docker Desktop(`sonarqube:community`, 컨테이너 `litecode-sonarqube`, http://127.0.0.1:9000) 같은 데서 미리 띄운다.
 분석기(SonarScanner + Java 런타임)는 확장에 들어 있어 이 기기에서 돌고, 결과를 그 서버에 올린다.
+
+- 범위: `scope` 없음(배포된 옛 플러그인 — 다음 업데이트 때 정한다, 표준 21번). 권한마다 이유는 아래 `extension.json` 줄.
+
+## 구성
 
 - `extension.json` — 권한 `network`(서버에 요청 — 처음 가는 주소는 동의를 묻고, 패널이 맡긴 주소면 인증은 앱이 붙인다) · `chat`(수정 요청 — 새 대화를 열고 바로 보낸다) · `project`(범위 고르기·내 변경·파일 열기·프로젝트 키) · `tools`(AI 도구 — 앱 내장 도구에 `analyze` 를 올리고, 패널도 `tools.run` 으로 같은 도구를 부른다)
 - 서버 주소·토큰 — 패널의 서버 칸에서 `network.setConnection` 으로 앱에 맡긴다. 앱이 확장별로 보관하고(토큰은 safeStorage 로 암호화) 패널은 토큰을 다시 읽지 못한다(`network.connection` 은 있는지만 준다). 그 주소의 origin 으로 가는 `network.fetch` 에 앱이 `Authorization: Bearer <토큰>` 을 붙이고, 도구에는 env 로 준다. 토큰은 사용자가 만들지 않는다 — 패널에서 아이디·비밀번호로 [로그인] 하면 그 계정으로 `api/user_tokens/generate` 를 불러 토큰(`litecode-<시각>`)을 만들어 맡기고, 비밀번호는 저장하지 않는다. 앱은 맡긴 서버로 가는 요청의 인증을 늘 자기가 붙이므로, 로그인하는 동안 패널은 연결을 지워 두고(`setConnection { url: null }`) Basic 인증을 직접 보낸 뒤 주소와 새 토큰을 다시 맡긴다(앱은 확장을 모른다 — #1049). 계정·토큰 이름은 `storage` 의 `account`. [로그아웃] 은 `api/user_tokens/revoke` 로 그 토큰을 폐기하고 지운다 (이슈 #1047)
@@ -13,7 +19,9 @@ SonarQube 확장 — 이미 돌고 있는 SonarQube 서버에 주소 + 계정(�
   - 0.7.0: 찾기는 프로젝트 전체에서(`project.findFiles`, 옛 앱이면 펼친 폴더 안), "열린 탭" 빠른 칩(`project.openTabs`), [분석 · N개 파일] 은 실제 파일 수(`project.countFiles`), 넓은 화면에서 긴 파일 경로가 [수정 요청] 과 겹치지 않게
 - 프로젝트 키: 프로젝트 폴더의 `sonar-project.properties` 의 `sonar.projectKey`, 없으면 프로젝트 이름에서 만든다
 
-## zip 만들기
+## 개발
+
+### 묶기 · 배포
 
 분석기(약 100MB, 풀었을 때)는 레포에 넣지 않는다. `build.mjs` 가 `fetch-runtime.mjs` 로 망 밖에서 받아(버전 · sha256 고정, `build/vendor/sonarqube/<타깃>/`) 확장 파일과 함께 묶는다:
 
@@ -25,3 +33,7 @@ node plugins/sonarqube/build.mjs --platform darwin-arm64   # 묶기만 → build
 zip 은 75MB 남짓(풀면 약 100MB · 항목 370개 · 가장 큰 파일 `runtime/lib/modules` 약 46MB)이라 일반 확장 상한(zip 100MB · 총 200MB · 파일 50MB) 안이다. git 에는 넣지 않는다.
 
 0.4.x(내장 서버)에서 올리면 옛 서버 데이터(`data/sonarqube/server/` 의 data·logs 등)가 남는다 — 확장을 지우면 함께 지워진다. 스캐너 캐시(`server/scanner-home`)는 그대로 다시 쓴다.
+
+### 테스트
+
+`plugins/sonarqube/tests/` (`npm test -- --project sonarqube`) — `analyze` 도구(가짜 스캐너로 동시 호출 · busy)와 프로젝트 키 읽기. 실제 SonarQube 서버가 필요한 분석 · 결과 화면은 앱에서 확인한다.
