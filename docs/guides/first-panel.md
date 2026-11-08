@@ -195,12 +195,14 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 | 권한 | 메서드 | 하는 일 |
 |---|---|---|
 | (없음) | `storage.get` · `set` · `delete` | 플러그인별 JSON 값 `{ key, value }`. 전체 64KB — 설정 · 화면 상태용, 큰 캐시는 담지 않습니다 |
-| (없음) | `panel.fullscreen` | `{ on }` — 오른쪽 패널을 전체 화면으로 |
+| (없음) | `panel.fullscreen` | `{ on }` — 오른쪽 패널을 전체 화면으로. 가운데 탭에서는 `panel-hidden` |
 | (없음) | `panel.notify` | `{ title, body?, level? }` — 앱 알림을 띄웁니다. 아래 [알림](#알림) |
 | (이벤트마다) | `events.subscribe` | `{ events: [...] }` — 앱 소식을 받습니다. 이벤트마다 권한을 따로 봅니다. 아래 [앱 소식 받기](#앱-소식-받기) |
 | `project` | `project.info` · `readFile` · `listDir` · `findFiles` · `fileInfo` · `openFile` · `pickPath` · `changedFiles` · `openTabs` | 지금 프로젝트 안만 읽고, 파일을 앱의 미리보기로 엽니다. 경로는 프로젝트 기준 상대 경로 (`..` · 절대 경로 거절) |
 | `projectWrite` | `project.writeFile` · `removeFile` | 프로젝트의 `.litecode/` 바로 아래 `.md` 만 — 팀이 커밋해 같이 쓰는 문서용 |
 | `chat` | `chat.compose` · `exists` · `titles` · `open` | `{ text, send }` — 새 대화를 열어 입력창을 채우거나(`send: false`) 곧바로 보냅니다 |
+| `chat` | `chat.current` | 지금 보고 있는 대화 `{ conversationId, title }`, 없으면 `null`. 프로젝트가 없으면 `no-project` |
+| `project` | `panel.args` | 파일 우클릭으로 열렸을 때 넘어온 `{ path }`, 없으면 `null` — 아래 [파일 우클릭으로 열기](#파일-우클릭으로-열기) |
 | `secrets` | `secrets.get` · `set` · `delete` | 토큰 · 비밀번호를 OS 암호 저장소로 봉해 둡니다 |
 | `network` | `network.fetch` · `connection` · `setConnection` | 앱(메인)이 대신 요청합니다. 처음 가는 주소는 사용자에게 묻고, 기한 15초 · 응답 5MB |
 | `usage` | `usage.summary` | 토큰 사용량 숫자만 (대화 글 · 제목 없음) |
@@ -240,11 +242,55 @@ await call('events.subscribe', { events: ['usage.changed', 'project.filesChanged
 | `project.openTabsChanged` | `project` | `{ paths }` | 오른쪽 패널에 연 파일 탭 목록이 바뀔 때만 |
 | `usage.changed` | `usage` | `{}` — 숫자는 `usage.summary` 로 읽습니다 | 사용량이 늘 때, 모든 탭에 |
 | `settings.saved` | (없음) | `{}` | 이 플러그인의 설정 값을 저장할 때, 그 플러그인 탭에만. 설치 때 넣은 값으로는 오지 않습니다 |
+| `chat.currentChanged` | `chat` | `{ current: { conversationId, title } \| null }` | 보고 있는 대화가 바뀌거나 그 제목이 바뀔 때 |
+| `panel.args` | `project` | `{ path }` | 이미 열린 이 플러그인 탭이 파일 우클릭으로 다시 불렸을 때 |
 
 - 부를 때마다 목록 **전체를 바꿉니다**. 빈 배열이면 그만 받습니다. 결과는 `{ events: [...] }` 입니다.
 - 하나라도 틀리면 전체를 거절하고 기존 목록을 그대로 둡니다. 모양이 틀리면 `params-invalid`, 모르는 이름이면 `event-unknown`, 권한이 없으면 `permission-missing` 입니다.
 - 구독은 iframe 이 살아 있는 동안만입니다. 탭을 다시 열거나 다시 설치(개발 모드 포함)로 진입 HTML 을 다시 읽으면 목록이 비니, 패널이 시작할 때마다 구독합니다.
 - 대화 글과 파일 내용은 싣지 않습니다. 필요하면 받은 경로로 `project.readFile` 을 부릅니다.
+
+## 가운데 탭에 두기
+
+패널은 기본으로 오른쪽 패널의 `+` 메뉴에서 엽니다. 화면이 넓어야 하는 플러그인(보드 · 표 · 편집기)은 manifest 에 `"placement": "center"` 를 적어 **가운데 탭**에 둘 수 있습니다.
+
+```json
+"entry": "index.html",
+"placement": "center"
+```
+
+- 값은 `"center"` 만 됩니다. 패널(`entry`)이 있는 플러그인만 쓸 수 있고, 언어 팩 · 문법 팩에는 쓸 수 없습니다. 어기면 설치 때 `placement-invalid` 로 거절됩니다.
+- 가운데 탭 줄은 대화 / (추론 과정) / 가운데 플러그인들 순서입니다. 플러그인은 이름 순(같으면 id 순)이고, 그 프로젝트에서 켜진 것만 나옵니다. 긴 이름은 줄여 보이고, 마우스를 올리면 전체 이름이 보입니다.
+- 가운데 플러그인은 오른쪽 패널의 `+` 메뉴에 나오지 않습니다.
+- 그 탭을 고를 때만 화면을 그립니다. 다른 탭에 갔다 오면 iframe 을 새로 읽으니, 상태는 `storage` 에 두고 이벤트는 시작할 때마다 다시 구독합니다.
+- 격리(iframe · CSP)와 앱 통로는 오른쪽 패널과 같습니다. 다만 `panel.fullscreen` 은 `panel-hidden` 이 돌아옵니다(이미 넓은 자리라서).
+- 대화와 같이 쓰는 패널이면 `chat.current` 로 지금 대화를 읽고, `chat.currentChanged` 를 구독해 대화가 바뀌는 것을 따라갑니다.
+
+## 파일 우클릭으로 열기
+
+파일 트리와 파일 탭의 우클릭 메뉴에 "이 플러그인으로 열기" 항목을 더할 수 있습니다. `.sql` 을 SQL 튜닝 패널로 여는 식입니다.
+
+```json
+"permissions": ["project"],
+"fileActions": [{ "label": "SQL 튜닝으로 열기", "match": ["*.sql", "*Mapper.xml"] }]
+```
+
+- 오른쪽 패널(`entry`)이 있고 `project` 권한이 있는 플러그인만 쓸 수 있습니다. 항목은 3개까지, `label` 은 1~40자(앞뒤 빈칸은 다듬음), `match` 는 1~10개(패턴 하나 64자)이고, 항목에는 `label` · `match` 만 둡니다.
+- 패턴은 경로가 아니라 **파일 이름**에 맞춥니다. `/` · `\` 는 쓸 수 없고 `*` · `?` 만 특별한 뜻이 있으며, 대소문자는 가리지 않습니다.
+- 어기면 설치 때 `file-actions-invalid` 로 거절됩니다(`params.field` 가 `shape` · `label` · `match` · `entry` · `permission` · `placement` 중 하나). 지금은 `placement: "center"` 와 같이 쓸 수 없습니다.
+- 메뉴에는 그 프로젝트에서 켜진 플러그인만 나옵니다. 맞는 항목이 3개까지면 "플러그인" 소제목 아래 바로, 4개부터는 앞의 2개와 "다른 플러그인으로 열기" 로 묶입니다. 파일 탭 메뉴는 프로젝트 안 파일만 해당합니다.
+- 고르면 그 플러그인의 오른쪽 패널 탭을 엽니다(이미 열려 있으면 그 탭으로 갑니다). 넘어온 파일은 두 길로 받습니다.
+
+```js
+// 막 열린 패널 — 시작할 때 한 번 읽는다
+const args = await call('panel.args')            // { path } 또는 null
+if (args) open(args.path)
+// 이미 열린 탭 — 이벤트로 받는다
+addEventListener('message', ({ data }) => { if (data?.litecode === 1 && data.event === 'panel.args') open(data.data.path) })
+await call('events.subscribe', { events: ['panel.args'] })
+```
+
+- `path` 는 프로젝트 기준 상대 경로(`/` 구분)입니다. 내용은 넘어오지 않으니 `project.readFile` 로 읽습니다.
 
 ## 정리
 
