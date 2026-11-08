@@ -112,9 +112,10 @@ await host.call('storage.set', { key: 'last', value: Date.now() }, { directory }
 - 성공하면 값, 실패하면 `error.code` 를 가진 오류를 던진다(`permission-missing` · `not-on` · `no-project` · `method-unknown` · `no-window` · `network-denied` …).
 - 프로젝트별(`scope: "project"`) 서비스는 `directory` 가 필요하고 그 프로젝트(worktree 폴더 포함)에서 켜져 있어야 한다. 아니면 `not-on`. 앱 전체(`"app"`) 서비스는 폴더 없이도 부른다.
 - `chat.compose` · `chat.open` · `project.openFile` 은 **그 프로젝트 창이 해 준다**(앱이 창에 보내고 답을 기다린다). `chat.current` · `project.openTabs` 는 창이 값을 돌려준다. 창이 없거나 답이 없으면 `no-window` 로 거절된다.
+- `panel.fullscreen`(`{ on }`) 은 그 프로젝트 오른쪽 패널에서 **이 플러그인 탭이 보이는 탭일 때** 전체 화면으로 키우고(null), `settings.open` 은 **이 플러그인 탭이 보일 때** 그 탭 위에 설정 폼을 띄워 닫힐 때 `{ saved }` 를 준다(manifest `settings` 가 있어야 한다). 보이는 탭이 없으면 조용히 성공하지 않고 `no-window` 로 거절된다.
 - `network.fetch` 는 허용 목록에 있는 주소만 된다. 새 주소의 동의 띠는 서비스에는 없어서 `network-denied` 로 거절된다 — 주소는 패널·설정에서 먼저 허용한다.
 - `project.pickPath` 는 부모 창 없는 파일 고르기 창을 띄운다.
-- **부를 수 없는 것**: `panel.fullscreen` · `panel.args`(패널 탭 전용), `settings.open`(탭 위의 설정 폼), `events.subscribe`(서비스는 `ctx.on`), `service.call` · `service.list`(자기 자신).
+- **부를 수 없는 것**: `panel.args`(패널이 파일 메뉴로 넘겨받은 값을 읽는 것 — 서비스에는 받을 탭이 없다), `events.subscribe`(서비스는 `ctx.on`), `service.call` · `service.list`(자기 자신).
 
 ## AI 도구와 MCP 서버 — host.tools · host.mcp
 

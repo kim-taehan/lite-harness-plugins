@@ -50,6 +50,17 @@ function uiActionOf(method, result) {
         return { kind: 'open-tabs' };
     if (typeof result !== 'object' || result === null)
         return undefined;
+    if (method === 'panel.fullscreen') {
+        const on = Reflect.get(result, 'on');
+        return typeof on === 'boolean' ? { kind: 'panel-fullscreen', on } : undefined;
+    }
+    if (method === 'settings.open') {
+        const view = Reflect.get(result, 'view');
+        const projectName = Reflect.get(result, 'projectName');
+        if (!isSettingsView(view) || (projectName !== undefined && typeof projectName !== 'string'))
+            return undefined;
+        return { kind: 'open-settings', view, ...(projectName !== undefined && { projectName }) };
+    }
     if (method === 'chat.compose') {
         const text = Reflect.get(result, 'text');
         return typeof text === 'string' ? { kind: 'compose', text, send: Reflect.get(result, 'send') === true } : undefined;
@@ -100,9 +111,8 @@ function isAppOnlyServiceEvent(event) {
     return SERVICE_EVENTS[event].project === 'app';
 }
 /** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 패널의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
- *  빠진 것은 서비스에 뜻이 없는 것뿐이다: panel.fullscreen(보이는 패널 탭의 전체 화면 — 서비스에는 탭이 없다) · panel.args(파일 메뉴로 그 탭에 넘어온 값) ·
- *  settings.open(그 탭 위에 설정 폼을 띄우고 저장했나를 기다린다) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
- *  화면이 해야 끝나는 것(SERVICE_UI_METHODS)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. project.pickPath 는 부모 없는 고르기 창을 띄운다.
+ *  빠진 것은 서비스에 뜻이 없는 것뿐이다: panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
+ *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
  *  호출 표에 메서드가 늘면 여기에 넣을지 빼놓을지 정해야 한다 — tests/unit/arch/pluginServiceApi.test.ts */
 const SERVICE_CALL_METHODS = [
     'storage.get',
@@ -138,13 +148,15 @@ const SERVICE_CALL_METHODS = [
     'mcp.status',
     'usage.summary',
     'panel.notify',
+    'panel.fullscreen',
+    'settings.open',
     'skills.readFile',
     'skills.writeFile',
     'skills.deleteFile',
 ];
 /** 호출이 통과하면 그 프로젝트의 창이 해야 끝나는 것 — 메인이 화면 동작(ExtensionUiAction)을 보내고 창의 답을 기다린다. 답이 없으면(창이 없다) no-window.
  *  new 대화 · 대화 열기 · 파일 열기는 null, chat.current · project.openTabs 는 화면이 준 값을 돌려준다 */
-const SERVICE_UI_METHODS = ['chat.compose', 'chat.open', 'project.openFile', 'chat.current', 'project.openTabs'];
+const SERVICE_UI_METHODS = ['chat.compose', 'chat.open', 'project.openFile', 'chat.current', 'project.openTabs', 'panel.fullscreen', 'settings.open'];
 function isServiceCallMethod(value) {
     return typeof value === 'string' && SERVICE_CALL_METHODS.some((method) => method === value);
 }

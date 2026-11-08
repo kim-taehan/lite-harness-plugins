@@ -50,6 +50,9 @@ export default (host) =>
       // 말 걸기 — 서비스는 AI 를 직접 부르지 못해서 새 대화를 "빛톨아, " 로 채워 연다. 대답은 스킬 + persona · say 도구가 한다
       this.expose('talk', (_params, { directory }) => host.call('chat.compose', { text: '빛톨아, ', send: false }, { directory }))
 
+      // 전체 화면 — 서비스가 그 패널 탭에 열고 닫는다(패널이 보이는 탭일 때만 된다)
+      this.expose('fullscreen', (params, { directory }) => host.call('panel.fullscreen', { on: params?.on === true }, { directory }))
+
       // AI 도구 — AI 에는 token-pet_persona · token-pet_say 로 보인다
       host.tools.register({
         name: 'persona',

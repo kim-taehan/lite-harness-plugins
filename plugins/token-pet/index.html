@@ -628,7 +628,7 @@ function setField(on) {
   hero.remove()
   hero = walker(heroInfo, { vertical: on })
   applyBg()
-  call('panel.fullscreen', { on }).catch(() => {})
+  serviceCall('fullscreen', { on }).catch(() => {})
 }
 document.getElementById('full').addEventListener('click', () => setField(!document.body.classList.contains('field')))
 // 말 걸기 — 패널은 AI 를 직접 부르지 못해서 새 대화를 "빛톨아, " 로 채워 연다. 대답은 스킬 + persona · say 도구가 한다

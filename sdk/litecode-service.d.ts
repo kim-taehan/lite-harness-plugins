@@ -22,7 +22,7 @@ export interface ServiceEventMap {
 }
 
 /** host.call 로 부를 수 있는 앱 호출 표의 메서드 — 패널이 쓰는 이름과 같고, 권한은 manifest permissions 로 패널과 같게 검사한다 */
-export type ServiceCallMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'secrets.get' | 'secrets.set' | 'secrets.delete' | 'network.fetch' | 'network.connection' | 'network.setConnection' | 'project.info' | 'project.readFile' | 'project.openFile' | 'project.openTabs' | 'project.pickPath' | 'project.changedFiles' | 'project.listDir' | 'project.findFiles' | 'project.countFiles' | 'project.fileInfo' | 'project.writeFile' | 'project.removeFile' | 'settings.summary' | 'settings.check' | 'chat.compose' | 'chat.open' | 'chat.current' | 'chat.exists' | 'chat.titles' | 'tools.run' | 'mcp.call' | 'mcp.status' | 'usage.summary' | 'panel.notify' | 'skills.readFile' | 'skills.writeFile' | 'skills.deleteFile'
+export type ServiceCallMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'secrets.get' | 'secrets.set' | 'secrets.delete' | 'network.fetch' | 'network.connection' | 'network.setConnection' | 'project.info' | 'project.readFile' | 'project.openFile' | 'project.openTabs' | 'project.pickPath' | 'project.changedFiles' | 'project.listDir' | 'project.findFiles' | 'project.countFiles' | 'project.fileInfo' | 'project.writeFile' | 'project.removeFile' | 'settings.summary' | 'settings.check' | 'chat.compose' | 'chat.open' | 'chat.current' | 'chat.exists' | 'chat.titles' | 'tools.run' | 'mcp.call' | 'mcp.status' | 'usage.summary' | 'panel.notify' | 'panel.fullscreen' | 'settings.open' | 'skills.readFile' | 'skills.writeFile' | 'skills.deleteFile'
 
 /** host.call 이 던지는 오류 — code 는 패널 통로와 같은 오류 코드(permission-missing · not-on · no-project · method-unknown · no-window · network-denied …), origin 은 network 오류가 알려 주는 주소 */
 export interface ServiceCallError extends Error {
@@ -98,8 +98,8 @@ export interface ServiceHost {
     register(server: { languageId: string; extensions: string[]; command: string; args?: string[]; env?: Record<string, string>; initializationOptions?: unknown; settings?: unknown; idleMs?: number }): () => void
   }
   /** 앱의 호출 표를 그대로 부른다 — 성공하면 값, 실패하면 ServiceCallError. 프로젝트별(scope "project") 서비스는 directory 가 있어야 하고 그 프로젝트에서 켜져 있어야 한다(아니면 not-on).
-   *  chat.compose · chat.open · project.openFile 은 그 프로젝트의 창이 해 주고(창이 없으면 no-window), chat.current · project.openTabs 는 창이 값을 돌려준다.
-   *  빠진 것: panel.fullscreen · panel.args · settings.open · events.subscribe(ctx.on 을 쓴다) · service.call · service.list */
+   *  chat.compose · chat.open · project.openFile · panel.fullscreen · settings.open 은 그 프로젝트의 창이 해 주고(창이 없거나 보이는 그 플러그인 탭이 없으면 no-window), chat.current · project.openTabs 는 창이 값을 돌려준다.
+   *  빠진 것: panel.args · events.subscribe(ctx.on 을 쓴다) · service.call · service.list */
   call(method: ServiceCallMethod, params?: unknown, options?: { directory?: string }): Promise<unknown>
   /** 자기 패널(같은 플러그인)에 소식을 밀어 보낸다 — 이름은 `service.<name>` 이 되고, 패널은 `events.subscribe(['service.<name>'])`(service 권한)로 받는다.
    *  directory 를 주면 그 프로젝트의 패널에만. 값은 JSON 으로 오가는 것만(아니면 던진다) · 64KB 이하(넘으면 던진다) · 초당 20번(넘으면 말없이 버린다). 이름은 글자로 시작하는 64자 이하(글자 · 숫자 · _ . -) */

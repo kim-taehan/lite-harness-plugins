@@ -108,7 +108,7 @@ describe('game.js', () => {
 describe('service', () => {
   it('usage.changed 만 구독하고 패널이 부를 메서드와 AI 도구 둘을 올린다', async () => {
     const { fake } = await start()
-    expect(fake.names().sort()).toEqual(['setBg', 'state', 'talk'])
+    expect(fake.names().sort()).toEqual(['fullscreen', 'setBg', 'state', 'talk'])
     expect(fake.tools().map((t) => t.name).sort()).toEqual(['token-pet_persona', 'token-pet_say'])
   })
 
@@ -157,6 +157,14 @@ describe('service', () => {
     await calls.call('talk', undefined, { directory: '/work/a' })
     expect(calls.calls.find((c) => c.method === 'chat.compose')).toMatchObject({ params: { text: '빛톨아, ', send: false }, directory: '/work/a' })
     expect(fake.names()).toContain('talk')
+  })
+
+  it('fullscreen 은 패널 전체 화면을 서비스가 연다', async () => {
+    const fake = createFakeHost({ id: 'token-pet', scope: 'app', events: ['usage.changed'], calls: { 'panel.fullscreen': () => true, 'storage.get': () => null, 'usage.summary': () => summary(0) } })
+    fake.mount(bundle)
+    await fake.call('fullscreen', { on: true }, { directory: '/work/a' })
+    await fake.call('fullscreen', { on: 'yes' }, { directory: '/work/a' })
+    expect(fake.calls.filter((c) => c.method === 'panel.fullscreen').map((c) => c.params)).toEqual([{ on: true }, { on: false }])
   })
 
   it('persona 는 지금 빛톨을 알려 준다 — 양은 "매에~", 거북은 충청도', async () => {
