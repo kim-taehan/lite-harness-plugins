@@ -26,14 +26,15 @@ lite-harness-desktop 앱에 까는 플러그인의 원본과 카탈로그.
 그때는 코드를 따르고 가이드도 같은 PR 에서 고친다.
 개발표준은 `.claude/rules/plugin.md` 에만 적는다 — 가이드는 그 이유와 예제, 여기에는 링크만 둔다.
 커밋 전에 `/convention-review` 로 변경을 표준과 대조한다.
-훅(`.claude/settings.json`)이 main 직접 push, 심사 없는 커밋, `catalog.json`·`dist/` 손편집, 테스트 없는 머지를 막고,
+브랜치 · 머지 · 배포 흐름은 `.claude/rules/workflow.md` — `dev` 에서 브랜치를 따 PR 은 `dev` 로, 배포(`npm run release -- --changed`)는 승격 때만 한다.
+훅(`.claude/settings.json`)이 main·dev 직접 push, 심사 없는 커밋, `catalog.json`·`dist/` 손편집, 테스트 없는 머지를 막고,
 원본만 바뀌고 version 이 그대로인 push 에는 경고한다.
 
 ## 명령
 - `npm test` — 전부: 플러그인 테스트 + catalog ↔ dist 정합 + 표준 검사
 - `npm test -- --project <id>` — 그 플러그인 테스트만 (플러그인 하나를 고칠 때)
 - `npm run test:changed` — 바뀐 플러그인 테스트 + 공통 검사 (머지 조건, 머지 훅이 돌린다)
-- `npm run release <폴더…>` · `--all` · `--zip <파일>` — dist 와 catalog.json 갱신 (자세한 건 `docs/guides/publish.md`)
+- `npm run release <폴더…>` · `--all` · `--changed [--dry-run]` · `--zip <파일>` — dist 와 catalog.json 갱신 (자세한 건 `docs/guides/publish.md`)
 - `npm run sync:sdk` — 옆 `../desktop/docs/plugin-sdk/` 생성물을 `sdk/` 로 복사 (`node scripts/sync-sdk.mjs --check` 는 같은지만 본다. 위치가 다르면 `LITECODE_DESKTOP=<desktop 폴더>`)
 
 ## 디렉터리

@@ -21,10 +21,7 @@
           "project",
           "projectWrite",
           "chat",
-          "tools",
-          "mcp",
           "usage",
-          "lsp",
           "service"
         ]
       }
