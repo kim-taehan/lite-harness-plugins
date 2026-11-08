@@ -1,5 +1,6 @@
 // 빛톨 서비스 · 게임 규칙 · 페르소나 — 앱 없이 SDK 의 가짜 host(sdk/litecode-service-testing.mjs)로 본다.
 // 앱이 서비스를 올리고 패널이 service.call 로 묻는 것, AI 가 도구를 부르는 것은 앱에서 확인한다(여기서 못 본다).
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { build } from 'esbuild'
@@ -157,6 +158,14 @@ describe('service', () => {
     await calls.call('talk', undefined, { directory: '/work/a' })
     expect(calls.calls.find((c) => c.method === 'chat.compose')).toMatchObject({ params: { text: '빛톨아, ', send: false }, directory: '/work/a' })
     expect(fake.names()).toContain('talk')
+  })
+
+  it('스킬(token-pet)을 서비스가 올린다 — manifest skills 선언 없이', async () => {
+    const { fake } = await start()
+    expect(fake.skills()).toEqual([{ name: 'token-pet', path: 'skills/token-pet/SKILL.md' }])
+    const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')) as Record<string, unknown>
+    expect(manifest.skills).toBeUndefined()
+    expect(readFileSync(path.join(here, 'skills/token-pet/SKILL.md'), 'utf8')).toMatch(/^name: token-pet$/m)
   })
 
   it('fullscreen 은 패널 전체 화면을 서비스가 연다', async () => {
