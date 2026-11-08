@@ -4,6 +4,7 @@
   "ja-pack": "locale",
   "kotlin-grammar": "dev-tool",
   "rust-grammar": "dev-tool",
+  "service-example": "unlisted",
   "sonarqube": "dev-tool",
   "sql-tuning": "dev-tool",
   "token-pet": "game",

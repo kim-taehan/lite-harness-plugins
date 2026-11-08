@@ -6,10 +6,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
-const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'lsp']
+const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'service', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
+const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'lsp', 'service']
 // 선언과 권한이 짝인 필드 — desktop shared/extensions.ts 의 PLUGIN_DECLARATIONS 중 permission 이 있는 것 (<필드>-mismatch)
-const PAIRED = ['tools', 'mcp', 'lsp']
+const PAIRED = ['tools', 'mcp', 'lsp', 'service']
 const ID = /^[a-z0-9-]{3,40}$/
 const VERSION = /^\d+\.\d+\.\d+$/
 
