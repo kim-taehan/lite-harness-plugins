@@ -29,8 +29,8 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 ## 역할
 
 - 하는 일: 사용자가 얻는 것
-- 앱에 닿는 자리: 패널 · AI 도구(mcp · tools) · 스킬 · 언어 서버(lsp) · 언어 팩 · 문법 팩 중 무엇
-- 범위: `scope`(app · project) 와 그렇게 고른 이유 (팩은 없음)
+- 앱에 닿는 자리: 서비스(`service`) · 패널 · AI 도구(`host.tools` · mcp · tools) · 스킬 · 언어 서버(서비스의 `host.lsp.register`) · 언어 팩 · 문법 팩 중 무엇
+- 범위: `scope`(app · project) 와 그렇게 고른 이유 (언어 · 문법 팩 서비스는 `app`)
 - 권한: 권한마다 왜 필요한지 (없으면 "없음")
 
 ## 구성
@@ -38,36 +38,40 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 | 파일 · 폴더 | 하는 일 |
 |---|---|
 | `plugin.json` | manifest — … |
+| `service/index.mjs` | 서비스 원본 — 앱 안에서 도는 코드(서비스 플러그인만) |
+| `build.mjs` | 서비스를 `service.mjs` 한 파일로 묶기, `--dir` 이면 개발 폴더(서비스 · 번들이 있는 플러그인) |
 | … | … |
 
 ## 개발
 
-- 묶기: `build.mjs` 가 하는 일과 `--dir` 개발 폴더 (없으면 "폴더를 그대로 묶음")
+- 묶기: `build.mjs` 가 하는 일과 `--dir` 개발 폴더 (없으면 "폴더를 그대로 묶음"). 서비스 플러그인은 `service.mjs` 한 파일로 묶는다
 - 테스트: `npm test -- --project <id>` 가 보는 것, 실제 서버 · DB 가 필요해 못 보는 것
 - 배포: `npm run release <id>` (플랫폼 전용이면 `--platform`)
 ````
 
 ## 시작하기
 
-위에서부터 순서대로 읽으면 패널 → AI 도구 → 팩 → 배포까지 이어집니다.
+위에서부터 순서대로 읽으면 패널 → 서비스 → AI 도구 → 팩 → 언어 서버 → 배포까지 이어집니다. 코드를 가진 플러그인은 서비스가 기본 길입니다.
 
 | 가이드 | 만드는 것 | 시간 · 다루는 것 |
 |---|---|---|
 | [첫 패널 플러그인 만들기](guides/first-panel.md) | `plugin.json` 과 `index.html` 로 오른쪽 패널 탭을 만들고, 앱 통로로 값을 저장하고 프로젝트 이름을 읽고 AI 에게 말을 보냅니다. | 15분 · storage · project · chat |
+| [서비스 플러그인 만들기](guides/service-plugin.md) | 패널을 닫아도 앱 안에서 도는 코드. 앱 소식 받기 · 앱 기능 부르기(`host.call`) · 패널에 밀어 보내기(`host.panel.emit`) · AI 도구 · 정리와 테스트(가짜 host). | 30분 · service · host · events |
 | [MCP 플러그인 만들기](guides/mcp-plugin.md) | AI 가 부를 수 있는 도구를 MCP 서버로 싣습니다. 설정 칸 · 비밀 값 · [연결 확인] · 같이 설치되는 스킬, 그리고 `build.mjs` 로 한 파일에 묶기까지. | 30분 · mcp · settings · skills |
-| [언어 서버(LSP) 플러그인 만들기](guides/lsp-plugin.md) | 언어 서버를 실어 파일 보기와 AI 가 그 언어의 오류 · 정의 · 참조 · 설명을 정확하게 얻게 합니다. `lsp` 선언 · `${lspWorkspaceDir}` · 런타임 동봉 · 폐쇄망 설정 · 플랫폼 전용 묶기. | 30분 · lsp · build.mjs |
-| [언어 팩 · 문법 팩 만들기](guides/locale-grammar.md) | 코드 없이 데이터만 담는 플러그인. 앱 문구를 다른 언어로 바꾸는 언어 팩과, 파일 개요가 새 언어를 읽게 하는 tree-sitter 문법 팩. | 20분 · type: locale · grammar |
+| [언어 팩 · 문법 팩 만들기](guides/locale-grammar.md) | 앱 문구를 다른 언어로 바꾸는 언어 팩과, 파일 개요가 새 언어를 읽게 하는 tree-sitter 문법 팩. 데이터를 앱에 올리기만 하는 작은 서비스로 만듭니다. | 20분 · service · host.locale · host.grammars |
+| [언어 서버(LSP) 플러그인 만들기](guides/lsp-plugin.md) | 언어 서버를 실어 파일 보기와 AI 가 그 언어의 오류 · 정의 · 참조 · 설명을 정확하게 얻게 합니다. 서비스의 `host.lsp.register` · `${lspWorkspaceDir}` · 런타임 동봉 · 폐쇄망 설정 · 플랫폼 전용 묶기. | 30분 · service · host.lsp · build.mjs |
 | [저장소로 내보내기](guides/publish.md) | 만든 플러그인을 이 저장소에 올려 앱의 [플러그인 둘러보기] 에 보이게 합니다. 분류 · 바뀐 것 · `npm run release` · 버전 규칙. | 10분 · catalog.json · dist |
 
 ## 참고
 
 가이드보다 자세한 규칙과 실제 플러그인 원본.
 
-- [플러그인 구조](architecture.md) — 닿는 곳 · 닿지 못하는 곳 · 격리 · 수명 · 새 자리 더하기
+- [플러그인 구조](architecture.md) — 닿는 곳 · 닿지 못하는 곳 · 서비스와 호스트 API · 격리 · 수명 · 새 자리 더하기
 - [플러그인 표준](https://github.com/kim-taehan/lite-harness-plugins/blob/main/.claude/rules/plugin.md) — 만들거나 고칠 때 지키는 규칙 (커밋 전 심사 · 머지 전 테스트가 확인)
 - [저장소 README](https://github.com/kim-taehan/lite-harness-plugins#readme) — 구조 · catalog.json · 버전 규칙 · 앱이 읽는 법
 - [실제 플러그인 원본](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins) — token-pet · sql-tuning · ui-test …
-- [앱 아키텍처 5절 · 플러그인](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/docs/architecture.md) — 격리 · 권한 · 설치 검사 · 적용 범위
+- [앱 아키텍처 5절 · 플러그인](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/docs/architecture.md) — 격리 · 권한 · 설치 검사 · 적용 범위 · 5-2 설치형 서비스
+- [플러그인 서비스 작성 안내 (docs/plugin-sdk)](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/docs/plugin-sdk/README.md) — 서비스 타입 · 호스트 API · 가짜 host (이 저장소의 `sdk/` 는 그 사본)
 - [manifest 정의 (shared/extensions.ts)](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/shared/extensions.ts) — 필드 · 권한 · 거절 사유의 정본
 
 고칠 곳이 보이면 [이슈](https://github.com/kim-taehan/lite-harness-plugins/issues)나 PR 로 알려 주세요.

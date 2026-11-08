@@ -1,10 +1,11 @@
-// 확장 내보내기 — `npm run release <id 또는 폴더> [--platform darwin-arm64]` · `npm run release -- --all`
+// 확장 내보내기 — `npm run release <id 또는 폴더> [--platform darwin-arm64]` · `npm run release -- --all` · `npm run release -- --changed [--dry-run]`
 // 폴더에 build.mjs 가 있으면 그것을 돌려 build/<폴더>[-<platform>].zip 을 받아 --zip 과 같은 길로 올린다 (sonarqube 처럼 플랫폼 전용이면 --platform)
 // 없으면 plugins/<폴더>/ 의 파일을 폴더 없이 zip 으로 묶어 dist/<id>-<version>.zip 에 두고, sha256 과 함께 catalog.json 의 그 항목을 extension.json 으로 갱신한다.
 // 앱(Lite Harness)은 catalog.json 을 읽고, 받은 zip 의 sha256 이 같을 때만 설치한다. 의존성 없음 — 시스템 zip 을 쓴다.
 // 옛 zip 은 지운다(같은 id 의 dist/<id>-*.zip 중 새 버전만 남긴다) — 저장소에 옛 버전이 쌓이지 않게. 되돌리기는 git 기록으로.
 // plugins/<폴더>/changes.txt 에 바뀐 것을 한 줄씩 적으면 catalog 에 실려 앱의 업데이트 창에 보인다 (선택, build.mjs 로 묶는 플러그인도 같음)
 // changes.txt · README.md · tests/ 는 zip 에 넣지 않는다 — 저장소에서 보는 문서와 테스트
+// --changed 는 --all 중에서 catalog 에 없거나 version 이 catalog 와 다른 플러그인만 올린다(안 바뀐 것은 zip 을 다시 만들지 않는다). --dry-run 이면 올릴 목록만 보인다
 // 목록에서 내리기 — categories.json 에 분류 대신 "unlisted" 를 적으면 원본(plugins/<폴더>/)은 두고, release 를 돌릴 때마다 catalog 항목과 dist zip 을 지운다.
 // --all 은 건너뛰고, 이름으로 불러도 묶지 않는다. 다시 올리려면 분류를 적고 release 한다
 import { execFileSync } from 'node:child_process'
@@ -141,7 +142,7 @@ function finish(catalog) {
 
 const args = process.argv.slice(2)
 if (args.length === 0) {
-  console.error('쓰는 법: npm run release <id 또는 폴더> [--platform darwin-arm64] · npm run release -- --all · npm run release -- --zip <묶은.zip> [--platform darwin-arm64]')
+  console.error('쓰는 법: npm run release <id 또는 폴더> [--platform darwin-arm64] · npm run release -- --all · npm run release -- --changed [--dry-run] · npm run release -- --zip <묶은.zip> [--platform darwin-arm64]')
   process.exit(1)
 }
 mkdirSync(distDir, { recursive: true })
@@ -158,11 +159,20 @@ const all = folders()
 const unlisted = all.filter((folder) => isUnlisted(manifestOf(folder).id))
 const named = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--platform')
 const platformOnly = (folder) => catalog.extensions.some((entry) => entry.id === manifestOf(folder).id && entry.platform)
-const skipped = args.includes('--all') && !platform ? all.filter(platformOnly) : []
+const changedOnly = args.includes('--changed')
+const allMode = args.includes('--all') || changedOnly
+const skipped = allMode && !platform ? all.filter(platformOnly) : []
 for (const folder of skipped) console.log(`- ${folder} 건너뜀 (플랫폼 전용 — --platform 으로 따로 올린다)`)
-const chosen = args.includes('--all') ? all.filter((folder) => !skipped.includes(folder)) : named.map((arg) => all.find((folder) => folder === arg || manifestOf(folder).id === arg) ?? arg)
+const chosen = allMode ? all.filter((folder) => !skipped.includes(folder)) : named.map((arg) => all.find((folder) => folder === arg || manifestOf(folder).id === arg) ?? arg)
 for (const folder of chosen.filter((folder) => unlisted.includes(folder))) console.log(`- ${folder} 건너뜀 (${UNLISTED} — 목록에서 내린 플러그인)`)
-const targets = chosen.filter((folder) => !unlisted.includes(folder))
+const isChanged = (folder) => {
+  const manifest = manifestOf(folder)
+  const entry = catalog.extensions.find((candidate) => candidate.id === manifest.id && !candidate.platform)
+  return !entry || entry.version !== manifest.version
+}
+const targets = chosen.filter((folder) => !unlisted.includes(folder)).filter((folder) => !changedOnly || isChanged(folder))
+if (changedOnly) console.log(targets.length ? `올릴 플러그인: ${targets.join(' · ')}` : '올릴 플러그인이 없습니다(모두 catalog 와 같은 version)')
+if (args.includes('--dry-run')) process.exit(0)
 for (const folder of targets) {
   if (!all.includes(folder)) throw new Error(`plugins/${folder} 가 없습니다`)
   categoryOf(manifestOf(folder).id)
