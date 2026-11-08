@@ -205,6 +205,20 @@ describe('sonarqube tools/analyze.mjs — 실행 하나 (한 번에 하나)', ()
     expect(args.split('\n').filter((line) => line.startsWith('-Dsonar.projectKey')).length).toBe(1)
   }, SLOW_SCANNER_MS)
 
+  it('지난 실행(done)이 남아 있을 때 같은 키 동시 호출 — 스캐너는 한 번 (자리 다툼 잠금)', async () => {
+    // 잠금이 없을 때: 한 호출이 done 을 치우고 막 뺏은 run.json 을, 그 전에 done 을 읽어 둔 다른 호출이 지워 스캐너가 둘 떴다
+    const counts: number[] = []
+    for (let round = 0; round < 4; round++) {
+      fs.mkdirSync(path.dirname(RUN_FILE()), { recursive: true })
+      fs.writeFileSync(RUN_FILE(), JSON.stringify({ status: 'done', pid: process.pid, key: 'demo-key', startedAt: Date.now() }))
+      fs.rmSync(argsFile, { force: true })
+      const results = await Promise.all(Array.from({ length: 6 }, () => analyzeCall('{}', { SQ_TOOL_TEST_SLEEP: '1' })))
+      for (const { result } of results) expect(result.text).toContain('analysis finished (demo-key)')
+      counts.push(fs.readFileSync(argsFile, 'utf8').split('\n').filter((line) => line.startsWith('-Dsonar.projectKey')).length)
+    }
+    expect(counts).toEqual([1, 1, 1, 1])
+  }, 60_000)
+
   it('돌고 있는 키와 다른 호출은 곧바로 busy', async () => {
     const slow = analyzeCall('{}', { SQ_TOOL_TEST_SLEEP: '2' })
     await until(() => fs.existsSync(RUN_FILE()), 15_000)
