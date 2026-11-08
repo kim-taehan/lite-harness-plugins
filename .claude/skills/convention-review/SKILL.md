@@ -16,6 +16,7 @@ description: "커밋 전에 바뀐 내용(git diff --cached + git diff)을 .clau
 3. **대조와 보고** — 변경을 규칙 하나하나와 대조한다. 위반마다 규칙(파일·번호), 파일, 줄을 적는다. 없으면 "위반 없음".
    - 위반이 있으면 먼저 고치고 2단계부터 다시 한다. 위반을 남긴 채 4단계로 가지 않는다.
    - **[검토]** 규칙은 위반이 아니라 확인 질문으로만 남긴다. **[필수]** 는 위반이다.
+   - `build.mjs` 가 바뀐 mcp 플러그인은 `node plugins/<id>/build.mjs --dir` 을 한 번 돌려, `build/<id>/` 맨 위에 manifest 와 `mcp.command` 파일이 있는지 본다(규칙 17). 테스트는 `--dir` 이 적혀 있는지만 본다.
    - `— 테스트` 가 붙은 규칙도 눈으로 본다. 테스트는 머지 때에야 돌기 때문이다. 플러그인 원본이나 `tests/standards.test.ts` 가 바뀌었으면 `npx vitest run tests` 를 돌려 본다.
    - **desktop 정본 대조** — 옆에 desktop 저장소(`../desktop`)가 있으면 `tests/standards.test.ts` 의 `KNOWN_FIELDS` · `PERMISSIONS` · `ID` 를
      desktop `src/services/extensions/manifest.ts` 의 `KNOWN`(= `REQUIRED` + 나머지), `shared/extensions.ts` 의 `EXTENSION_PERMISSIONS` · `EXTENSION_ID` 와 비교한다.

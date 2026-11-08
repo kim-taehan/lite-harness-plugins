@@ -28,3 +28,4 @@
 14. **[검토]** 사용자가 알아야 할 변경이면 `changes.txt` 에 한 줄씩 적는다.
 15. **[필수]** `dist/` 와 `catalog.json` 은 `npm run release` 로만 바꾼다. 플러그인을 없앨 때도 먼저 `categories.json` 을 `unlisted` 로 두고 release 해 목록에서 내린 뒤 원본 폴더와 분류 줄을 지운다. (편집 훅이 막고, `tests/catalog.test.ts` 가 정합을 본다)
 16. **[검토]** 도구·서버 로직을 바꾸면 `plugins/<id>/tests/` 에 동작을 보는 테스트를 더하거나 고친다. 실제 DB·서버가 필요한 확인은 테스트 대신 PR 에 "확인 못 한 것" 으로 적는다.
+17. **[필수]** `mcp` 선언과 `build.mjs` 가 같이 있는 플러그인의 build.mjs 는 `--dir` 을 받아 zip 과 같은 내용을 `build/<id>/` 폴더로 낸다. 원본 폴더는 묶기 전이라 앱이 띄울 수 없어서, 앱의 개발 모드(desktop #1348)는 이 폴더를 연결한다. — 테스트
