@@ -1,9 +1,16 @@
-# sql-tuning
+# sql-tuning — SQL 튜닝
+
+## 역할
 
 SQL 튜닝 도우미 — 개발 DB 의 실행계획 · 테이블 · 인덱스 · 통계를 AI 가 읽고 고친 SQL 과 인덱스를 제안한다 (#1051, 설계 `docs/guide/superpowers/specs/2026-11-02-sql-tuning-design.md`).
 도구 8개(`server/tools.ts`)와 스킬(`skills/sql-tuning`)은 **공통**이고, 두 가지 껍데기로 쓴다:
 - **litecode 플러그인** (#1072 · #1232) — `plugin.json`(패널 · MCP 서버 · 스킬 · 설정 칸 선언). DB 연결 정보는 앱의 설정 폼으로 받고, 작은 패널 `index.html` 은 카드 두 개(표준 · 연결)만 둔다. 앱이 `mcp` 선언대로 같은 `server/index.ts` 를 띄운다. 아래 "플러그인으로 쓰기"
 - **표준 MCP 서버(stdio)** — `server/index.ts`. davis-code 등 다른 호스트에서. 아래 "MCP 서버로 쓰기"
+
+- 범위: `scope` 없음(배포된 옛 플러그인 — 다음 업데이트 때 정한다, 표준 21번). 연결 정보는 `settingsPer: "project"` 라 프로젝트마다 따로.
+- 권한: `secrets`(DB 비밀번호를 비밀 칸으로) · `mcp`(도구 서버) · `project`(패널이 이 프로젝트의 표준 문서를 읽음) · `projectWrite`(패널에서 `.litecode/sql-standard.md` 를 고침).
+
+## 구성
 
 - `server/index.ts` — MCP 입구. 연결은 `DATABASE_URL`, 없으면 `SQL_TUNING_DB` · `_HOST` · `_PORT` · `_SERVICE` · `_USER` · `_PASSWORD` 칸으로 만든다(`connect.ts` `databaseUrlFromEnv`). 스킴으로 어댑터를 고른다(`oracle://` · `postgres://`)
 - `plugin.json` — `settings` 칸(`db` · `host` · `port` · `service` · `user` · `password`(secret) · `schema`)을 앱이 설치 2 단계와 설정 › 기능 › 플러그인 › [고치기] 에 폼으로 그린다. `mcp` 선언: 명령 `server/sql-tuning.mjs`(묶은 서버), env 는 그 칸 값 자리표시(`${storage:<키>}` · `${secret:password}` — 0.7.0 패널이 저장한 값과 같은 키라 그대로 쓰인다). 값을 바꾸면 앱이 다음 호출에 서버를 다시 띄운다. 도구 목록은 앱이 서버에게 묻는다
@@ -54,6 +61,8 @@ Oracle 의 인덱스 사용 수(`DBA_INDEX_USAGE`, 12.2+)는 표본 추적이고
 
 `DBMS_SQLTUNE`(Tuning Pack) · AWR `DBA_HIST_*`(Diagnostics Pack)은 쓰지 않는다. `EXPLAIN PLAN` · `DBMS_XPLAN` · `V$SQLAREA` 는 팩 없이 쓰는 것으로 알고 있으나 고객사 적용 전에 라이선스 담당 확인.
 
-## 테스트
+## 개발
 
-`tests/unit/extensions/sql-tuning/` — 가짜 어댑터 · 가짜 드라이버로만(실물 DB 테스트는 두지 않는다).
+- 묶기: 위 "플러그인으로 쓰기" 1번 — `node plugins/sql-tuning/build.mjs [--standard <사내 표준.md>]`, `--dir` 이면 `build/sql-tuning/`(앱 개발 모드에서 연결).
+- 테스트: `plugins/sql-tuning/tests/` (`npm test -- --project sql-tuning`) — 가짜 어댑터 · 가짜 드라이버로만(실물 DB 테스트는 두지 않는다).
+- 배포: `npm run release sql-tuning`.

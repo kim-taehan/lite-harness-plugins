@@ -89,6 +89,13 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
     if (attach === 'server') expect(manifest.id, 'litecode 는 server 로 붙일 수 없습니다(예약 이름)').not.toBe('litecode')
   })
 
+  it('22 · README.md 에 역할 · 구성 · 개발 절', () => {
+    const readme = path.join(pluginsDir, folder, 'README.md')
+    expect(existsSync(readme), 'README.md 가 없습니다 (docs/README.md "플러그인마다 README.md")').toBe(true)
+    const text = readFileSync(readme, 'utf8')
+    expect(['역할', '구성', '개발'].filter((title) => !new RegExp(`^## ${title}\\s*$`, 'm').test(text)), '빠진 절').toEqual([])
+  })
+
   it('17 · mcp 플러그인의 build.mjs 는 --dir 을 받는다', () => {
     const build = path.join(pluginsDir, folder, 'build.mjs')
     if (!manifest.mcp || !existsSync(build)) return
