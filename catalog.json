@@ -6,14 +6,14 @@
       "name": "Chrome in Lite Harness",
       "description": "AI 전용 Chrome 창 — 동봉한 Playwright MCP 서버로 페이지를 읽고 누릅니다",
       "category": "dev-tool",
-      "version": "1.0.0",
-      "zip": "dist/chrome-browser-1.0.0.zip",
-      "sha256": "c637d87ddaa3adf59ea6efc18c3f4813d8f80e219d7b38c32c064a552ec2f9be",
-      "details": "AI 가 따로 뜨는 전용 Chrome 창에서 페이지를 읽고, 누르고, 글자를 입력합니다. 동봉한 Playwright MCP 서버를 띄우는 확장입니다(인터넷에서 받지 않습니다 — 폐쇄망 그대로).\n오른쪽 패널의 브라우저 탭과는 다른 브라우저입니다 — 열린 페이지도 로그인도 따로입니다. 프로필이 따로라 평소 쓰는 Chrome 은 건드리지 않고, 그 창의 로그인은 남습니다.\nChrome 은 AI 가 처음 브라우저 도구를 쓸 때 뜹니다 (Windows 에서 Chrome 이 없으면 Edge). 10분 동안 안 쓰면 내립니다.\n도구는 12개만 엽니다. 파일 올리기·임의 코드 실행 같은 위험한 도구는 막혀 있습니다.\n도구를 쓸 때의 승인은 앱의 확장 도구 규칙을 따릅니다. 민감한 일은 매번 묻기 모드로 하세요.",
+      "version": "1.1.0",
+      "zip": "dist/chrome-browser-1.1.0.zip",
+      "sha256": "1f9e888e742c7095f635a3ba887bcef5e70229284faea13d52d2c2778f35e2fb",
+      "details": "AI 가 따로 뜨는 전용 Chrome 창에서 페이지를 읽고, 누르고, 글자를 입력합니다. 동봉한 Playwright MCP 서버를 띄우는 확장입니다(인터넷에서 받지 않습니다 — 폐쇄망 그대로).\n오른쪽 패널의 브라우저 탭과는 다른 브라우저입니다 — 열린 페이지도 로그인도 따로입니다. 프로필이 따로라 평소 쓰는 Chrome 은 건드리지 않고, 그 창의 로그인은 남습니다.\nChrome 은 AI 가 처음 브라우저 도구를 쓸 때 뜹니다 (Windows 에서 Chrome 이 없으면 Edge). 10분 동안 안 쓰면 내립니다.\n도구는 12개만 엽니다. 별도 MCP 서버로 붙어 MCP 팝업에서 브라우저 도구를 하나씩 켜고 끌 수 있습니다. 파일 올리기·임의 코드 실행 같은 위험한 도구는 막혀 있습니다.\n도구를 쓸 때의 승인은 앱의 확장 도구 규칙을 따릅니다. 민감한 일은 매번 묻기 모드로 하세요.",
       "permissions": [
         "mcp"
       ],
-      "size": 1655954
+      "size": 1656024
     },
     {
       "id": "ja-pack",
