@@ -25,7 +25,9 @@ lite-harness-desktop 앱에 까는 플러그인의 원본과 카탈로그.
 원본만 바뀌고 version 이 그대로인 push 에는 경고한다.
 
 ## 명령
-- `npm test` — 플러그인 테스트 + catalog ↔ dist 정합 + 표준 검사 (머지 조건)
+- `npm test` — 전부: 플러그인 테스트 + catalog ↔ dist 정합 + 표준 검사
+- `npm test -- --project <id>` — 그 플러그인 테스트만 (플러그인 하나를 고칠 때)
+- `npm run test:changed` — 바뀐 플러그인 테스트 + 공통 검사 (머지 조건, 머지 훅이 돌린다)
 - `npm run release <폴더…>` · `--all` · `--zip <파일>` — dist 와 catalog.json 갱신 (자세한 건 `docs/guides/publish.md`)
 
 ## 디렉터리
