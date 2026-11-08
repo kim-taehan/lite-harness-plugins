@@ -264,6 +264,7 @@ await call('events.subscribe', { events: ['usage.changed', 'project.filesChanged
 - 가운데 플러그인은 오른쪽 패널의 `+` 메뉴에 나오지 않습니다.
 - 그 탭을 고를 때만 화면을 그립니다. 다른 탭에 갔다 오면 iframe 을 새로 읽으니, 상태는 `storage` 에 두고 이벤트는 시작할 때마다 다시 구독합니다.
 - 격리(iframe · CSP)와 앱 통로는 오른쪽 패널과 같습니다. 다만 `panel.fullscreen` 은 `panel-hidden` 이 돌아옵니다(이미 넓은 자리라서).
+- 알림(`panel.notify`)을 누르거나 파일 우클릭(`fileActions`)으로 고르면 가운데 탭이 선택됩니다.
 - 대화와 같이 쓰는 패널이면 `chat.current` 로 지금 대화를 읽고, `chat.currentChanged` 를 구독해 대화가 바뀌는 것을 따라갑니다.
 
 ## 파일 우클릭으로 열기
@@ -277,9 +278,9 @@ await call('events.subscribe', { events: ['usage.changed', 'project.filesChanged
 
 - 오른쪽 패널(`entry`)이 있고 `project` 권한이 있는 플러그인만 쓸 수 있습니다. 항목은 3개까지, `label` 은 1~40자(앞뒤 빈칸은 다듬음), `match` 는 1~10개(패턴 하나 64자)이고, 항목에는 `label` · `match` 만 둡니다.
 - 패턴은 경로가 아니라 **파일 이름**에 맞춥니다. `/` · `\` 는 쓸 수 없고 `*` · `?` 만 특별한 뜻이 있으며, 대소문자는 가리지 않습니다.
-- 어기면 설치 때 `file-actions-invalid` 로 거절됩니다(`params.field` 가 `shape` · `label` · `match` · `entry` · `permission` · `placement` 중 하나). 지금은 `placement: "center"` 와 같이 쓸 수 없습니다.
+- 어기면 설치 때 `file-actions-invalid` 로 거절됩니다(`params.field` 가 `shape` · `label` · `match` · `entry` · `permission` 중 하나). 가운데 탭 플러그인(`placement: "center"`)도 쓸 수 있습니다.
 - 메뉴에는 그 프로젝트에서 켜진 플러그인만 나옵니다. 맞는 항목이 3개까지면 "플러그인" 소제목 아래 바로, 4개부터는 앞의 2개와 "다른 플러그인으로 열기" 로 묶입니다. 파일 탭 메뉴는 프로젝트 안 파일만 해당합니다.
-- 고르면 그 플러그인의 오른쪽 패널 탭을 엽니다(이미 열려 있으면 그 탭으로 갑니다). 넘어온 파일은 두 길로 받습니다.
+- 고르면 그 플러그인의 탭을 엽니다. 오른쪽 패널 플러그인은 오른쪽 패널 탭을(이미 열려 있으면 그 탭으로), 가운데 탭 플러그인은 그 가운데 탭을 고릅니다. 넘어온 파일은 어느 쪽이든 같은 두 길로 받습니다.
 
 ```js
 // 막 열린 패널 — 시작할 때 한 번 읽는다
