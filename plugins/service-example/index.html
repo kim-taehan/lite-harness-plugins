@@ -16,7 +16,7 @@
 <div id="msg"></div>
 <button id="refresh">새로 고침</button>
 <script>
-// 앱 통로: postMessage { litecode: 1, id, method, params } → 돌아오는 { litecode: 1, id, ok, value | error }
+// 앱 통로: postMessage { litecode: 1, id, method, params } → 돌아오는 { litecode: 1, id, ok, result | error }
 let next = 1
 const pending = new Map()
 window.addEventListener('message', (event) => {
@@ -24,7 +24,7 @@ window.addEventListener('message', (event) => {
   if (!data || data.litecode !== 1 || !pending.has(data.id)) return
   const done = pending.get(data.id)
   pending.delete(data.id)
-  data.ok ? done.resolve(data.value) : done.reject(new Error(String(data.error)))
+  data.ok ? done.resolve(data.result) : done.reject(new Error(String(data.error)))
 })
 const call = (method, params) => new Promise((resolve, reject) => {
   const id = next++
