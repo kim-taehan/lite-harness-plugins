@@ -1,0 +1,23 @@
+[
+  {
+    "id": "c-sharp",
+    "label": "C#",
+    "extensions": [
+      "cs"
+    ],
+    "wasm": "tree-sitter-c_sharp.wasm",
+    "definitions": {
+      "namespace_declaration": "namespace",
+      "file_scoped_namespace_declaration": "namespace",
+      "class_declaration": "class",
+      "interface_declaration": "interface",
+      "struct_declaration": "struct",
+      "enum_declaration": "enum",
+      "record_declaration": "record",
+      "delegate_declaration": "type",
+      "constructor_declaration": "constructor",
+      "method_declaration": "method",
+      "local_function_statement": "function"
+    }
+  }
+]
