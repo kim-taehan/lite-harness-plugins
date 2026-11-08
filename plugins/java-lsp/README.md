@@ -1,18 +1,24 @@
 # java-lsp — Java 언어 서버
 
+## 역할
+
 동봉한 Java 런타임과 Eclipse JDT LS 로, 인터넷 없이 Java 프로젝트의 오류 · 정의 · 참조 · 설명 · 심볼을 앱(파일 미리보기)과 AI 도구에 줍니다.
 언어 서버는 desktop 이 프로젝트 폴더마다 하나 띄워 화면과 AI 가 같이 씁니다 (desktop #1262 의 manifest `lsp` 자리).
 
-> **상태:** 묶기 · 오프라인 실행 확인까지. manifest 의 `lsp` 선언은 desktop #1262 가 머지되고 이 저장소의 표준 검사(`KNOWN_FIELDS` · 권한)가
-> 맞춰진 뒤 넣습니다 — 지금 `plugin.json` 에 넣으면 표준 3번 검사가 막습니다. 넣을 선언은 아래 그대로입니다.
+- 앱에 닿는 자리: 언어 서버(`lsp`) — 파일 보기의 오류 밑줄 · 마우스 풍선 · 문제 목록, AI 의 `code_*` 도구, 코드 탐색의 정의 · 참조.
+- 범위: `"project"` — Java 프로젝트에서만 켜 둔다(언어 서버 하나가 수백 MB~1GB).
+- 권한: `lsp` — 앱이 이 선언대로 언어 서버를 띄운다.
 
-## 들어 있는 것
+## 구성
 
 | 자리 | 무엇 | 어디서 |
 |---|---|---|
+| `plugin.json` | manifest — `lsp[0]` 선언(아래 "선언") · `lsp` 권한 · `scope` | 이 폴더 |
 | `runtime/` | Temurin 25.0.5+8 로 jlink 한 런타임 (Temurin JRE 모듈 전부, 압축) | `fetch-runtime.mjs` 가 Adoptium 에서 받음 (버전 · sha256 고정) |
 | `jdtls/` | Eclipse JDT LS 1.63.0 (그 타깃의 `config_*` 만) | `fetch-runtime.mjs` 가 download.eclipse.org 에서 받음 (sha256 고정) |
 | `server/jdtls.mjs` | 실행기 — 동봉 런타임으로 JDT LS 를 stdio 로 띄움 | 이 폴더 |
+| `fetch-runtime.mjs` · `build.mjs` | 런타임 · JDT LS 받기, 플랫폼별 묶기 | 이 폴더 (zip 에는 안 들어감) |
+| `tests/launcher.test.ts` | 실행기 인자 · 오프라인 설정 · 선언 테스트 | 이 폴더 (zip 에는 안 들어감) |
 
 - **Java 25 가 필요합니다.** JDT LS 1.63 의 번들이 `osgi.ee JavaSE 25` 를 요구해 Java 21 로는 뜨지 않습니다.
 - JRE 를 그대로 담으면 `lib/modules` 하나가 앱의 플러그인 상한(파일 하나 50MB)을 넘어서 jlink 로 압축합니다. 모듈을 빼지 않는 이유: JDT LS 는
@@ -20,7 +26,9 @@
 - 크기(darwin-arm64): 풀어서 약 122MB · 항목 440 · zip 약 97MB. 앱 상한(zip 100MB · 항목 2000 · 합 200MB · 파일 하나 50MB)에 가깝습니다 —
   `build.mjs` 가 넘으면 멈춥니다. mac-x64 · win-x64 는 아직 묶어 보지 않았습니다.
 
-## 묶기
+## 개발
+
+### 묶기 · 배포
 
 ```sh
 node plugins/java-lsp/fetch-runtime.mjs                       # 망 밖에서 — build/vendor/java-lsp/<타깃>/
@@ -29,6 +37,10 @@ node plugins/java-lsp/build.mjs --platform darwin-arm64 --dir  # → build/java-
 ```
 
 플랫폼 전용이라 `npm run release -- java-lsp --platform <p>` 로 올립니다(sonarqube 와 같음).
+
+### 테스트
+
+`npm test -- --project java-lsp` — 실행기(인자 · `JAVA_OPTS` · Gradle 캐시)와 `plugin.json` 의 선언. 언어 서버 동작은 아래 "확인한 것" 처럼 LSP 클라이언트 · 앱에서 본다.
 
 ## 실행기
 
