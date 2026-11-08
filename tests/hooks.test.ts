@@ -41,7 +41,7 @@ beforeAll(() => {
 afterAll(() => rmSync(base, { recursive: true, force: true }))
 
 const G = 'git'
-describe('block-protected-push — main 으로 가는 push 를 막는다', () => {
+describe('block-protected-push — main · dev 로 가는 push 를 막는다', () => {
   it.each([
     `${G} push origin main`,
     `${G} push origin +main`,
@@ -52,6 +52,9 @@ describe('block-protected-push — main 으로 가는 push 를 막는다', () =>
     `bash -c '${G} push origin main'`,
     `(cd . && ${G} push origin main)`,
     `/usr/bin/${G} push origin main`,
+    `${G} push origin dev`,
+    `${G} push origin +dev`,
+    `${G} push -f origin HEAD:refs/heads/dev`,
   ])('막음: %s', (command) => {
     expect(run('block-protected-push', { command }, repo)).toBe(2)
   })
