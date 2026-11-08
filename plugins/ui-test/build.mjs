@@ -1,8 +1,9 @@
 // UI 테스트 플러그인 묶기 — `node plugins/ui-test/build.mjs [--dir]` → build/ui-test.zip
 // --dir: zip 대신 같은 내용을 build/ui-test/ 폴더로 낸다 — 앱의 개발 모드에서 이 폴더를 연결해 바로 확인한다
+// 서비스(service/index.mjs)를 service.mjs 한 파일로 묶는다(앱 안에서 돌고 cordis 를 가져오지 않는다).
 // MCP 서버(server/index.ts)를 MCP SDK 째 server/ui-test.mjs 한 파일로 묶는다. playwright-core 는 esbuild 로 묶이지 않아(__dirname 으로 자기 package.json ·
 // browsers.json 을 찾고, 쓰지 않는 chromium-bidi 를 require 한다) server/node_modules/playwright-core 에 파일 그대로 싣는다 — Node 는 묶은 서버 옆
-// node_modules 에서 찾는다. 브라우저는 싣지 않는다 — PC 의 Chrome · Edge 를 channel 로 쓴다. zip 에는 plugin.json · index.html(패널) · server/ · skills/
+// node_modules 에서 찾는다. 브라우저는 싣지 않는다 — PC 의 Chrome · Edge 를 channel 로 쓴다. zip 에는 plugin.json · index.html(패널) · service.mjs · server/ · skills/
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -21,6 +22,15 @@ await build({
   target: 'node20',
   external: ['playwright-core'],
   banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
+  logLevel: 'warning',
+})
+await build({
+  entryPoints: [path.join(here, 'service/index.mjs')],
+  outfile: path.join(stage, 'service.mjs'),
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node20',
   logLevel: 'warning',
 })
 cpSync(path.join(root, 'node_modules/playwright-core'), path.join(stage, 'server/node_modules/playwright-core'), {
