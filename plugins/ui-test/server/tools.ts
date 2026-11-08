@@ -3,6 +3,7 @@
 // 2 단계: run 은 RUN_WAIT_MS 까지만 기다리고 돌아온다(엔진의 MCP 도구 호출 기한 5분 — 긴 묶음은 report { run } 으로 끝을 기다린다).
 // 결과에 실패 갈래(셀렉터 · 기다림 · 확인 값 · 이동 · 코드)와 길잡이, list 에 코드 낡음 · 코드 바뀜 · 데이터 표 · 규칙 덮임(어림값)
 
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { channelLabel, scrub } from './config.ts'
 import type { Driver } from './driver.ts'
@@ -210,7 +211,7 @@ export function createTools(deps: ToolDeps): Tool[] {
           }),
         }
       }
-      const where = `테스트 폴더: ${config.testDirSetting} · 결과서 폴더: ${config.reportDirSetting} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'}`
+      const where = `테스트 폴더: ${config.testDirSetting} · 결과서 폴더: ${config.reportDirSetting} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'} · 백엔드 코드: ${config.backendDirs.length ? config.backendDirs.join(', ') : '(프로젝트 안만)'}`
       const running = workspace.runningId()
       const now = running ? `\n지금 수행 중: ${workspace.current().suite} · 수행 id ${running} — report { suite, run } 으로 끝을 기다린다` : ''
       if (infos.length === 0) return { text: `${where}${now}\n묶음이 없습니다 — <테스트 폴더>/<묶음>/suite.md 와 시나리오 md 를 만드세요.` }
@@ -270,8 +271,8 @@ export function createTools(deps: ToolDeps): Tool[] {
   const fingerprint: Tool = {
     name: 'fingerprint',
     description:
-      'Fingerprints of the source files a scenario was drafted from (front-end and back-end code, project-relative paths). Returns the exact `sources: [...]` front-matter line to put in the scenario md, so `list` can later mark the scenario "코드 바뀜" when any of those files change.',
-    inputSchema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' }, description: 'Project-relative paths of the screen/server files you read.' } }, required: ['files'] },
+      'Fingerprints of the source files a scenario was drafted from (front-end and back-end code: project-relative paths, or absolute paths inside the back-end code folders that `list` shows). Returns the exact `sources: [...]` front-matter line to put in the scenario md, so `list` can later mark the scenario "코드 바뀜" when any of those files change.',
+    inputSchema: { type: 'object', properties: { files: { type: 'array', items: { type: 'string' }, description: 'Paths of the screen/server files you read — project-relative, or absolute inside a back-end code folder.' } }, required: ['files'] },
     async run(args) {
       const files = Array.isArray(args['files']) ? args['files'].map(String).filter(Boolean) : []
       if (files.length === 0) return { text: 'files 가 필요합니다', isError: true }
@@ -322,9 +323,13 @@ export function createTools(deps: ToolDeps): Tool[] {
     inputSchema: { type: 'object', properties: {} },
     async run() {
       if (!config.baseUrl) return { text: '대상 주소가 비어 있습니다', isError: true }
+      if (config.backendIgnored.length) return { text: `백엔드 코드 폴더는 절대 경로로 적어 주세요: ${config.backendIgnored.join(', ')}`, isError: true }
+      const missing = config.backendDirs.filter((dir) => !existsSync(dir))
+      if (missing.length) return { text: `백엔드 코드 폴더가 없습니다: ${missing.join(', ')}`, isError: true }
       try {
         const result = await deps.checkDriver().check(config.baseUrl)
-        return { text: scrub(result.text, secrets), ...(!result.ok && { isError: true }) }
+        const backend = config.backendDirs.length ? `\n백엔드 코드 폴더 ${config.backendDirs.length}개 확인` : ''
+        return { text: scrub(result.text + backend, secrets), ...(!result.ok && { isError: true }) }
       } catch (error) {
         return { text: scrub(error instanceof Error ? error.message : String(error), secrets).split('\n')[0]!, isError: true }
       }

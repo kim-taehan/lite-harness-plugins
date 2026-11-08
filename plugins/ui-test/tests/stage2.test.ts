@@ -188,6 +188,28 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 수행 (�
     expect(await tool(tools(space), 'fingerprint').run({ files: ['../x'] })).toMatchObject({ isError: true })
   })
 
+  it('백엔드 코드 폴더 — 프로젝트 밖 서버 코드도 절대 경로로 sources 에 적고, 바뀌면 코드 바뀜 · 폴더 밖은 거절', async () => {
+    const backend = path.join(dir, 'backend')
+    await fs.mkdir(path.join(backend, 'svc'), { recursive: true })
+    const service = path.join(backend, 'svc', 'JoinService.java')
+    await fs.writeFile(service, 'if (age > 70) throw\n')
+    const env = { UI_TEST_BASE_URL: 'http://a', UI_TEST_DATA_DIR: path.join(dir, 'data'), UI_TEST_BACKEND_DIRS: `${backend}/ , relative/x` }
+    const space = new Workspace(configFromEnv(env, root), async () => fakeBrowser())
+    expect(space.config).toMatchObject({ backendDirs: [backend], backendIgnored: ['relative/x'] })
+    const list = tools(space)
+    expect((await tool(list, 'list').run({})).text).toContain(`백엔드 코드: ${backend}`)
+    const sources = (await tool(list, 'fingerprint').run({ files: ['src/join.jsp', service] })).text
+    expect(sources).toMatch(new RegExp(`^sources: \\[src/join\\.jsp@[0-9a-f]{12}, ${service.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}@[0-9a-f]{12}\\]$`))
+    await fs.writeFile(path.join(root, 'ui-tests/join/01-나이.md'), `---\nname: 나이\n${sources}\n---\n1. 연다\n`)
+    expect((await space.suite('join')).scenarios[0]!.changed).toEqual([])
+    await fs.writeFile(service, 'if (age > 65) throw\n')
+    expect((await space.suite('join')).scenarios[0]!.changed).toEqual([{ path: service, state: 'changed' }])
+    expect(await tool(list, 'fingerprint').run({ files: [path.join(dir, 'elsewhere.java')] })).toMatchObject({ isError: true })
+    expect(await tool(list, 'check').run({})).toMatchObject({ isError: true, text: expect.stringContaining('절대 경로로 적어 주세요: relative/x') })
+    // 설정 없이는 프로젝트 안만 (예전 그대로)
+    expect(await tool(tools(workspace()), 'fingerprint').run({ files: [service] })).toMatchObject({ isError: true })
+  })
+
   it('데이터 표 — 행마다 새 창(화면 배율 0.75), data 에 행 값, 결과 · 결과서 · 비교가 행마다', async () => {
     await scenario()
     const contexts: Record<string, unknown>[] = []

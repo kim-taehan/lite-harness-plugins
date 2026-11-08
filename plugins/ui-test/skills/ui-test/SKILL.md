@@ -23,7 +23,7 @@ Read `references/formats.md` (scenario, suite.md, `## 데이터`, `## 규칙`, `
 
 ## Where things live
 
-Call `list` first. Its first line tells you the **test folder** (default `ui-tests/`), the report folder, the target address, the browser and the test account id. For every scenario it shows its **fingerprint** (`지문 …`), whether its code is **코드 낡음** (stale) and whether its source files are **코드 바뀜** (changed). Everything you write goes in the test folder of the current project:
+Call `list` first. Its first line tells you the **test folder** (default `ui-tests/`), the report folder, the target address, the browser, the test account id and the **back-end code folders** (`백엔드 코드:` — absolute paths set by the user when the server code lives outside this project, or `(프로젝트 안만)`). For every scenario it shows its **fingerprint** (`지문 …`), whether its code is **코드 낡음** (stale) and whether its source files are **코드 바뀜** (changed). Everything you write goes in the test folder of the current project:
 
 ```
 <test folder>/<suite>/suite.md
@@ -36,8 +36,8 @@ Write these with your normal file tools. Never write passwords anywhere — the 
 ## New suite: from a screen to results
 
 1. **Read the screen.** The front-end source is required: the HTML/JSP/JS/screen definition the user pointed at, plus the scripts it loads. Pull out validation rules (required, regex, length, ranges), messages, what happens after save, and selectors (label text, role, id, name, data-*). Optional, when available — use them, don't ask for them:
-   - the back-end code behind the screen (controller/service): business rules only the server enforces (age limits, product conditions, combinations, formulas), error codes and messages → precise "확인:" lines;
-   - a DB query MCP tool if one is enabled in this conversation (e.g. SQL 튜닝's `query`): find usable test data, and write "확인(DB):" lines. If no DB tool is available, write no "확인(DB):" lines.
+   - the back-end code behind the screen (controller/service): business rules only the server enforces (age limits, product conditions, combinations, formulas), error codes and messages → precise "확인:" lines. Look in this project, and in each back-end code folder `list` shows (search there by the screen's URL/API path or form names). Reading outside the project may ask the user for permission once — that is expected;
+   - a DB query MCP tool if one is enabled in this conversation (e.g. SQL 튜닝's `query`): find usable test data, and write "확인(DB):" lines. If no DB tool is available, write no "확인(DB):" lines and say so in one line: "DB 조회 도구가 없어 확인(DB) 줄은 만들지 않았습니다 — SQL 튜닝을 이 프로젝트에 켜면 같이 씁니다".
    - If the address is reachable and an in-app browser is available, you may look at the live page to confirm selectors.
    Say in one line what you read (files, DB lookups).
 2. **Draft 1..n scenarios in the chat — do not save yet.** Cover normal flow, missing required values, format errors, boundaries, business rules, permissions and error flows as the code justifies. Show a numbered list; for each: title · kind (정상 · 검증 · 업무 규칙 · 권한 · 예외) · numbered steps · "확인:" lines. A boundary family (age 69 · 70 · 71) can be one scenario with a `## 데이터` table.
@@ -45,7 +45,7 @@ Write these with your normal file tools. Never write passwords anywhere — the 
    - If the answer has edits, apply them, show the changed scenarios again, and ask once more the same way.
    - Save only the picked ones.
 4. **Name the suite** from the request (short Korean, hyphens: `가입설계-화면`). If a suite for the same screen already exists in `list`, ask whether to add to it or make a new one — don't decide alone. Write `suite.md` (request text, created date, target, address, browser, scenario order, `## 규칙`, CI command — see formats.md) and one md per scenario, numbered `01-`, `02-` … in the chosen order.
-   - **sources**: call `fingerprint { files: [<project-relative paths of the screen and server files you read>] }` and put the returned `sources: [...]` line into each scenario's front matter (the files that scenario depends on).
+   - **sources**: call `fingerprint { files: [<the screen and server files you read — project-relative, or absolute for files in a back-end code folder>] }` and put the returned `sources: [...]` line into each scenario's front matter (the files that scenario depends on).
    - **rules**: list the screen's validation and business rules you found in suite.md `## 규칙`, each with the scenarios that cover it.
 5. **Generate code**: one `<same stem>.spec.mjs` per scenario, following `references/step-api.md` — one `step()` per numbered scenario line, title copied exactly ("1. 로그인한다"), header comment with source file and the **fingerprint `list` shows for that scenario** (call `list` again after saving the md).
 6. **Run**: `run { suite }` (visible browser). The user watches the window; the panel shows progress.

@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { Config } from './config.ts'
-import { insideProject, scrub } from './config.ts'
+import { scrub, sourceFile } from './config.ts'
 import { driverFor, type Driver, type Launch } from './driver.ts'
 import { compareRuns, History } from './history.ts'
 import { renderReport } from './report.ts'
@@ -147,14 +147,14 @@ export class Workspace {
     return { suite, scenarios, ...(last && { last }) }
   }
 
-  /** sources 의 파일 지문을 지금 내용과 견준다 — 프로젝트 밖 · 없는 파일은 missing, 지문 없이 적힌 것은 보지 않는다 */
+  /** sources 의 파일 지문을 지금 내용과 견준다 — 프로젝트 · 백엔드 코드 폴더 밖 · 없는 파일은 missing, 지문 없이 적힌 것은 보지 않는다 */
   async sourceChanges(scenario: Scenario): Promise<SourceChange[]> {
     const out: SourceChange[] = []
     for (const source of scenario.sources) {
       if (!source.fingerprint) continue
       let content: string | undefined
       try {
-        content = await fs.readFile(insideProject(this.config.project, source.path, '코드 파일'), 'utf8')
+        content = await fs.readFile(sourceFile(this.config, source.path), 'utf8')
       } catch {
         content = undefined
       }
@@ -168,12 +168,12 @@ export class Workspace {
   async sourcesLine(files: string[]): Promise<string> {
     const refs: string[] = []
     for (const file of files) {
-      const relative = file.replace(/\\/g, '/').replace(/^\.\//, '')
+      const relative = path.isAbsolute(file) ? path.normalize(file) : file.replace(/\\/g, '/').replace(/^\.\//, '')
       let content: string
       try {
-        content = await fs.readFile(insideProject(this.config.project, relative, '코드 파일'), 'utf8')
+        content = await fs.readFile(sourceFile(this.config, relative), 'utf8')
       } catch {
-        throw new Error(`읽지 못한 파일: ${relative} (프로젝트 안 상대 경로)`)
+        throw new Error(`읽지 못한 파일: ${relative} (프로젝트 안 상대 경로, 또는 백엔드 코드 폴더 안 절대 경로)`)
       }
       refs.push(`${relative}@${sourceFingerprint(content)}`)
     }
