@@ -13,7 +13,7 @@ const VERSION = /^\d+\.\d+\.\d+$/
 const root = path.resolve(import.meta.dirname, '..')
 const pluginsDir = path.join(root, 'plugins')
 
-type Manifest = { id?: string; version?: string; permissions?: string[]; mcp?: { args?: string[] }; entry?: string } & Record<string, unknown>
+type Manifest = { id?: string; version?: string; permissions?: string[]; mcp?: { args?: string[]; attach?: unknown }; entry?: string } & Record<string, unknown>
 
 const plugins = readdirSync(pluginsDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
@@ -56,6 +56,13 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
 
   it('8 · mcp.args 에 비밀 값을 넣지 않는다', () => {
     expect((manifest.mcp?.args ?? []).filter((arg) => arg.includes('${secret:'))).toEqual([])
+  })
+
+  it('18 · mcp.attach 는 litecode · server, server 면 예약 이름이 아니다', () => {
+    const attach = manifest.mcp?.attach
+    if (attach === undefined) return
+    expect(['litecode', 'server']).toContain(attach)
+    if (attach === 'server') expect(manifest.id === 'litecode' || String(manifest.id).startsWith('gw-'), 'litecode · gw-* 는 server 로 붙일 수 없습니다').toBe(false)
   })
 
   it('17 · mcp 플러그인의 build.mjs 는 --dir 을 받는다', () => {
