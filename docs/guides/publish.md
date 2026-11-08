@@ -17,6 +17,7 @@
 ## 준비물
 
 - 이 저장소에 push 할 수 있는 권한, Node.js 22+, `zip` 명령
+- 브랜치 흐름: **`dev` 에서 브랜치를 따고 PR 은 `dev` 로** 보냅니다. `main` · `dev` 에는 직접 push 하지 않습니다(훅이 막습니다). 배포는 `dev` 에서 하지 않고 승격 때 합니다 — 아래 4번과 [작업 흐름](https://github.com/kim-taehan/lite-harness-plugins/blob/dev/.claude/rules/workflow.md)
 - `plugins/<id>/` 에 있는 플러그인 원본 (폴더 이름 = id)
 - 빌드가 필요한 플러그인이면 처음 한 번 `npm ci`
 
@@ -58,9 +59,13 @@
 터미널 (저장소 맨 위에서)
 
 ```sh
-npm run release hello-panel        # 하나만
-npm run release -- --all           # 전부
+npm run release hello-panel                   # 하나만
+npm run release -- --changed --dry-run        # 올라갈 플러그인 목록만 보기(아무것도 쓰지 않음)
+npm run release -- --changed                  # catalog 에 없거나 version 이 다른 플러그인만
+npm run release -- --all                      # 전부 (바뀌지 않은 것도 zip 을 다시 만든다 — 보통 --changed 를 쓴다)
 ```
+
+`--changed` 는 소스의 `version` 이 `catalog.json` 과 다른(또는 catalog 에 없는) 플러그인만 올립니다. 그래서 원본을 바꿨으면 **`version` 을 올려야** 올라갑니다. 목록에서 내린(`unlisted`) 것과 플랫폼 전용(`--platform`)은 건너뜁니다.
 
 release 가 하는 일:
 
@@ -80,18 +85,37 @@ release 가 하는 일:
 }
 ```
 
-## 4. 올리기
+## 4. 올리기 — `dev` 에서 브랜치, 배포는 승격 때
+
+작업은 늘 **`dev` 에서 브랜치를 따서** 합니다. PR 은 `dev` 로 보내고, `main` · `dev` 에는 직접 push 하지 않습니다.
+
+**① 원본을 고치는 PR** — release 를 돌리지 않고, `catalog.json` · `dist/` 는 이 PR 에 넣지 않습니다.
 
 터미널
 
 ```sh
-git checkout -b plugin/hello-panel-0.1.0
-git add plugins/hello-panel categories.json catalog.json dist
+git switch dev && git pull
+git switch -c feat/hello-panel
+git add plugins/hello-panel categories.json
 git commit -m "hello-panel 0.1.0"
-git push -u origin plugin/hello-panel-0.1.0     # 그리고 main 으로 PR
+git push -u origin feat/hello-panel
+gh pr create --base dev
 ```
 
-main 에 머지되면 앱에서 [새로 확인] 을 눌러 목록에 보이는지 봅니다.
+**② 배포 PR** — 목록에 낼 준비가 되면 `dev` 에서 `release/<날짜>` 브랜치를 따서 변경분만 올립니다.
+
+```sh
+git switch dev && git pull
+git switch -c release/2026-11-09
+npm run release -- --changed --dry-run     # 올라갈 목록을 먼저 확인
+npm run release -- --changed
+git add catalog.json dist categories.json
+git commit -m "release: hello-panel 0.1.0"
+git push -u origin release/2026-11-09
+gh pr create --base dev
+```
+
+**③ 승격** — 배포 PR 이 `dev` 에 머지된 뒤 `dev` → `main` 승격 PR 을 올립니다. 사용자에게 나가는 일이라 올리기 전에 사용자(리더) 확인을 받습니다. `main` 에 머지되면 앱에서 [새로 확인] 을 눌러 목록에 보이는지 봅니다.
 
 ## 버전 규칙
 
@@ -153,7 +177,7 @@ npm run release vi-pack      # → - vi-pack 목록에서 내림 (unlisted)
 
 ## 정리
 
-분류 한 줄 → (바뀐 것) → `npm run release` → 커밋 · PR. `dist/` 와 `catalog.json` 은 늘 release 가 만듭니다. 저장소 구조와 폐쇄망에서 쓰는 법은 [README](https://github.com/kim-taehan/lite-harness-plugins#readme) 에 있습니다.
+`dev` 에서 브랜치 → 분류 한 줄 → (바뀐 것) → 커밋 · PR(`dev` 로) → 승격 때 `npm run release -- --changed` → 배포 PR → `dev` → `main` 승격. `dist/` 와 `catalog.json` 은 늘 release 가 만듭니다. 저장소 구조와 폐쇄망에서 쓰는 법은 [README](https://github.com/kim-taehan/lite-harness-plugins#readme) 에 있습니다.
 
 ## 다음
 
