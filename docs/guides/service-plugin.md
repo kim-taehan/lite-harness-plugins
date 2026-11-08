@@ -6,6 +6,18 @@
 
 *약 30분 · 권한: service(+ 쓰는 앱 기능) · 빌드: build.mjs*
 
+## 처음 만든다면 — 5분 시작
+
+서비스 플러그인(코드를 가진 플러그인)을 처음부터 끝까지 한 번 돌려 봅니다.
+
+1. **`dev` 에서 브랜치를 땁니다.** `git switch dev && git pull && git switch -c feat/<이름>` — PR 은 `dev` 로 보내고 `main` 에는 직접 올리지 않습니다(`main` · `dev` 직접 push 는 훅이 막습니다. [작업 흐름](https://github.com/kim-taehan/lite-harness-plugins/blob/dev/.claude/rules/workflow.md)).
+2. **뼈대를 만듭니다.** `npm ci`(처음 한 번) 뒤 `npm run new-plugin -- <id> --name "<이름>" [--scope app|project]`. `plugins/<id>/` 에 `plugin.json` · `service/index.mjs` · `build.mjs` · 패널 `index.html` · `tests/service.test.ts` · `README.md` 가 생기고, 새 id 는 `categories.json` 에 `unlisted` 로 적혀 release 에 실수로 나가지 않습니다.
+3. **앱 없이 시험합니다.** `npm test -- --project <id>` — 가짜 host 로 서비스를 시험합니다.
+4. **앱에 연결해 고칩니다.** `node plugins/<id>/build.mjs --dir` 로 `build/<id>/` 를 낸 뒤, 앱의 설정 › 기능 › 플러그인 › 개발 중 › [폴더 연결] 로 그 폴더를 연결합니다(개발 모드는 개발 실행 `npm run dev` 나 플러그인 개발자용 설치본에서만 있습니다). 고친 뒤 `build.mjs --dir` 를 다시 돌리면 앱이 1초 조용해진 뒤 다시 읽습니다. 막히면 [막혔을 때](troubleshooting.md).
+5. **올립니다.** 커밋 전에 `/convention-review` 로 표준과 대조하고, PR 을 `dev` 로 보냅니다(`gh pr create --base dev`). 목록에 내는 배포는 승격 때 따로 합니다 — [저장소로 내보내기](publish.md).
+
+자세한 설명은 아래 각 절에 있습니다.
+
 ## 만들 것
 
 실제 플러그인 [token-pet(빛톨 키우기)](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/token-pet)의 코드를 단계마다 발췌하며 같은 모양을 만듭니다. 따라 만들 때는 이름만 바꿔 쓰세요.
@@ -316,4 +328,5 @@ const pushes = fake.pushes().filter((p) => p.event === 'service.update')   // ho
 
 - [MCP 플러그인 만들기](mcp-plugin.md) — 오래 걸리는 일 · 비밀을 별도 프로세스로
 - [첫 패널 플러그인](first-panel.md) — 패널 쪽 (가운데 탭 · 파일 우클릭 · 같은 zip 의 파일)
-- [저장소로 내보내기](publish.md) — 올리기 · 버전 · `npm run release`
+- [막혔을 때 — 오류 원인 · 해결](troubleshooting.md) — 설치 거절 · 호출 실패 코드
+- [저장소로 내보내기](publish.md) — `dev` 에서 브랜치 · 올리기 · 버전 · `npm run release -- --changed`
