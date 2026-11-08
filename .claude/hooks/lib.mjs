@@ -37,6 +37,14 @@ export function commandDir(command, cwd) {
   return gitC ? resolve(dir, gitC[1] ?? gitC[2] ?? gitC[3]) : dir
 }
 
+// `git <하위 명령>` 을 찾아 그 뒤 인자 문자열을 돌려준다(없으면 undefined). 앞: 줄 처음 · 공백 · ; & | ( ` ' " 뒤 —
+// `bash -c 'git …'` · `(cd x && git …)` · 경로 붙은 git 도. git 과 하위 명령 사이의 전역 옵션(`-c 값` · `-C 값` · `--no-pager` ·
+// `--git-dir=…` 등)은 건너뛴다. 막는 쪽으로 넓게 잡는다 — 문자열 안의 git 명령까지 잡혀도 검사가 한 번 더 돌 뿐이다.
+export function gitArgs(command, subcommand) {
+  const pattern = new RegExp(String.raw`(?:^|[\s;&|(\`'"])(?:\S*\/)?git(?:\s+(?:-[cC]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+${subcommand}\b([^;&|\n\`'")]*)`)
+  return pattern.exec(command)?.[1]
+}
+
 export function block(reason) {
   process.stderr.write(reason + '\n')
   process.exit(2)

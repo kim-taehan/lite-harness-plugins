@@ -1,10 +1,10 @@
 // push 때 경고만 한다(막지 않음): 플러그인 원본이 바뀌었는데 catalog.json 의 그 플러그인 version 이 main 과 같으면,
 // 이미 설치한 PC 에는 업데이트가 가지 않는다 — version 을 올리고 npm run release 를 했는지 알려 준다.
 // tests/ 만 바뀐 경우, catalog 에 없는 플러그인(아직 안 올렸거나 unlisted)은 보지 않는다.
-import { readHookInput, git } from './lib.mjs'
+import { readHookInput, git, gitArgs } from './lib.mjs'
 
 const { command, cwd } = await readHookInput()
-if (!/(?:^|[;&|\n])\s*(?:\S*\/)?git(?:\s+-[Cc]\s+\S+)*\s+push\b/.test(command)) process.exit(0)
+if (gitArgs(command, 'push') === undefined) process.exit(0)
 
 const catalogAt = (ref) => {
   try { return JSON.parse(git(cwd, 'show', `${ref}:catalog.json`)).extensions } catch { return [] }
