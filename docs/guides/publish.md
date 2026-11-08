@@ -136,7 +136,7 @@ npm run release vi-pack      # → - vi-pack 목록에서 내림 (unlisted)
 - `categories.json` 에 한 줄 있다
 - zip 으로 직접 설치해 한 번 돌려 봤다
 - 권한은 쓰는 것만 적었다
-- 빌드가 필요한 플러그인의 테스트(`plugins/<id>/tests/`)가 `npm test` 로 통과한다
+- 테스트가 있는 플러그인은 `npm test -- --project <id>` 로 그 플러그인 테스트가 통과한다. 머지 훅은 `npm run test:changed`(바뀐 플러그인 + 공통 검사)를 돌린다
 
 ## 정리
 
