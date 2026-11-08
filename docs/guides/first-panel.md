@@ -153,6 +153,7 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 |---|---|---|
 | (없음) | `storage.get` · `set` · `delete` | 플러그인별 JSON 값 `{ key, value }`. 전체 64KB — 설정 · 화면 상태용, 큰 캐시는 담지 않습니다 |
 | (없음) | `panel.fullscreen` | `{ on }` — 오른쪽 패널을 전체 화면으로 |
+| (없음) | `panel.notify` | `{ title, body?, level? }` — 앱 알림을 띄웁니다. 아래 [알림](#알림) |
 | `project` | `project.info` · `readFile` · `listDir` · `findFiles` · `fileInfo` · `openFile` · `pickPath` · `changedFiles` · `openTabs` | 지금 프로젝트 안만 읽고, 파일을 앱의 미리보기로 엽니다. 경로는 프로젝트 기준 상대 경로 (`..` · 절대 경로 거절) |
 | `projectWrite` | `project.writeFile` · `removeFile` | 프로젝트의 `.litecode/` 바로 아래 `.md` 만 — 팀이 커밋해 같이 쓰는 문서용 |
 | `chat` | `chat.compose` · `exists` · `titles` · `open` | `{ text, send }` — 새 대화를 열어 입력창을 채우거나(`send: false`) 곧바로 보냅니다 |
@@ -162,6 +163,18 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 | `mcp` · `tools` | `mcp.call` · `mcp.status` · `tools.run` | 플러그인이 싣고 온 MCP 서버 · 도구 — [MCP 플러그인](mcp-plugin.md) 가이드 |
 
 > 권한은 필요한 것만 적으세요. 설치 카드에 그대로 보이고, 업데이트에서 권한이 늘면 사용자가 다시 허락해야 합니다.
+
+### 알림
+
+패널이 탭 밖의 사용자에게 알릴 일이 있으면(긴 작업이 끝남 · 실패 등) `panel.notify` 를 부릅니다. 권한은 필요 없습니다.
+
+```js
+await call('panel.notify', { title: '분석 끝', body: '느린 쿼리 3개를 찾았습니다', level: 'success' })
+```
+
+- `title` 필수, 앞뒤 빈칸을 뺀 글 1~80자 · `body` 선택, 300자까지 · `level` 은 `info`(기본) · `success` · `warning` · `error`.
+- 앱이 그리는 토스트(플러그인 이름 + 제목 + 본문)로 뜨고, 누르면 그 플러그인 탭이 열립니다. 설정 › 기능의 "알림" 이 꺼져 있으면 뜨지 않습니다.
+- 성공하면 결과는 `null` 입니다. 모양이 틀리면 `params-invalid`, 플러그인 하나가 60초에 5개를 넘기면 `notify-limit` 이 돌아옵니다. 진행률처럼 자주 바뀌는 것은 패널 안에 그리고, 알림은 끝난 일에만 씁니다.
 
 ## 정리
 

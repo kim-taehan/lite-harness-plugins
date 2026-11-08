@@ -40,6 +40,7 @@
 | 자리 | 하는 일 | manifest | 권한 |
 |---|---|---|---|
 | 오른쪽 패널 탭 | 한 파일 HTML 이 `+` 메뉴의 탭으로 열림, 전체 화면(`panel.fullscreen`) | `entry` | 없음 |
+| 앱 알림 | 앱이 그리는 토스트(플러그인 이름 + 제목 + 본문), 누르면 그 플러그인 탭. 패널의 `panel.notify` · `tools` 도구 결과의 `notify` 로 냄 (MCP 서버는 직접 못 냄) | — | 없음 |
 | 플러그인 저장 칸 | 플러그인별 JSON 값 (`storage.*`, 64KB) | — | 없음 |
 | 프로젝트 읽기 | 이름 · 파일 읽기 · 목록 · 찾기 · 크기 · git 바뀐 파일 · 연 탭 · 앱 미리보기로 열기 · 고르기 창 | — | `project` |
 | 프로젝트 문서 쓰기 | `.litecode/` 바로 아래 `.md` 쓰기 · 지우기 (팀이 커밋하는 표준 문서) | — | `projectWrite` |
@@ -54,7 +55,7 @@
 | 화면 언어 | 앱 문구 번역 | `type: locale` | 가질 수 없음 |
 | 파일 개요 | 새 언어의 클래스 · 함수 개요 | `type: grammar` | 가질 수 없음 |
 
-패널이 부를 수 있는 메서드 전체와 권한의 짝은 [calls/methods.ts](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/src/services/extensions/calls/methods.ts) 한 곳에 있습니다. 표에 없는 메서드는 `method-unknown` 입니다.
+패널이 부를 수 있는 메서드 전체와 권한의 짝은 [calls/table.ts](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/src/services/extensions/calls/table.ts) 의 `CALL_TABLE` 한 곳에 있습니다. 표에 없는 메서드는 `method-unknown` 입니다.
 
 ## 건드릴 수 없는 곳
 
@@ -143,7 +144,7 @@ plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.j
 플러그인이 닿는 곳을 넓히는 일은 desktop 저장소의 변경입니다. 지금 구조에서는 보통 이 순서입니다.
 
 1. **권한**이 새로 필요하면 `shared/extensions.ts` 의 `EXTENSION_PERMISSIONS` 에 더하고 의미를 주석으로 적습니다(설치 카드에 보일 문구도).
-2. **메서드**를 `calls/methods.ts` 의 `CALL_PERMISSIONS` 에 권한과 짝지어 더하고, 처리는 `calls/` 에 둡니다. 실패는 던지지 않고 `ExtensionCallError` 코드로 돌려줍니다.
+2. **메서드**를 `calls/table.ts` 의 `CALL_TABLE` 에 권한 · 처리와 짝지어 더하고, 처리 코드는 `calls/` 에 둡니다. 실패는 던지지 않고 `ExtensionCallError` 코드로 돌려줍니다.
 3. **화면이 해야 하는 일**(파일 열기 · 대화 열기처럼)이면 메인은 권한 · 모양만 보고, 실제 동작은 화면의 통로(`renderer/extensionBridge.ts`)가 합니다.
 4. **manifest 필드**가 새로 필요하면 `manifest.ts` 의 `KNOWN` 과 검사를 더합니다 — 모르는 필드 거절 규칙 때문에, 새 필드를 쓰는 플러그인에는 `litecode`(최소 앱 버전)를 적어, 옛 앱의 거절 카드에 "앱 버전이 낮음" 사유가 같이 보이게 합니다.
 5. 이 사이트의 [권한 표](guides/first-panel.md#앱-통로와-권한)와 이 문서의 표를 같이 고칩니다.
@@ -154,10 +155,11 @@ plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.j
 |---|---|
 | manifest 모양 · 권한 · 거절 사유 · 통로 오류 | `shared/extensions.ts` |
 | manifest 검사 | `src/services/extensions/manifest.ts` |
-| 메서드 ↔ 권한 | `src/services/extensions/calls/methods.ts` |
-| 상한 값 | `src/services/extensions/limits.ts` |
-| 설치 · 부팅 · 분배 | `src/services/extensions/extensions.ts` · `store.ts` · `data.ts` |
-| MCP 서버 · 스킬 · 범위 | `mcpServers.ts` · `skills.ts` · `projectScope.ts` |
+| 메서드 ↔ 권한 · 처리 | `src/services/extensions/calls/table.ts` |
+| 상한 값 (알림 상한 포함) | `src/services/extensions/install/limits.ts` |
+| 설치 · 부팅 · 분배 | `src/services/extensions/extensions.ts` · `install/store.ts` · `data.ts` |
+| MCP 서버 · 도구 · 스킬 · 범위 | `mcp/servers.ts` · `tools/runner.ts` · `skills.ts` · `scope/` |
+| 알림 | `notify/notices.ts` |
 | 패널 탭 · 통로 · CSP | `renderer/ExtensionTab.tsx` · `extensionBridge.ts` · `htmlPreview.ts` |
 | 플러그인 저장소 | `src/services/extensionRepo/` |
 
