@@ -29,7 +29,7 @@ AI 가 대화 중에 부르는 도구를 MCP 서버로 싣습니다. 설치 때 
 - 작업 폴더는 도구를 부른 **프로젝트 폴더**이고, 프로젝트마다 서버가 하나씩 뜹니다.
 - 도구 목록은 서버에 묻고(tools/list) **플러그인 버전마다 한 번** 기억합니다. 도구를 더하거나 바꾸면 버전을 올리세요.
 - AI 에게는 `litecode_<플러그인 id>_<도구>` 이름으로 보입니다 — 여기선 `litecode_hello-mcp_greet`.
-- AI 에 붙는 플러그인(mcp · skills · tools)은 설치할 때 **범위**를 고릅니다: 모든 프로젝트, 또는 이 프로젝트(`<프로젝트>/.litecode/settings.json` 의 `plugins` 에 적혀 커밋하면 팀이 같이 씁니다).
+- AI 에 붙는 플러그인(mcp · skills · agents · tools)은 설치할 때 **범위**를 고릅니다: 모든 프로젝트, 또는 이 프로젝트(`<프로젝트>/.litecode/settings.json` 의 `plugins` 에 적혀 커밋하면 팀이 같이 씁니다).
 
 ## 1. 폴더 구조
 
@@ -81,6 +81,7 @@ build.mjs                묶기 — build/hello-mcp.zip 을 만든다 (--dir 이
 | `settingsCheck` | [연결 확인] 에 부를 도구 이름. `mcp` 선언이 있어야 하고, AI 에게는 보이지 않습니다 |
 | `settingsPer` | `"project"` 면 설정 값을 늘 프로젝트마다 따로 둡니다 (DB 연결처럼 프로젝트마다 다른 값) |
 | `skills` | 스킬 폴더 경로 목록. 폴더 이름(소문자 · 숫자 · `-`)이 스킬 이름이고 그 안에 `SKILL.md` |
+| `agents` | 서브에이전트 `.md` 파일 경로 목록(최대 20개) — 아래 [에이전트를 같이 싣기](#에이전트를-같이-싣기) |
 
 ## 3. MCP 서버
 
@@ -251,6 +252,37 @@ MCP 서버는 앱 알림을 직접 낼 수 없습니다. 도구 결과가 엔진
 ```
 
 새 manifest 필드나 권한은 필요 없습니다.
+
+## 에이전트를 같이 싣기
+
+검토 · 작성처럼 역할이 정해진 일을 AI 가 서브에이전트에게 맡기게 하려면, 에이전트 파일을 플러그인에 담고 manifest 의 `agents` 에 적습니다. 권한은 필요 없습니다.
+
+`plugins/hello-mcp/plugin.json` (일부)
+
+```json
+"agents": ["agents/greeting-reviewer.md"]
+```
+
+`plugins/hello-mcp/agents/greeting-reviewer.md`
+
+```md
+---
+name: greeting-reviewer
+description: Reviews a greeting for tone before it is sent. Use when the user asks to check a greeting.
+mode: subagent
+permission:
+  edit: deny
+---
+
+You review greetings written in Korean. Point out anything rude or too casual, and suggest one better line.
+```
+
+- 파일 형식은 프로젝트의 `.litecode/agents/*.md` 와 같습니다. frontmatter 에 `name` · `description` · `mode: subagent`(다른 mode 는 거절) · `permission`, 본문이 시스템 프롬프트입니다. `name` 이 없으면 파일 이름을 씁니다.
+- 경로는 플러그인 폴더 기준 상대 경로이고 소문자 `.md` 로 끝납니다. 규칙은 `entry` 와 같습니다(폴더 밖 · 절대 경로 · `..` 안 됨). 최대 20개, 파일 하나 256KB 까지입니다. 언어 팩 · 문법 팩에는 넣을 수 없습니다.
+- 파일이 없거나 크기를 넘거나 형식이 틀리면 `agents-invalid`(그 경로)로 설치가 거절됩니다.
+- 이름이 겹치면 프로젝트 > 사용자 > 플러그인 순으로 이깁니다. 플러그인끼리는 id 순으로 앞의 것이 이기고, 진 쪽은 경고로 남습니다.
+- agents 가 있으면 범위 플러그인입니다. 다만 엔진의 에이전트 목록이 앱 전체에 하나라서, 어느 프로젝트에서든 켜져 있으면 모든 프로젝트에 실립니다(켜지지 않은 프로젝트에서 숨기는 기능은 아직 없습니다).
+- 켜기 · 끄기 · 설치 뒤 다음 턴 전에 엔진이 다시 읽습니다. 에이전트 설명은 매 턴 오가니 짧게 씁니다.
 
 ## 정리
 

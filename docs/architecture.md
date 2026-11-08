@@ -40,6 +40,8 @@
 | 자리 | 하는 일 | manifest | 권한 |
 |---|---|---|---|
 | 오른쪽 패널 탭 | 진입 HTML 이 `+` 메뉴의 탭으로 열림(같은 zip 의 스크립트 · 스타일시트 · 이미지는 앱이 읽어 넣음), 전체 화면(`panel.fullscreen`) | `entry` | 없음 |
+| 앱 소식 | 패널이 `events.subscribe` 로 고른 이벤트(턴 끝 · AI 가 쓴 파일 · 연 탭 · 사용량 · 설정 저장)를 받음, 이벤트마다 그 권한 | — | 이벤트마다 |
+| 에이전트 | 플러그인이 담아 온 서브에이전트 `.md` 가 `.litecode/agents` 처럼 엔진에 실림 (범위 플러그인) | `agents` | 없음 |
 | 앱 알림 | 앱이 그리는 토스트(플러그인 이름 + 제목 + 본문), 누르면 그 플러그인 탭. 패널의 `panel.notify` · `tools` 도구 결과의 `notify` 로 냄 (MCP 서버는 직접 못 냄) | — | 없음 |
 | 플러그인 저장 칸 | 플러그인별 JSON 값 (`storage.*`, 64KB) | — | 없음 |
 | 프로젝트 읽기 | 이름 · 파일 읽기 · 목록 · 찾기 · 크기 · git 바뀐 파일 · 연 탭 · 앱 미리보기로 열기 · 고르기 창 | — | `project` |
@@ -161,6 +163,8 @@ plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.j
 | 설치 · 부팅 · 분배 | `src/services/extensions/extensions.ts` · `install/store.ts` · `data.ts` |
 | MCP 서버 · 도구 · 스킬 · 범위 | `mcp/servers.ts` · `tools/runner.ts` · `skills.ts` · `scope/` |
 | 알림 | `notify/notices.ts` |
+| 앱 소식 (이벤트 ↔ 권한) | `shared/extensions.ts` 의 `PANEL_EVENT_PERMISSIONS` · 구독은 `calls/table.ts` 의 `events.subscribe` |
+| 에이전트 | `agents/register.ts` · 검사는 `manifest.ts` (`agents-invalid`) |
 | 패널 자산 (같은 zip 의 js · css · 이미지) | `install/panelAssets.ts` · 참조 고르기는 `renderer/htmlPreview.ts` |
 | 패널 탭 · 통로 · CSP | `renderer/ExtensionTab.tsx` · `extensionBridge.ts` · `htmlPreview.ts` |
 | 플러그인 저장소 | `src/services/extensionRepo/` |

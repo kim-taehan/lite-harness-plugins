@@ -197,6 +197,7 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 | (없음) | `storage.get` · `set` · `delete` | 플러그인별 JSON 값 `{ key, value }`. 전체 64KB — 설정 · 화면 상태용, 큰 캐시는 담지 않습니다 |
 | (없음) | `panel.fullscreen` | `{ on }` — 오른쪽 패널을 전체 화면으로 |
 | (없음) | `panel.notify` | `{ title, body?, level? }` — 앱 알림을 띄웁니다. 아래 [알림](#알림) |
+| (이벤트마다) | `events.subscribe` | `{ events: [...] }` — 앱 소식을 받습니다. 이벤트마다 권한을 따로 봅니다. 아래 [앱 소식 받기](#앱-소식-받기) |
 | `project` | `project.info` · `readFile` · `listDir` · `findFiles` · `fileInfo` · `openFile` · `pickPath` · `changedFiles` · `openTabs` | 지금 프로젝트 안만 읽고, 파일을 앱의 미리보기로 엽니다. 경로는 프로젝트 기준 상대 경로 (`..` · 절대 경로 거절) |
 | `projectWrite` | `project.writeFile` · `removeFile` | 프로젝트의 `.litecode/` 바로 아래 `.md` 만 — 팀이 커밋해 같이 쓰는 문서용 |
 | `chat` | `chat.compose` · `exists` · `titles` · `open` | `{ text, send }` — 새 대화를 열어 입력창을 채우거나(`send: false`) 곧바로 보냅니다 |
@@ -218,6 +219,32 @@ await call('panel.notify', { title: '분석 끝', body: '느린 쿼리 3개를 �
 - `title` 필수, 앞뒤 빈칸을 뺀 글 1~80자 · `body` 선택, 300자까지 · `level` 은 `info`(기본) · `success` · `warning` · `error`.
 - 앱이 그리는 토스트(플러그인 이름 + 제목 + 본문)로 뜨고, 누르면 그 플러그인 탭이 열립니다. 설정 › 기능의 "알림" 이 꺼져 있으면 뜨지 않습니다.
 - 성공하면 결과는 `null` 입니다. 모양이 틀리면 `params-invalid`, 플러그인 하나가 60초에 5개를 넘기면 `notify-limit` 이 돌아옵니다. 진행률처럼 자주 바뀌는 것은 패널 안에 그리고, 알림은 끝난 일에만 씁니다.
+
+### 앱 소식 받기
+
+패널이 계속 물어보지 않아도(폴링) 앱에서 일이 생기면 알려 받을 수 있습니다. `events.subscribe` 로 받을 이벤트를 고르면, 답장과 같은 길로 `{ litecode: 1, event, data }` 가 옵니다. 답장과 달리 `id` 가 없습니다.
+
+```js
+addEventListener('message', ({ data }) => {
+  if (data?.litecode !== 1 || !data.event) return          // 답장(id 있음)은 call() 이 받는다
+  if (data.event === 'usage.changed') refreshUsage()        // 숫자는 usage.summary 로 다시 읽는다
+  if (data.event === 'project.filesChanged') reload(data.data.paths)
+})
+await call('events.subscribe', { events: ['usage.changed', 'project.filesChanged'] })
+```
+
+| 이벤트 | 필요한 권한 | `data` | 언제 · 어느 탭에 |
+|---|---|---|---|
+| `chat.turnEnded` | `chat` | `{ conversationId, outcome }` — `done` · `failed` · `interrupted` | 그 프로젝트의 대화에서 AI 턴이 끝날 때, 그 프로젝트의 탭에만 |
+| `project.filesChanged` | `project` | `{ paths, truncated? }` — 프로젝트 기준 상대 경로, 정렬, 최대 200개 | **AI 의 write · edit 도구가 쓴 파일만**, 0.5초씩 모아서. 셸 · 외부 편집기 · git 으로 바뀐 것은 아직 안 잡습니다 |
+| `project.openTabsChanged` | `project` | `{ paths }` | 오른쪽 패널에 연 파일 탭 목록이 바뀔 때만 |
+| `usage.changed` | `usage` | `{}` — 숫자는 `usage.summary` 로 읽습니다 | 사용량이 늘 때, 모든 탭에 |
+| `settings.saved` | (없음) | `{}` | 이 플러그인의 설정 값을 저장할 때, 그 플러그인 탭에만. 설치 때 넣은 값으로는 오지 않습니다 |
+
+- 부를 때마다 목록 **전체를 바꿉니다**. 빈 배열이면 그만 받습니다. 결과는 `{ events: [...] }` 입니다.
+- 하나라도 틀리면 전체를 거절하고 기존 목록을 그대로 둡니다. 모양이 틀리면 `params-invalid`, 모르는 이름이면 `event-unknown`, 권한이 없으면 `permission-missing` 입니다.
+- 구독은 iframe 이 살아 있는 동안만입니다. 탭을 다시 열거나 다시 설치(개발 모드 포함)로 진입 HTML 을 다시 읽으면 목록이 비니, 패널이 시작할 때마다 구독합니다.
+- 대화 글과 파일 내용은 싣지 않습니다. 필요하면 받은 경로로 `project.readFile` 을 부릅니다.
 
 ## 정리
 
