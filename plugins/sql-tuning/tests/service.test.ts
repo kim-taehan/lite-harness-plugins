@@ -11,6 +11,7 @@ const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')
   permissions: string[]
   settings: { key: string; type: string }[]
   service: { main: string; api: number }
+  settingsCheck?: string
   mcp?: unknown
 }
 const DIR = '/work/a'
@@ -29,6 +30,17 @@ describe('manifest ↔ 서비스', () => {
     expect(manifest.mcp).toBeUndefined()
     expect(manifest.permissions).toContain('service')
     expect(manifest.service).toMatchObject({ main: 'service.mjs', api: 1 })
+  })
+
+  it('[연결 확인] 도구 이름(settingsCheck)은 묶은 서버가 가진 도구와 같다', () => {
+    expect(manifest.settingsCheck).toBe('server_status')
+    const status = readFileSync(path.join(here, 'server/status.ts'), 'utf8')
+    expect(status).toContain("name: 'server_status'")
+  })
+
+  it('패널은 비밀 값을 읽지 않는다 — 비밀은 secret 칸 + ${secret:} 로 서버에만 간다', () => {
+    const panel = readFileSync(path.join(here, 'index.html'), 'utf8')
+    expect(panel).not.toMatch(/secrets\./)
   })
 
   it('MCP 서버 env 의 자리표시는 설정 칸과 맞고 비밀번호는 secret 로만 간다', () => {
