@@ -5,8 +5,8 @@
 UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화로 고르고, 테스트 코드를 만들어 PC 의 Chrome · Edge 로 단계마다 스크린샷을 찍으며 돌리고, 한 파일 HTML 결과서와 지난 수행 비교를 남긴다 (#1248, 계획 `docs/guide/superpowers/specs/2026-11-06-ui-test-plugin-design.md` 1 단계 — web, 2 단계 — 유지보수 · 보강, 0.2.0).
 
 - 범위: `"project"` — 대상 주소 · 계정 · 테스트 폴더가 프로젝트마다 다르다(`settingsPer: "project"`).
-- 앱에 닿는 자리: 서비스(`service` — 앱 안에서 도는 얇은 중계 · 진행 밀어 보내기) · 별도 프로세스 MCP 서버(실행기, playwright-core) · 스킬 · 패널.
-- 권한: `service`(서비스를 담는다) · `secrets`(테스트 계정 비밀번호를 비밀 칸으로) · `mcp`(실행기 서버 — 서비스가 서버 도구를 `host.call('mcp.call')` 로 부르는 데도 필요하다) · `project`(서비스가 결과서를 앱 파일 보기로 엶) · `chat`(서비스가 [보강] · [AI 에게 맡기기] 의 새 대화 요청을 보냄).
+- 앱에 닿는 자리: 서비스(`service` — 앱 안에서 도는 얇은 중계 · 진행 밀어 보내기, 서버를 `host.mcp.register` 로 올림) · 별도 프로세스 MCP 서버(실행기, playwright-core) · 스킬 · 패널.
+- 권한: `service`(서비스를 담는다) · `secrets`(테스트 계정 비밀번호를 비밀 칸으로 — 서비스는 비밀을 읽지 못하고 `${secret:password}` 가 서버 프로세스 env 에만 간다) · `project`(서비스가 결과서를 앱 파일 보기로 엶) · `chat`(서비스가 [보강] · [AI 에게 맡기기] 의 새 대화 요청을 보냄).
 
 ## 2 단계 (0.2.0) — 유지보수 · 보강
 
@@ -35,8 +35,8 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 
 ## 구성
 
-- `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 · 결과서 폴더), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목), `mcp`(패널 전용 `progress` · `stop` · `shot`), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
-- `service/index.mjs` — 서비스 원본: 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 않는다 — `mcp.env` 의 `${secret:password}` 로 서버에만 간다
+- `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 · 결과서 폴더), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
+- `service/index.mjs` — 서비스 원본: 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
 - `build.mjs` — 서비스를 `service.mjs` 한 파일로, 서버를 `server/ui-test.mjs` 로 묶는다(`--dir` 지원)
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run <묶음> [--failed] [--headed]`, 실패가 있으면 종료 코드 1
 - `server/tools.ts` — 도구 `list` · `run { suite, scenarios?: string[] | "failed", headed? }` · `report { suite, run? }` · `fingerprint { files }` (AI · 패널), `progress` · `stop` · `shot` (패널), `check` (설정 폼)
@@ -66,6 +66,6 @@ zip 의 `server/` 폴더(러너 + `node_modules/playwright-core`)를 CI 에 두�
 
 `plugins/ui-test/tests/` (`npm test -- --project ui-test`) — 가짜 브라우저로만(단위 테스트는 브라우저를 띄우지 않는다). `service.test.ts` 는 SDK 가짜 host 로 서비스의 중계 · 진행 밀어 보내기 · 감시 정리를 본다. **앱이 서비스를 올리고 패널이 `service.call` · `service.progress` 로 주고받는 것, 진짜 서버로 수행되는 것은 앱에서 확인**한다(못 봄).
 
-### 서버 등록이 manifest `mcp` 인 까닭
+### 설치 2 단계 폼의 [연결 확인]
 
-서비스가 서버를 `host.mcp.register` 로 올리면 manifest 에 `mcp` 선언이 없어야 하는데, 서비스가 서버 도구를 `host.call('mcp.call')` 로 부르려면 `mcp` 권한이 필요하고 `mcp` 권한은 `mcp` 선언과 같이만 있어야 한다(`mcp-mismatch`). 그래서 지금은 manifest `mcp` 를 그대로 두고 서비스가 같은 서버를 부른다. desktop 이 서비스 등록 서버에도 `mcp.call` 을 열어 주면 `host.mcp.register` 로 옮긴다.
+`settingsCheck` 는 서비스가 올린 서버의 `check` 도구를 부른다. 설치 확인창의 2 단계 폼은 서비스가 아직 안 떠 있어 [연결 확인] 이 `check-unavailable` 이다 — 설치한 뒤 설정 화면에서 누른다. 서버 도구 이름은 manifest `mcp` 때와 같이 AI 에 `litecode_ui-test_<도구>` 로 보여 스킬은 그대로다.

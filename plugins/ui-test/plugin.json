@@ -9,7 +9,6 @@
   "permissions": [
     "service",
     "secrets",
-    "mcp",
     "project",
     "chat"
   ],
@@ -24,22 +23,6 @@
   ],
   "settingsCheck": "check",
   "settingsPer": "project",
-  "mcp": {
-    "command": "server/ui-test.mjs",
-    "env": {
-      "UI_TEST_BASE_URL": "${storage:baseUrl}",
-      "UI_TEST_BROWSER": "${storage:browser}",
-      "UI_TEST_USER": "${storage:user}",
-      "UI_TEST_PASSWORD": "${secret:password}",
-      "UI_TEST_BACKEND_DIRS": "${storage:backendDirs}",
-      "UI_TEST_DIR": "${storage:testDir}",
-      "UI_TEST_REPORT_DIR": "${storage:reportDir}",
-      "UI_TEST_DATA_DIR": "${dataDir}"
-    },
-    "idleMs": 1800000,
-    "timeoutMs": 1800000,
-    "panelTools": ["progress", "stop", "shot"]
-  },
   "service": {
     "main": "service.mjs",
     "api": 1

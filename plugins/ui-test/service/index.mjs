@@ -1,6 +1,7 @@
 // UI 테스트 서비스 (0.3.0) — 앱 안에서 도는 코드. 일은 별도 프로세스 MCP 서버(server/ui-test.mjs, playwright-core)가 하고,
-// 서비스는 그 서버를 부르는 껍데기다: 패널이 service.call 로 묻는 것을 서버 도구(mcp.call)로 넘기고, 수행 중에는 진행을 서버에서 읽어 패널로 밀어 보낸다(폴링 대신).
-// 번들(build.mjs 가 service.mjs 한 파일로 묶는다)은 cordis 를 가져오지 않고 앱이 넘긴 host 로 만든다. 비밀번호는 서비스가 읽지 않는다 — mcp.env 의 ${secret:password} 로 서버에만 간다.
+// 서비스는 그 서버를 host.mcp.register 로 올리고 부르는 껍데기다: 패널이 service.call 로 묻는 것을 서버 도구(mcp.call)로 넘기고, 수행 중에는 진행을 서버에서 읽어 패널로 밀어 보낸다(폴링 대신).
+// 번들(build.mjs 가 service.mjs 한 파일로 묶는다)은 cordis 를 가져오지 않고 앱이 넘긴 host 로 만든다. 비밀번호는 서비스가 읽지 못한다 —
+// plugin.json settings 의 secret 칸 + 서버 env 의 ${secret:password} 로 서버 프로세스에만 간다(서비스는 host.call('secrets.get') 자체를 못 부른다).
 //
 // 프로젝트별(scope project) — 패널이 부른 프로젝트 폴더(directory)마다 서버가 따로 뜨고 진행 감시도 따로 돈다.
 
@@ -16,6 +17,24 @@ export default (host) =>
 
     constructor(ctx) {
       super(ctx)
+      // 실행기 서버 — 앱이 따로 띄우고(첫 도구 호출 때) 쉬면 내린다. 설정 칸 값은 ${storage:}, 비밀번호는 ${secret:} 로 서버 env 에 간다.
+      // 서버 도구는 AI 에 litecode_ui-test_<도구> 로 보이고(스킬이 쓰는 이름 그대로), progress · stop · shot 은 패널(서비스) 전용이다
+      host.mcp.register({
+        command: 'server/ui-test.mjs',
+        env: {
+          UI_TEST_BASE_URL: '${storage:baseUrl}',
+          UI_TEST_BROWSER: '${storage:browser}',
+          UI_TEST_USER: '${storage:user}',
+          UI_TEST_PASSWORD: '${secret:password}',
+          UI_TEST_BACKEND_DIRS: '${storage:backendDirs}',
+          UI_TEST_DIR: '${storage:testDir}',
+          UI_TEST_REPORT_DIR: '${storage:reportDir}',
+          UI_TEST_DATA_DIR: '${dataDir}',
+        },
+        idleMs: 1_800_000,
+        timeoutMs: 1_800_000,
+        panelTools: ['progress', 'stop', 'shot'],
+      })
       ctx.effect(() => () => {
         for (const timer of this.watchers.values()) clearTimeout(timer)
         this.watchers.clear()

@@ -138,6 +138,13 @@ host.mcp.register({ command: 'bin/server.js', args: ['${dataDir}'], env: { TOKEN
 - 서비스가 내려가면 올린 도구와 서버 선언은 모두 걷힌다. 돌려준 함수로 먼저 걷을 수도 있다.
 - MCP 서버는 플러그인에 하나다(manifest 에 `mcp` 가 있으면 못 올린다). 실행 파일은 설치 폴더 기준이고 첫 도구 호출 때 뜨며 쉬면 내려간다.
 
+`host.mcp.register` 로 올린 서버는 manifest `mcp` 선언과 같은 길로 다뤄진다 — 단, 서비스가 떠서 `register` 를 부른 동안만 있다.
+
+- **AI 도구 이름**: 서버가 알려 준 도구가 `attach` 에 따라 보인다. 기본(`litecode`)은 앱 MCP 한 곳 안에 `<플러그인 id>_<도구>` 로 올라 AI 에는 `litecode_<플러그인 id>_<도구>` 로 보인다. `attach: 'server'` 이면 플러그인 id 이름의 MCP 서버로 따로 붙고 도구 이름은 서버가 준 그대로라 AI 에는 `<플러그인 id>_<도구>` 로 보인다(사용자가 같은 이름의 서버를 이미 만들어 두었으면 `litecode` 쪽으로 붙는다. 플러그인 id 가 `litecode` 면 `server` 는 못 쓴다). `panelTools` 와 `settingsCheck` 도구는 AI 에 안 보인다.
+- **`host.call('mcp.call' | 'mcp.status')`**: `permissions` 의 `service` 만으로 **자기 서비스가 올린 서버**를 부른다(`mcp` 권한 불필요, manifest `mcp` 선언 불필요). 서버를 올리기 전에는 `permission-missing`. 다른 플러그인의 서버는 부를 수 없다. `mcp.call` 은 서버의 어느 도구든 부르고(`panelTools` 와 무관), 결과는 `{ text, isError }`.
+- **`[연결 확인]`(`settingsCheck`)**: manifest 에 `settings` · `settingsCheck`(도구 이름)를 두고 `service` 권한이 있으면 manifest `mcp` 없이도 쓸 수 있다. 서버를 올린 뒤의 설치된 플러그인(패널 · 설정 폼 · `settings.check`)에서 그 서버로 확인한다. **설치 2단계 폼은 서비스가 아직 안 떠 있어서** 서버 선언을 알 수 없어 `[연결 확인]` 을 쓰지 못한다(설치 뒤 설정 화면에서 된다).
+- **비밀 값**: 서비스는 비밀을 읽지 못한다 — `host.call('secrets.get')` 은 서비스에서 `method-unknown` 이다(`secrets.set` · `secrets.delete` 는 된다). 비밀을 쓰는 서비스의 유일한 길은 manifest `settings` 에 `type: "secret"` 칸을 선언하고, 서버 `env` 에 `${secret:키}` 를 적어 자식 프로세스에만 넘기는 것이다. 패널도 서버 `env`(manifest · 서비스 등록 모두)의 `${secret:}` 키와 `secret` 설정 칸의 키는 `secrets.get` 으로 읽지 못한다(`secret-write-only`).
+
 ## 패널에 밀어 보내기 — host.panel.emit
 
 서비스가 **자기 플러그인의 패널**에 소식을 보낸다(다른 플러그인 패널에는 가지 않는다). 폴링이 필요 없다.
