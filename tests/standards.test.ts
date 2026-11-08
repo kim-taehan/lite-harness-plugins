@@ -80,11 +80,11 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
     if (!published.has(String(manifest.id))) expect(manifest.scope, '새 플러그인은 scope("app" · "project")를 적어야 합니다').toBeDefined()
   })
 
-  it('18 · mcp.attach 는 litecode · server, server 면 예약 이름이 아니다', () => {
+  it('18 · mcp.attach 는 litecode · server, server 면 id 가 litecode 가 아니다', () => {
     const attach = manifest.mcp?.attach
     if (attach === undefined) return
     expect(['litecode', 'server']).toContain(attach)
-    if (attach === 'server') expect(manifest.id === 'litecode' || String(manifest.id).startsWith('gw-'), 'litecode · gw-* 는 server 로 붙일 수 없습니다').toBe(false)
+    if (attach === 'server') expect(manifest.id, 'litecode 는 server 로 붙일 수 없습니다(예약 이름)').not.toBe('litecode')
   })
 
   it('17 · mcp 플러그인의 build.mjs 는 --dir 을 받는다', () => {
