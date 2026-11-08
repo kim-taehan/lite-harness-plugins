@@ -20,9 +20,37 @@ body { background: var(--bg); color: var(--text); font: 13px/1.5 -apple-system, 
 canvas { image-rendering: pixelated; display: block; }
 .app { display: flex; flex-direction: column; gap: 12px; padding: 12px; max-width: 560px; margin: 0 auto; }
 .stage { position: relative; height: 220px; border-radius: 14px; overflow: hidden; background: linear-gradient(to bottom, var(--sky) 0 64%, var(--grass-top) 64% 66%, var(--grass) 66%); }
-.walker { position: absolute; left: 0; top: 0; cursor: pointer; will-change: transform; }
-.say { position: absolute; bottom: 100%; left: 50%; transform: translate(-30%, -4px); background: #fff; color: #333; border: 2px solid #2e1a0c; border-radius: 10px; padding: 2px 8px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.deco { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.deco span { position: absolute; }
+.walker { position: absolute; left: 0; top: 0; cursor: pointer; will-change: transform; z-index: 1; }
+.say { position: absolute; bottom: 100%; left: 50%; transform: translate(-30%, -4px); background: #fff; color: #333; border: 2px solid #2e1a0c; border-radius: 10px; padding: 2px 8px; font-size: 12px; width: max-content; max-width: 220px; white-space: normal; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.fx { position: absolute; left: 70%; top: -6px; font-size: 16px; pointer-events: none; animation: rise 1.2s ease-out forwards; }
+@keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-36px); } }
+/* 행동 (0.2.0) — 페르소나가 고른 것. 몸(canvas)만 움직이고 위치는 walker 가 쥔다 */
+.a-zap { animation: zap .6s steps(2) 2; }
+@keyframes zap { 50% { filter: brightness(1.8) drop-shadow(0 0 6px #ffd23f); } }
+.a-doze { animation: doze 1.6s ease-in-out; transform-origin: 50% 100%; }
+@keyframes doze { 30%, 70% { transform: translateY(3px) rotate(-10deg); } }
+.a-spin { animation: spin .8s ease; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.a-shy { animation: shy 1s ease; transform-origin: 50% 100%; }
+@keyframes shy { 40% { transform: scale(.85); filter: saturate(1.4) hue-rotate(-12deg); } }
+.a-nod { animation: nod 1.2s ease; }
+@keyframes nod { 25%, 75% { transform: translateY(5px); } 50% { transform: translateY(0); } }
+.a-dash { animation: dash .5s ease; }
+@keyframes dash { 50% { transform: skewX(-14deg); filter: blur(.6px); } }
+@media (prefers-reduced-motion: reduce) { .fx, [class^="a-"] { animation: none !important; } }
+.tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bgs { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.bgs button { font: inherit; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.bgs button i { width: 10px; height: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); }
+.bgs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.bgs button:disabled { opacity: .5; cursor: default; }
+.talkbtn { font: inherit; font-size: 12.5px; padding: 4px 12px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+.bgs button:focus-visible, .talkbtn:focus-visible, .full:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .walker.talk .say { opacity: 1; }
+.walker.edge-l .say { left: 0; transform: translate(0, -4px); }
+.walker.edge-r .say { left: auto; right: 0; transform: translate(0, -4px); }
 .full { position: absolute; top: 8px; left: 8px; z-index: 3; width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.92); color: #333; cursor: pointer; font-size: 14px; }
 .who { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .who b { font-size: 16px; margin-right: 2px; }
@@ -50,7 +78,11 @@ body.field .stage { height: 100%; border-radius: 0; background: linear-gradient(
 </head>
 <body>
 <div class="app">
-  <div class="stage" id="stage"><button type="button" class="full" id="full" title="전체 화면" aria-label="전체 화면">⤢</button></div>
+  <div class="stage" id="stage"><div class="deco" id="deco"></div><button type="button" class="full" id="full" title="전체 화면" aria-label="전체 화면">⤢</button></div>
+  <div class="tools">
+    <div class="bgs" id="bgs" role="group" aria-label="배경"></div>
+    <button type="button" class="talkbtn" id="talk" title="새 대화를 '빛톨아, ' 로 채워 엽니다">💬 말 걸기</button>
+  </div>
   <div>
     <div class="who" id="who"></div>
     <div class="bar"><i id="bar"></i></div>
@@ -64,8 +96,9 @@ body.field .stage { height: 100%; border-radius: 0; background: linear-gradient(
   <p class="error" id="error"></p>
   <h2 id="dexTitle">도감</h2>
   <div class="dex" id="dex"></div>
-  <p class="note">설치한 뒤에 AI 에 쓴 토큰을 먹고 자랍니다. 캐시로 읽은 토큰은 반만 칩니다. 기록은 이 PC 에만 남습니다.</p>
+  <p class="note">설치한 뒤에 AI 에 쓴 토큰을 먹고 자랍니다. 캐시로 읽은 토큰은 반만 칩니다. 빛톨을 누르거나 대화창에서 "빛톨아" 하고 불러 보세요. 기록은 이 PC 에만 남습니다.</p>
 </div>
+<script src="persona.js"></script>
 <script>
 // 몬스터 그림 — 원본 도트(글자 하나 = 픽셀 하나). L·R 은 걷기 발(프레임마다 번갈아)
 const SPECIES = [
@@ -306,10 +339,10 @@ const EGG = { id: 'egg', name: '빛알', pal: { o: '#2b3448', a: '#f4f6fb', b: '
   '...oooooooo...',
 ] }] }
 
-// 기준 (#1186) — 턴 하나가 맥락 전체를 실어 수십만~백만 토큰이다(캐시는 반만 친다). 흔한 종 기준 하루 50턴이면
-// 부화 ~1시간 · 2단계 반나절 · 3단계 2~3일 · 졸업 ~6일. 보통 ×1.25, 드묾 ×2
-const HATCH = 5_000_000
-const BASE = [30_000_000, 120_000_000, 300_000_000]
+// 기준 (#1186, 0.2.0 에서 ⅓ 로) — 턴 하나가 맥락 전체를 실어 수십만~백만 토큰이다(캐시는 반만 친다). 흔한 종 기준 하루 50턴이면
+// 부화 ~1시간 미만 · 2단계 몇 시간 · 3단계 반나절~하루 · 졸업 ~2일. 보통 ×1.25, 드묾 ×2(~4일). 값은 부화 뒤 누적
+const HATCH = 1_500_000
+const BASE = [10_000_000, 40_000_000, 100_000_000]
 const SPEC = {
   squirrel: { weight: 60, mult: 1, speed: 52, lines: ['버그 냄새!', '빨리빨리!', '찌릿!'] },
   sheep: { weight: 30, mult: 1.25, speed: 30, lines: ['음… 5분만…', '커피…', 'Zzz'] },
@@ -318,6 +351,21 @@ const SPEC = {
 const NATURES = ['급한', '차분한', '느긋한', '호기심 많은', '수줍은']
 const byId = (id) => SPECIES.find((s) => s.id === id)
 const ends = (id) => BASE.map((t) => Math.round(t * SPEC[id].mult))
+// 페르소나 (0.2.0) — persona.js 는 같은 zip 의 스크립트라 그것을 넣어 주는 앱(desktop #1339)에서만 실린다. 옛 앱이면 SPEC.lines 로
+const PERSONA = window.TOKEN_PET_PERSONA
+const FX = { hop: '♪', dash: '💨', zap: '⚡', doze: '💤', spin: '✨', shy: '💦', nod: '♨️' }
+
+// 배경 (0.2.0) — h = 지평선 높이(%). 패널 66 · 전체 화면 27 로 walker 의 땅과 맞춘다. need = 그만큼 졸업하면 열림
+const BGS = [
+  { id: 'meadow', name: '초원', sw: '#8cc56f', need: 0, css: (h) => `linear-gradient(to bottom, var(--sky) 0 ${h - 2}%, var(--grass-top) ${h - 2}% ${h}%, var(--grass) ${h}%)` },
+  { id: 'night', name: '밤하늘', sw: '#1d2a4d', need: 0, css: (h) => `linear-gradient(to bottom, #0f1830 0 ${h - 2}%, #2f4a3a ${h - 2}% ${h}%, #23382c ${h}%)`, deco: 'stars' },
+  { id: 'sunset', name: '노을', sw: '#f29e6b', need: 0, css: (h) => `linear-gradient(to bottom, #ffcf99 0, #f29e6b ${h * 0.6}%, #c46a7e ${h - 2}%, #8a6a4a ${h - 2}% ${h}%, #6e553c ${h}%)`, deco: 'sun' },
+  { id: 'server', name: '서버실', sw: '#2b3a4a', need: 1, css: (h) => `linear-gradient(to bottom, #233140 0 ${h}%, #3c4c5e ${h}%)`, deco: 'racks' },
+  { id: 'sea', name: '바다', sw: '#5bb4e0', need: 2, css: (h) => `linear-gradient(to bottom, #bfe6ff 0 ${h * 0.55}%, #5bb4e0 ${h * 0.55}% ${h}%, #f2dca5 ${h}%)`, deco: 'waves' },
+  { id: 'snow', name: '눈밭', sw: '#e9f1fb', need: 3, css: (h) => `linear-gradient(to bottom, #c9d8ea 0 ${h}%, #ffffff ${h}%)`, deco: 'snow' },
+]
+const bgOf = (id) => BGS.find((b) => b.id === id) ?? BGS[0]
+const unlocked = (b) => state.graduated.length >= b.need
 
 // ── 앱 통로 (postMessage) ──
 let next = 0
@@ -328,11 +376,17 @@ function call(method, params) {
   return new Promise((resolve, reject) => waiting.set(id, { resolve, reject }))
 }
 addEventListener('message', ({ data }) => {
+  if (data && data.litecode === 1 && data.event) return onEvent(data.event)
   const w = data && data.litecode === 1 && waiting.get(data.id)
   if (!w) return
   waiting.delete(data.id)
   data.ok ? w.resolve(data.result) : w.reject(new Error(data.error))
 })
+/** 앱 소식 (events.subscribe, desktop #1336) — 사용량이 늘면 먹이, AI 턴이 끝나면 빛톨이 한 말을 받아 온다 */
+function onEvent(event) {
+  if (event === 'usage.changed') void poll()
+  else if (event === 'chat.turnEnded') void fetchSaid(true)
+}
 
 // ── 상태 ──
 const fresh = () => ({ v: 1, baseline: null, feed: 0, species: null, nature: null, seen: [], graduated: [], startedAt: Date.now() })
@@ -369,15 +423,16 @@ function feed(amount) {
   if (state.species) {
     const e = ends(state.species)
     if (state.feed - HATCH >= e[2]) {
-      state.graduated.push({ id: state.species, at: Date.now() })
-      markSeen(state.species, 2)
+      state.graduated.push({ id: state.species, nature: state.nature, at: Date.now() })
+      for (let s = 0; s <= 2; s++) markSeen(state.species, s)
       state.species = null
       state.nature = null
       state.feed = 0
       return 'graduate'
     }
     const now = stageOf(state)
-    markSeen(state.species, now.stage)
+    // 기준이 ⅓ 로 줄어(0.2.0) 한 번에 여러 단계를 건너뛸 수 있다 — 지나간 단계도 도감 기록에 남긴다
+    for (let s = 0; s <= now.stage; s++) markSeen(state.species, s)
     if (event !== 'hatch' && now.stage > before.stage) event = 'evolve'
   }
   return event
@@ -410,6 +465,32 @@ async function poll() {
     void save()
   } else if (!state.savedOnce) { state.savedOnce = true; void save() }
   render()
+}
+
+// ── MCP 서버와 맞추기 (0.2.0) — AI 가 persona 도구로 지금 빛톨을 알 수 있게. 서버가 없거나(옛 앱 · 권한) 실패하면 조용히 넘어간다 ──
+let syncTimer = null
+let synced = ''
+function scheduleSync() {
+  clearTimeout(syncTimer)
+  syncTimer = setTimeout(async () => {
+    const { sp, stage } = current()
+    const pet = { species: state.species, stage: state.species ? stage : 0, nature: state.nature, name: sp.stages[stage].name, todayTokens: summary ? summary.today.tokens : 0, graduated: state.graduated.length, bg: state.bg ?? 'meadow' }
+    const key = JSON.stringify(pet)
+    if (key === synced) return
+    try { await call('mcp.call', { tool: 'sync', args: { pet } }); synced = key } catch { /* 다음 변경 때 다시 */ }
+  }, 800)
+}
+
+/** AI 가 say 로 남긴 말 — show 면 새 말을 빛톨이 말풍선으로 한다. 처음 한 번은 기준만 잡는다(열자마자 지난 말을 보이지 않게) */
+async function fetchSaid(show) {
+  try {
+    const result = await call('mcp.call', { tool: 'last_said', args: {} })
+    const said = result && !result.isError ? JSON.parse(result.text) : null
+    if (!said || !(said.at > (state.saidAt ?? 0))) return
+    state.saidAt = said.at
+    void save()
+    if (show && hero) { hero.talk(said.text, 6); if (said.action) hero.act(said.action) }
+  } catch { /* 서버 없음 */ }
 }
 
 // ── 그리기 ──
@@ -474,7 +555,48 @@ function render() {
     const c = document.createElement('canvas'); drawSprite(c, s, last, 0, 2); d.appendChild(c); dex.appendChild(d)
   }
   document.getElementById('dexTitle').textContent = `도감 ${seen} / ${SPECIES.length}${state.graduated.length ? ` · 졸업 ${state.graduated.length}` : ''}`
+  renderBgs()
   if (hero) hero.refresh()
+  scheduleSync()
+}
+
+// ── 배경 ──
+const bgsEl = document.getElementById('bgs')
+function renderBgs() {
+  const key = `${state.bg}:${state.graduated.length}`
+  if (bgsEl.dataset.k === key) return
+  bgsEl.dataset.k = key
+  bgsEl.innerHTML = ''
+  for (const b of BGS) {
+    const btn = document.createElement('button'); btn.type = 'button'
+    const open = unlocked(b)
+    btn.disabled = !open
+    btn.setAttribute('aria-pressed', String((state.bg ?? 'meadow') === b.id))
+    btn.title = open ? b.name : `졸업 ${b.need}번에 열려요`
+    const sw = document.createElement('i'); sw.style.background = b.sw; btn.append(sw, open ? b.name : `🔒 ${b.name}`)
+    btn.addEventListener('click', () => { state.bg = b.id; applyBg(); renderBgs(); scheduleSync(); void save() })
+    bgsEl.appendChild(btn)
+  }
+  applyBg()
+}
+function applyBg() {
+  const b = bgOf(state.bg)
+  const pick = unlocked(b) ? b : BGS[0]
+  const h = document.body.classList.contains('field') ? 27 : 66
+  stageEl.style.background = pick.css(h)
+  const deco = document.getElementById('deco')
+  const key = `${pick.id}:${h}`
+  if (deco.dataset.k === key) return
+  deco.dataset.k = key
+  deco.innerHTML = ''
+  const dot = (css) => { const s = document.createElement('span'); s.style.cssText = css; deco.appendChild(s) }
+  const rnd = (seed) => { let x = seed; return () => (x = (x * 9301 + 49297) % 233280) / 233280 } // 그릴 때마다 같은 자리
+  const r = rnd(7)
+  if (pick.deco === 'stars') for (let i = 0; i < 26; i++) dot(`left:${r() * 100}%;top:${r() * (h - 6)}%;width:3px;height:3px;background:#fff;opacity:${0.4 + r() * 0.6}`)
+  if (pick.deco === 'sun') dot(`left:70%;top:${h * 0.45}%;width:40px;height:40px;border-radius:50%;background:#ffe08a;box-shadow:0 0 26px #ffd166`)
+  if (pick.deco === 'racks') for (let i = 0; i < 5; i++) dot(`left:${6 + i * 19}%;top:${h * 0.15}%;width:13%;height:${h * 0.8}%;background:#1a2430;border:2px solid #4b5d72;background-image:repeating-linear-gradient(to bottom,transparent 0 9px,#2f3e4f 9px 11px);box-shadow:inset -4px 0 0 ${i % 2 ? '#52e08a' : '#ffcf4a'}`)
+  if (pick.deco === 'waves') for (let i = 0; i < 6; i++) dot(`left:${i * 17 + 2}%;top:${h * 0.7 + (i % 2) * 6}%;width:36px;height:4px;background:#e8f7ff;opacity:.8`)
+  if (pick.deco === 'snow') for (let i = 0; i < 28; i++) dot(`left:${r() * 100}%;top:${r() * h}%;width:4px;height:4px;border-radius:50%;background:#fff`)
 }
 
 // ── 걷는 몬스터 ──
@@ -495,10 +617,32 @@ function walker(get, { vertical = false } = {}) {
     const maxY = a.height - cv.height - 8
     s.ty = vertical ? minY + Math.random() * Math.max(0, maxY - minY) : Math.max(0, minY)
   }
-  const talk = (text) => { say.textContent = text; el.classList.add('talk'); s.talk = 2 }
-  el.addEventListener('click', () => { s.jump = 1; const g = get(); talk(g.sp.stages[g.stage].line) })
+  const talk = (text, secs = 2.4) => { say.textContent = text; el.classList.add('talk'); s.talk = secs }
+  /** 행동 하나 — 몸(canvas)의 CSS 애니메이션 + 작은 효과. 대시는 반대쪽으로 빠르게 달린다 */
+  const act = (name) => {
+    if (name === 'hop' || !name) { s.jump = 1; if (!name) return }
+    if (name === 'dash') { const { a } = ground(); s.tx = s.x < a.width / 2 ? a.width - cv.width - 4 : 4; s.boost = 0.7; s.wait = 0 }
+    if (still) return
+    cv.classList.remove(...[...cv.classList].filter((c) => c.startsWith('a-')))
+    void cv.offsetWidth
+    cv.classList.add(`a-${name}`)
+    cv.addEventListener('animationend', () => cv.classList.remove(`a-${name}`), { once: true })
+    const fx = document.createElement('span'); fx.className = 'fx'; fx.textContent = FX[name] ?? ''
+    el.appendChild(fx); setTimeout(() => fx.remove(), 1300)
+  }
+  /** 누르면 페르소나대로 한마디 + 행동 (persona.js 가 없으면 단계 대사) */
+  const poke = () => {
+    const g = get()
+    if (PERSONA && g.who) {
+      const r = PERSONA.react(g.who.species, g.who.stage, g.who.nature, s.said)
+      s.said = r.text
+      talk(r.text)
+      act(r.action)
+    } else { s.jump = 1; talk(g.sp.stages[g.stage].line) }
+  }
+  el.addEventListener('click', poke)
   const api = {
-    talk, hop: () => (s.jump = 1),
+    talk, act, poke, hop: () => (s.jump = 1),
     refresh: () => { const g = get(); const key = `${g.sp.id}:${g.stage}:${g.scale}`; if (key !== s.key) { s.key = key; draw(); pick(); s.y = s.ty; s.x = Math.min(s.x, s.tx + 40) } },
     remove: () => el.remove(),
     tick: (dt) => {
@@ -506,11 +650,12 @@ function walker(get, { vertical = false } = {}) {
       s.t += dt
       if (s.talk > 0 && (s.talk -= dt) <= 0) el.classList.remove('talk')
       let moving = false
-      const speed = (g.speed ?? 30) * (document.body.classList.contains('field') ? 2 : 1)
+      if (s.boost > 0) s.boost -= dt
+      const speed = (g.speed ?? 30) * (document.body.classList.contains('field') ? 2 : 1) * (s.boost > 0 ? 5 : 1)
       if (s.wait > 0) s.wait -= dt
       else {
         const dx = s.tx - s.x, dy = s.ty - s.y, d = Math.hypot(dx, dy)
-        if (d < 2) { s.wait = 0.8 + Math.random() * 2.6; const r = Math.random(); if (r < 0.25) s.jump = 1; else if (r < 0.5 && g.lines) talk(g.lines[Math.floor(Math.random() * g.lines.length)]); pick() }
+        if (d < 2) { s.wait = 0.8 + Math.random() * 2.6; const r = Math.random(); if (r < 0.25) s.jump = 1; else if (r < 0.45) { if (PERSONA && g.who) poke(); else if (g.lines) talk(g.lines[Math.floor(Math.random() * g.lines.length)]) } pick() }
         else { const step = Math.min(d, speed * dt); s.x += (dx / d) * step; s.y += (dy / d) * step; moving = true; if (Math.abs(dx) > 1) s.flip = dx < 0 }
       }
       const frame = moving ? Math.floor(s.t * Math.max(3, speed / 9)) % 2 : 0
@@ -519,6 +664,10 @@ function walker(get, { vertical = false } = {}) {
       if (s.jump > 0) s.jump = Math.max(0, s.jump - dt * 2.4)
       const hop = Math.sin(s.jump * Math.PI) * 20
       el.style.transform = `translate(${s.x}px, ${s.y - hop}px)`
+      // 말풍선이 무대 밖으로 잘리지 않게 — 가장자리에선 풍선을 안쪽으로
+      const width = stageEl.clientWidth
+      el.classList.toggle('edge-l', s.x < 90)
+      el.classList.toggle('edge-r', s.x + cv.width > width - 90 && s.x >= 90)
     },
   }
   api.refresh()
@@ -528,7 +677,7 @@ function walker(get, { vertical = false } = {}) {
 const heroInfo = () => {
   const { sp, stage, progress } = current()
   const field = document.body.classList.contains('field')
-  return { sp, stage, scale: sp === EGG ? (field ? 6 : 4) : scaleFor(progress, field), speed: state.species ? SPEC[state.species].speed : 0, lines: state.species ? SPEC[state.species].lines : ['…두근두근', '따뜻해…'] }
+  return { sp, stage, scale: sp === EGG ? (field ? 6 : 4) : scaleFor(progress, field), speed: state.species ? SPEC[state.species].speed : 0, lines: state.species ? SPEC[state.species].lines : ['…두근두근', '따뜻해…'], who: { species: state.species, stage, nature: state.nature } }
 }
 let hero = null
 let friends = []
@@ -552,17 +701,26 @@ function setField(on) {
   friends = []
   if (on) {
     // 같이 노는 친구 = 졸업한 몬스터(3단계), 종마다 하나 (#1186)
-    const others = [...new Set(state.graduated.map((g) => g.id))].slice(-4).map((id) => [id, byId(id).stages.length - 1])
-    for (const [id, st] of others) {
-      const sp = byId(id)
-      friends.push(walker(() => ({ sp, stage: Number(st), scale: 4, speed: SPEC[id].speed, lines: SPEC[id].lines }), { vertical: true }))
+    // 종마다 마지막 졸업의 성격으로 (옛 기록엔 성격이 없어 '차분한')
+    const last = new Map(state.graduated.map((g) => [g.id, g.nature ?? '차분한']))
+    const others = [...last.keys()].slice(-4)
+    for (const id of others) {
+      const sp = byId(id), st = sp.stages.length - 1
+      friends.push(walker(() => ({ sp, stage: st, scale: 4, speed: SPEC[id].speed, lines: SPEC[id].lines, who: { species: id, stage: st, nature: last.get(id) } }), { vertical: true }))
     }
   }
   hero.remove()
   hero = walker(heroInfo, { vertical: on })
+  applyBg()
   call('panel.fullscreen', { on }).catch(() => {})
 }
 document.getElementById('full').addEventListener('click', () => setField(!document.body.classList.contains('field')))
+// 말 걸기 — 패널은 AI 를 직접 부르지 못해서 새 대화를 "빛톨아, " 로 채워 연다. 대답은 스킬 + persona · say 도구가 한다
+document.getElementById('talk').addEventListener('click', () => {
+  call('chat.compose', { text: '빛톨아, ', send: false }).catch((error) => {
+    document.getElementById('error').textContent = String(error.message).includes('permission') ? '말 걸기는 chat 권한이 필요합니다 — 플러그인을 다시 설치해 허용해 주세요.' : '대화를 열지 못했습니다. 프로젝트를 연 상태에서 다시 눌러 주세요.'
+  })
+})
 addEventListener('keydown', (e) => e.key === 'Escape' && document.body.classList.contains('field') && setField(false))
 
 // ── 시작 ──
@@ -571,10 +729,17 @@ addEventListener('keydown', (e) => e.key === 'Escape' && document.body.classList
     const saved = await call('storage.get', { key: 'state' })
     if (saved && saved.v === 1) state = { ...fresh(), ...saved }
   } catch { /* 처음 */ }
+  // 0.1.1 에서 이미 부화한 빛톨은 성격이 없다 — 하나 정해 남긴다
+  if (state.species && !state.nature) { state.nature = NATURES[Math.floor(Math.random() * NATURES.length)]; void save() }
   hero = walker(heroInfo)
   render()
   await poll()
-  setInterval(poll, 5000)
+  await fetchSaid(false)
+  // 앱 소식을 받으면 사용량은 소식 때 + 60초 안전 폴링, 못 받는 옛 앱이면 지금처럼 5초 폴링
+  let subscribed = false
+  try { await call('events.subscribe', { events: ['usage.changed', 'chat.turnEnded'] }); subscribed = true } catch { /* 옛 앱 · 권한 */ }
+  setInterval(poll, subscribed ? 60_000 : 5000)
+  if (!subscribed) setInterval(() => fetchSaid(true), 5000)
   document.addEventListener('visibilitychange', () => !document.hidden && poll())
   if (!still) {
     let last = performance.now()
