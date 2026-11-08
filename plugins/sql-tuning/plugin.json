@@ -8,7 +8,6 @@
   "scope": "project",
   "permissions": [
     "service",
-    "secrets",
     "project",
     "projectWrite"
   ],

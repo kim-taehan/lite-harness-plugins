@@ -1,7 +1,6 @@
 // 서비스(service/index.mjs) — 앱 없이 SDK 의 가짜 host(sdk/litecode-service-testing.mjs)로 본다.
 // 앱이 서비스를 올리고 MCP 서버를 띄우는 것, 패널이 service.call 로 묻는 것은 앱에서 확인한다(여기서 못 본다). 실제 DB 가 필요한 확인도 마찬가지.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import createService, { BUNDLED_STANDARD, RELAY } from '../service/index.mjs'
@@ -19,11 +18,10 @@ const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')
 const DIR = '/work/a'
 type Reply = { ok: true; value: unknown } | { ok: false; code: string }
 
-/** host.dir(설치 폴더)을 준다 — 가짜 host 는 dir 을 모른다 */
-function start(calls: Record<string, (params: unknown, options: { directory?: string }) => unknown> = {}, dir = here) {
+function start(calls: Record<string, (params: unknown, options: { directory?: string }) => unknown> = {}) {
   const fake = createFakeHost({ id: 'sql-tuning', scope: 'project', calls })
   fake.enableProject(DIR)
-  fake.mount(((host: object) => createService({ ...host, dir })) as never)
+  fake.mount(createService as never)
   const call = (name: string, params?: unknown) => fake.call(name, params, { directory: DIR }) as Promise<Reply>
   return { fake, call }
 }
@@ -33,6 +31,8 @@ describe('manifest ↔ 서비스', () => {
     expect(manifest.mcp).toBeUndefined()
     expect(manifest.skills).toBeUndefined()
     expect(manifest.permissions).toContain('service')
+    expect(manifest.permissions).not.toContain('secrets') // 비밀 칸 저장 · ${secret:} 해석에는 권한이 필요 없고, secrets.* 호출은 쓰지 않는다
+    expect([...manifest.permissions].sort()).toEqual(['project', 'projectWrite', 'service'])
     expect(manifest.service).toMatchObject({ main: 'service.mjs', api: 1 })
   })
 
@@ -88,20 +88,12 @@ describe('service', () => {
     expect(skill).toContain('sql-tuning')
   })
 
-  it('플러그인 기본 표준은 서비스가 자기 폴더에서 직접 읽는다(skills.readFile 이 아니라) — 없으면 io-failed', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'sql-tuning-'))
-    try {
-      const { call, fake } = start({}, dir)
-      expect(await call('bundledFile', { skill: 'sql-tuning', path: 'references/sql-standard.md' })).toEqual({ ok: false, code: 'io-failed' })
-      mkdirSync(path.dirname(path.join(dir, BUNDLED_STANDARD)), { recursive: true })
-      writeFileSync(path.join(dir, BUNDLED_STANDARD), 'SQL-1 규칙')
-      expect(await call('bundledFile')).toEqual({ ok: true, value: { text: 'SQL-1 규칙' } })
-      expect(fake.calls.some((c) => c.method === 'skills.readFile')).toBe(false)
-      writeFileSync(path.join(dir, BUNDLED_STANDARD), 'x'.repeat(512 * 1024 + 1))
-      expect(await call('bundledFile')).toEqual({ ok: false, code: 'file-too-large' })
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
+  it('플러그인 기본 표준은 host.skills.readFile 로 읽는다 — 없으면 null, 얹은 글이 있으면 그 글', async () => {
+    const { fake, call } = start()
+    expect(await call('bundledFile', { skill: 'sql-tuning', path: 'references/sql-standard.md' })).toEqual({ ok: true, value: null })
+    await fake.host.skills.writeFile('sql-tuning', BUNDLED_STANDARD, 'SQL-1 규칙', { directory: DIR })
+    expect(await call('bundledFile')).toEqual({ ok: true, value: { text: 'SQL-1 규칙' } })
+    expect(fake.calls.some((c) => c.method === 'skills.readFile')).toBe(false)
   })
 
   it('각 메서드가 같은 앱 호출로 중계하고 부른 프로젝트 폴더를 넘긴다', async () => {
