@@ -5,7 +5,7 @@
 UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화로 고르고, 테스트 코드를 만들어 PC 의 Chrome · Edge 로 단계마다 스크린샷을 찍으며 돌리고, 한 파일 HTML 결과서와 지난 수행 비교를 남긴다 (#1248, 계획 `docs/guide/superpowers/specs/2026-11-06-ui-test-plugin-design.md` 1 단계 — web, 2 단계 — 유지보수 · 보강, 0.2.0).
 
 - 범위: `"project"` — 대상 주소 · 계정 · 테스트 폴더가 프로젝트마다 다르다(`settingsPer: "project"`).
-- 앱에 닿는 자리: 서비스(`service` — 앱 안에서 도는 얇은 중계 · 진행 밀어 보내기, 서버를 `host.mcp.register` 로 올림) · 별도 프로세스 MCP 서버(실행기, playwright-core) · 스킬 · 패널.
+- 앱에 닿는 자리: 서비스(`service` — 앱 안에서 도는 얇은 중계 · 진행 밀어 보내기, 서버를 `host.mcp.register`, 스킬을 `host.skills.register` 로 올림) · 별도 프로세스 MCP 서버(실행기, playwright-core) · 스킬 · 패널.
 - 권한: `service`(서비스를 담는다) · `secrets`(테스트 계정 비밀번호를 비밀 칸으로 — 서비스는 비밀을 읽지 못하고 `${secret:password}` 가 서버 프로세스 env 에만 간다) · `project`(서비스가 결과서를 앱 파일 보기로 엶) · `chat`(서비스가 [보강] · [AI 에게 맡기기] 의 새 대화 요청을 보냄).
 
 ## 2 단계 (0.2.0) — 유지보수 · 보강
@@ -36,7 +36,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 ## 구성
 
 - `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 · 결과서 폴더), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
-- `service/index.mjs` — 서비스 원본: 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
+- `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
 - `build.mjs` — 서비스를 `service.mjs` 한 파일로, 서버를 `server/ui-test.mjs` 로 묶는다(`--dir` 지원)
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run <묶음> [--failed] [--headed]`, 실패가 있으면 종료 코드 1
 - `server/tools.ts` — 도구 `list` · `run { suite, scenarios?: string[] | "failed", headed? }` · `report { suite, run? }` · `fingerprint { files }` (AI · 패널), `progress` · `stop` · `shot` (패널), `check` (설정 폼)
@@ -47,7 +47,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 - `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 케이스마다 단계 표 · 오류 · 테스트 방법
 - `server/history.ts` — 이력 · 지난 수행과 비교(새로 실패 · 고쳐짐 · 그대로 실패)
 - `server/scenario.ts` — 시나리오 · suite.md 읽기, 지문
-- `skills/ui-test/` — 흐름(소스 읽기 → 초안 → 여러 개 고르기 → 저장 → 코드 → 수행 → 요약 → 테스트 방법), `references/formats.md` · `references/step-api.md`
+- `skills/ui-test/` — (서비스가 올린다 — manifest `skills` 선언은 없다) 흐름(소스 읽기 → 초안 → 여러 개 고르기 → 저장 → 코드 → 수행 → 요약 → 테스트 방법), `references/formats.md` · `references/step-api.md`
 - `index.html` — 패널: 묶음 목록 · 최근 이력(결과서) · [다시 수행 ▾](전체 · 실패만 · 시나리오 고르기 · 보면서/화면 없이) · 지금 수행의 단계와 썸네일 · [멈추기]. 앱과는 `service.call` 한 통로로만 말하고 진행은 `service.progress` 소식으로 받는다
 
 비밀번호는 env 로만 서버에 가고, 결과서 · 도구 결과 · 오류 글에서 한 번 더 지운다(password 칸 스크린샷은 브라우저가 가린 그대로). "확인(DB):" 단계는 실행기가 돌리지 않는다 — 결과서에 "대화에서만 확인", AI 가 DB 조회 도구가 있으면 대화에서 확인한다.

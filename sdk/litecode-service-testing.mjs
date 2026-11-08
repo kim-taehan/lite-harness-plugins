@@ -350,7 +350,7 @@ class PanelPushLimiter {
         return true;
     }
 }
-/** host.fetch (#1614) — host.call('network.fetch') 를 Response 모양으로 감싼 것뿐이라 규칙이 그대로다: network 권한 · 사용자가 허용한 주소(없으면 network-denied — 서비스에는 동의를 물을 화면이 없다) ·
+/** host.fetch (#1614) — host.call('network.fetch') 를 Response 모양으로 감싼 것뿐이라 규칙이 그대로다: network 권한 · 사용자가 허용한 주소(없으면 허용 대기에 올리고 consent-required, 거부했거나 대기가 가득 차면 network-denied — 사용자는 설정 > 플러그인 카드에서 정한다, #1642) ·
  *  앱 자신의 주소 거절 · http/https 만 · 기한 · 응답 크기 상한 · 같은 origin 리다이렉트만. 실패는 host.call 과 같은 ServiceCallError.
  *  서비스는 앱과 같은 프로세스라 직접 fetch·node:http 는 호스트가 못 막는다 — 설치 검사가 번들 글자로 그 흔적을 찾는다(serviceBundleScan.ts, 완전하지 않다) */
 function serviceFetch(call) {

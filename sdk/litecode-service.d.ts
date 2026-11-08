@@ -87,9 +87,9 @@ export interface ServiceHost {
   settings(directory?: string): Promise<Record<string, unknown>>
   /** 언어 팩(번역 글)을 앱에 올린다 — scope: "app" 서비스만(아니면 던진다). 서비스가 내려가면 걷힌다. 내장 사전에 없는 키 · 너무 긴 값은 앱이 말없이 버린다 */
   locale: { register(pack: { language: string; label: string; messages: Record<string, string>; version?: string }): () => void }
-  /** 스킬(.md 지침)을 올린다 — content 는 frontmatter(name 이 name 과 같고 description 이 있는)를 가진 SKILL.md 글, path 는 플러그인 폴더 기준 .md. 이름은 소문자·숫자·- (2~41자). 같은 서비스에서 이름이 겹치거나 틀리면 던진다.
+  /** 스킬(.md 지침)을 올린다 — content 는 frontmatter(name 이 name 과 같고 description 이 있는)를 가진 SKILL.md 글, path 는 플러그인 폴더 기준 .md, dir 은 플러그인 폴더 기준 스킬 폴더(SKILL.md 필수 — references/ 같은 딸린 파일도 통째로 놓인다, 폴더 밖 · 링크 · 너무 큰 파일 · 너무 많은 파일은 던진다). 이름은 소문자·숫자·- (2~41자). 같은 서비스에서 이름이 겹치거나 틀리면 던진다.
    *  서비스가 켜지지 않은 프로젝트의 턴에서는 숨고, 서비스가 내려가면 걷힌다 */
-  skills: { register(skill: { name: string } & ({ content: string } | { path: string })): () => void }
+  skills: { register(skill: { name: string } & ({ content: string } | { path: string } | { dir: string })): () => void }
   /** 에이전트(.md)를 올린다 — 모양은 skills 와 같고 frontmatter 는 사용자 에이전트(.litecode/agents)와 같은 형식(name 이 같아야 한다). 같은 이름이면 사용자·프로젝트 에이전트가 이긴다.
    *  서비스가 켜지지 않은 프로젝트에서는 막히고, 서비스가 내려가면 걷힌다 */
   agents: { register(agent: { name: string } & ({ content: string } | { path: string })): () => void }

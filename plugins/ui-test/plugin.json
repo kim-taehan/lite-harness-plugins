@@ -26,8 +26,5 @@
   "service": {
     "main": "service.mjs",
     "api": 1
-  },
-  "skills": [
-    "skills/ui-test"
-  ]
+  }
 }

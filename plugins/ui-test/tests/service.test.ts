@@ -1,6 +1,7 @@
 // UI 테스트 서비스 — 앱 없이 SDK 의 가짜 host(sdk/litecode-service-testing.mjs)로 본다.
 // 서비스는 서버(MCP)를 host.mcp.register 로 올리고 도구를 mcp.call 로 부르는 껍데기라 서버 쪽 동작은 runner.test.ts 가 본다. 여기서는 중계 · 진행 밀어 보내기 · 감시 정리를 본다.
 // 앱이 서비스를 올리고 패널이 service.call · service.progress 로 주고받는 것, 진짜 서버를 띄우는 것은 앱에서 확인한다(여기서 못 본다).
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { build } from 'esbuild'
@@ -49,6 +50,16 @@ describe('service', () => {
     expect(server).toMatchObject({ command: 'server/ui-test.mjs', idleMs: 1_800_000, timeoutMs: 1_800_000, panelTools: ['progress', 'stop', 'shot'] })
     expect(server?.env).toMatchObject({ UI_TEST_BASE_URL: '${storage:baseUrl}', UI_TEST_PASSWORD: '${secret:password}', UI_TEST_DATA_DIR: '${dataDir}' })
     expect(JSON.stringify(server?.args ?? [])).not.toContain('secret')
+  })
+
+  it('스킬 폴더를 올린다 — 이름은 SKILL.md 의 name 과 같고 manifest 에는 skills 선언이 없다', () => {
+    const { fake } = start({})
+    expect(fake.skills()).toEqual([{ name: 'ui-test', dir: 'skills/ui-test' }])
+    const skill = readFileSync(path.join(here, 'skills/ui-test/SKILL.md'), 'utf8')
+    expect(/^name:\s*ui-test\s*$/m.test(skill)).toBe(true)
+    expect(existsSync(path.join(here, 'skills/ui-test/references'))).toBe(true)
+    const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')) as Record<string, unknown>
+    expect(manifest.skills).toBeUndefined()
   })
 
   it('패널이 부를 메서드를 올린다', () => {

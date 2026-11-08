@@ -35,6 +35,8 @@ export default (host) =>
         timeoutMs: 1_800_000,
         panelTools: ['progress', 'stop', 'shot'],
       })
+      // 스킬 — SKILL.md 와 references/ 가 통째로 올라간다(zip 의 skills/ui-test). 서비스가 켜진 프로젝트의 대화에서만 보인다
+      host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })
       ctx.effect(() => () => {
         for (const timer of this.watchers.values()) clearTimeout(timer)
         this.watchers.clear()
