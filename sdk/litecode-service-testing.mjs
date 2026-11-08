@@ -111,14 +111,13 @@ function isAppOnlyServiceEvent(event) {
     return SERVICE_EVENTS[event].project === 'app';
 }
 /** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 패널의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
- *  빠진 것은 서비스에 뜻이 없는 것뿐이다: panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
+ *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
  *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
  *  호출 표에 메서드가 늘면 여기에 넣을지 빼놓을지 정해야 한다 — tests/unit/arch/pluginServiceApi.test.ts */
 const SERVICE_CALL_METHODS = [
     'storage.get',
     'storage.set',
     'storage.delete',
-    'secrets.get',
     'secrets.set',
     'secrets.delete',
     'network.fetch',
