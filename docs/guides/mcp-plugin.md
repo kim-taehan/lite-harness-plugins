@@ -28,8 +28,8 @@ AI 가 대화 중에 부르는 도구를 MCP 서버로 싣습니다. 설치 때 
 - `.mjs` · `.js` 는 **앱 자신의 Node** 로 돕니다. 사용자 PC 에 Node 가 없어도 되지만, `node_modules` 도 없으니 의존성은 한 파일로 묶어 싣습니다 — 그래서 `build.mjs` 가 필요합니다.
 - 작업 폴더는 도구를 부른 **프로젝트 폴더**이고, 프로젝트마다 서버가 하나씩 뜹니다.
 - 도구 목록은 서버에 묻고(tools/list) **플러그인 버전마다 한 번** 기억합니다. 도구를 더하거나 바꾸면 버전을 올리세요.
-- AI 에게는 `litecode_<플러그인 id>_<도구>` 이름으로 보입니다 — 여기선 `litecode_hello-mcp_greet`.
-- AI 에 붙는 플러그인(mcp · skills · agents · tools)은 설치할 때 **범위**를 고릅니다: 모든 프로젝트, 또는 이 프로젝트(`<프로젝트>/.litecode/settings.json` 의 `plugins` 에 적혀 커밋하면 팀이 같이 씁니다).
+- AI 에게는 기본으로 `litecode_<플러그인 id>_<도구>` 이름으로 보입니다 — 여기선 `litecode_hello-mcp_greet`. 별도 서버로 붙이면(`mcp.attach: "server"`) `hello-mcp_greet` 입니다 — 아래 [엔진에 붙이는 방식 고르기](#엔진에-붙이는-방식-고르기).
+- 켜지는 곳은 `scope` 로 정합니다. 이 예제는 프로젝트마다 인사말을 다르게 둘 수 있게 `"project"` — 설치할 때 모든 프로젝트, 또는 이 프로젝트(`<프로젝트>/.litecode/settings.json` 의 `plugins` 에 적혀 커밋하면 팀이 같이 씁니다)를 고릅니다. 앱 전체에서 늘 켜 둘 도구면 `"app"`. 프로젝트별 플러그인의 주의점은 [플러그인 구조 · 적용 범위](../architecture.md#적용-범위).
 
 ## 1. 폴더 구조
 
@@ -53,6 +53,7 @@ build.mjs                묶기 — build/hello-mcp.zip 을 만든다 (--dir 이
   "description": "AI 가 정해 둔 인사말로 인사하는 예제 MCP 플러그인",
   "details": "설치할 때 인사말과 말투를 넣고 [연결 확인] 으로 값을 봅니다.\n대화에서 \"홍길동에게 인사해 줘\" 라고 하면 AI 가 greet 도구를 씁니다.",
   "version": "0.1.0",
+  "scope": "project",
   "permissions": ["mcp"],
   "settings": [
     { "key": "greeting", "label": "인사말", "type": "text", "required": true },
@@ -77,6 +78,7 @@ build.mjs                묶기 — build/hello-mcp.zip 을 만든다 (--dir 이
 | `mcp.args` | `${extensionDir}` · `${dataDir}` 만 — 비밀 값은 프로세스 목록에 보이는 args 에 넣지 않습니다 |
 | `mcp.idleMs` · `timeoutMs` | 쉬면 내리는 시간(기본 10분) · 호출 한 번의 기한(기본 5분) |
 | `mcp.panelTools` | AI 목록에 올리지 않고 패널의 `mcp.call` 로만 부르는 도구 |
+| `mcp.attach` | `"litecode"`(기본) · `"server"` — 엔진에 붙이는 방식. 아래 [엔진에 붙이는 방식 고르기](#엔진에-붙이는-방식-고르기) |
 | `settings` | 칸 종류 `text` · `number` · `select`(`options` 필수) · `secret`. 일반 값은 `${storage:키}`, secret 은 이 기기에 암호화돼 `${secret:키}` 로만 나갑니다 |
 | `settingsCheck` | [연결 확인] 에 부를 도구 이름. `mcp` 선언이 있어야 하고, AI 에게는 보이지 않습니다 |
 | `settingsPer` | `"project"` 면 설정 값을 늘 프로젝트마다 따로 둡니다 (DB 연결처럼 프로젝트마다 다른 값) |
@@ -225,6 +227,26 @@ MCP 플러그인은 원본 폴더를 앱이 그대로 띄울 수 없으니, 원�
 
 개발 실행은 설치본과 저장 공간이 따로라, 설정 폼 값(연결 정보 · 비밀 값)은 개발 실행에서 한 번 다시 넣어야 합니다.
 
+## 엔진에 붙이는 방식 고르기
+
+플러그인 MCP 서버를 엔진(AI)에 붙이는 방식은 두 가지이고, manifest 의 `mcp.attach` 로 고릅니다. 어느 쪽이든 서버는 앱이 띄우고 쥡니다 — 처음 부를 때 띄우기 · 쉬면 내리기, 비밀 값을 앱 안에만 두기, 패널 `mcp.call` 이 같은 서버를 쓰기, 프로젝트 범위, 부른 대화 `_meta` 는 같습니다.
+
+| | `"litecode"` (기본) | `"server"` |
+|---|---|---|
+| 붙는 모양 | 앱 MCP `litecode` 안의 도구 | 플러그인 id 이름의 MCP 서버 하나 |
+| AI 에게 보이는 이름 | `litecode_<id>_<도구>` | `<id>_<도구>` (서버가 준 도구 이름 그대로) |
+| MCP 팝업 | 도구를 하나씩 고를 수 없음 | 서버 한 줄로 보이고 도구를 하나씩 켜고 끔 |
+| 어울리는 플러그인 | 도구가 몇 개뿐인 플러그인 (빛톨 · hello-mcp) | 도구가 많거나, 사용자가 필요한 도구만 골라 쓰게 할 플러그인 (chrome-browser 12개 등) |
+
+```json
+"mcp": { "command": "server/hello-mcp.mjs", "attach": "server" }
+```
+
+- 다른 값은 설치 때 `mcp-invalid`(field `mcp.attach`)로 거절됩니다. id 가 `litecode` 이거나 `gw-` 로 시작하면 `server` 로 붙일 수 없습니다(예약 이름, 같은 거절).
+- **스킬의 도구 이름을 방식에 맞게** 적습니다. `server` 로 바꾸면 `litecode_hello-mcp_greet` 가 `hello-mcp_greet` 가 됩니다.
+- 사용자가 저장한 MCP 서버(모든 프로젝트 · 이 프로젝트 · 개인 설정)와 이름이 같으면 사용자 서버가 이깁니다. 그 플러그인은 `litecode` 방식으로 붙고 플러그인 목록에 "MCP 이름 겹침" 이 뜹니다 — 그때 도구 이름이 `litecode_` 로 바뀌니, 스킬에 "도구가 없으면 다른 이름도 찾아본다" 고 적어 두면 안전합니다.
+- 어떤 프로젝트의 `.mcp.json` 에만 같은 이름이 있으면 그 프로젝트에서만 사용자 서버가 이기고, 거기서는 플러그인 도구를 쓸 수 없습니다.
+
 ## 패널을 같이 두려면
 
 `entry` 를 더하고 zip 에 `index.html` 을 넣으면(build.mjs 의 복사 목록에 추가) 같은 플러그인이 패널도 가집니다. 패널은 앱 통로로 자기 서버를 부를 수 있습니다.
@@ -281,7 +303,7 @@ You review greetings written in Korean. Point out anything rude or too casual, a
 - 경로는 플러그인 폴더 기준 상대 경로이고 소문자 `.md` 로 끝납니다. 규칙은 `entry` 와 같습니다(폴더 밖 · 절대 경로 · `..` 안 됨). 최대 20개, 파일 하나 256KB 까지입니다. 언어 팩 · 문법 팩에는 넣을 수 없습니다.
 - 파일이 없거나 크기를 넘거나 형식이 틀리면 `agents-invalid`(그 경로)로 설치가 거절됩니다.
 - 이름이 겹치면 프로젝트 > 사용자 > 플러그인 순으로 이깁니다. 플러그인끼리는 id 순으로 앞의 것이 이기고, 진 쪽은 경고로 남습니다.
-- agents 가 있으면 범위 플러그인입니다. 다만 엔진의 에이전트 목록이 앱 전체에 하나라서, 어느 프로젝트에서든 켜져 있으면 모든 프로젝트에 실립니다(켜지지 않은 프로젝트에서 숨기는 기능은 아직 없습니다).
+- 에이전트도 `scope` 를 따릅니다. `project` 플러그인의 에이전트는 켜지지 않은 프로젝트에서 숨겨집니다.
 - 켜기 · 끄기 · 설치 뒤 다음 턴 전에 엔진이 다시 읽습니다. 에이전트 설명은 매 턴 오가니 짧게 씁니다.
 
 ## 정리
