@@ -8,7 +8,6 @@
   "entry": "index.html",
   "permissions": [
     "service",
-    "secrets",
     "project",
     "chat"
   ],

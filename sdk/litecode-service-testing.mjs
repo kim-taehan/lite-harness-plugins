@@ -3,24 +3,25 @@
 
 // --- shared/extensions/channel.ts
 // shared/extensions/ 의 조각 — 확장 ↔ 앱 통로 — 호출 · 알림 · 패널 이벤트. 쓰는 쪽은 이 조각 파일에서 바로 가져온다
+// --- 확장 ↔ 앱 통로 (이슈 #536) ---
+// 패널 → parent.postMessage({ litecode: 1, id, method, params }) → 화면의 확장 탭 → IPC extensions:call → 패널이 부를 수 있는 메서드(PANEL_CALL_METHODS)만 ctx.extensions 가 권한 검사 후 처리.
+// 확장 id 는 메시지 내용이 아니라 어느 iframe 에서 왔나로 화면이 정한다. 앱 기능(파일 · 대화 · 네트워크 …)은 패널이 직접 부르지 않고 서비스의 host.call 로 부른다 (#1642)
+/** 패널이 부를 수 있는 통로 메서드 (#1642) — 서비스 부르기와 UI 전용 표면뿐이다. 나머지 호출 표 메서드(storage · project · chat · network …)는 서비스의 host.call 만 부른다.
+ *  이 밖의 이름은 호출 표에 있어도 패널에는 method-unknown */
+const PANEL_CALL_METHODS = ['service.call', 'service.list', 'events.subscribe', 'panel.fullscreen', 'settings.open', 'panel.notify', 'panel.args', 'chat.current'];
+function isPanelCallMethod(value) {
+    return typeof value === 'string' && PANEL_CALL_METHODS.some((method) => method === value);
+}
 /** 플러그인 알림의 종류 (#1337) */
 const EXTENSION_NOTICE_LEVELS = ['info', 'success', 'warning', 'error'];
-/** 패널이 받을 수 있는 앱 소식 → 필요한 권한 (null: 권한 없이) (#1336). 패널은 events.subscribe 로 고른다 */
+/** 앱 소식 → 필요한 권한 (null: 권한 없이) (#1336). 패널에는 보내지 않고(#1642), 서비스가 SERVICE_EVENTS 로 고른 것만 받는다 */
 const PANEL_EVENT_PERMISSIONS = {
     /** 이 프로젝트의 대화에서 AI 턴이 끝났다 — { conversationId, outcome } */
     'chat.turnEnded': 'chat',
     /** AI 가 이 프로젝트의 파일을 쓰거나 고쳤다 — { paths, truncated? } (0.5초 묶음) */
     'project.filesChanged': 'project',
-    /** 이 프로젝트 오른쪽 패널에 연 파일 탭이 바뀌었다 — { paths } */
-    'project.openTabsChanged': 'project',
     /** 사용량 장부가 늘었다 — {} (숫자는 usage.summary) */
     'usage.changed': 'usage',
-    /** 이 플러그인의 설정 값이 저장됐다 — {} */
-    'settings.saved': null,
-    /** 사용자가 지금 보는 대화를 바꿨다 — { current: { conversationId, title } | null } (#1338). 화면이 보낸다 */
-    'chat.currentChanged': 'chat',
-    /** 파일 우클릭 메뉴로 이 탭에 파일이 넘어왔다 — { path } (프로젝트 기준). 같은 값은 panel.args 로도 읽는다 (#1341) */
-    'panel.args': 'project',
 };
 function isPanelEventName(value) {
     return typeof value === 'string' && Object.hasOwn(PANEL_EVENT_PERMISSIONS, value);
@@ -30,14 +31,6 @@ const SERVICE_PANEL_EVENT_PREFIX = 'service.';
 const SERVICE_PANEL_EVENT_SUFFIX = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 function isServicePanelEventName(value) {
     return typeof value === 'string' && value.startsWith(SERVICE_PANEL_EVENT_PREFIX) && SERVICE_PANEL_EVENT_SUFFIX.test(value.slice(SERVICE_PANEL_EVENT_PREFIX.length));
-}
-/** events.subscribe 로 받을 수 있는 이름 — 앱 소식 또는 서비스 소식 */
-function isSubscribableEventName(value) {
-    return isPanelEventName(value) || isServicePanelEventName(value);
-}
-/** 그 소식을 받으려면 플러그인이 가져야 하는 권한 (null: 권한 없이) */
-function panelEventPermission(name) {
-    return isPanelEventName(name) ? PANEL_EVENT_PERMISSIONS[name] : 'service';
 }
 function isAppPanelEvent(event) {
     return isPanelEventName(event.event);
@@ -79,6 +72,97 @@ function uiActionOf(method, result) {
     return undefined;
 }
 
+// --- shared/extensions/limits.ts
+// 확장 zip 검사의 상한 (이슈 #478) — 값은 여기 한 곳에만 둔다. 검사 함수는 시험용으로 다른 값을 받을 수 있다.
+const MB = 1024 * 1024;
+/** 근거: 확장은 JS·스킬 마크다운·작은 자산이라 보통 수 MB — 넉넉히 두되, 풀었을 때 디스크를 수 GB 채우는 zip bomb·수만 개 항목은 막는다 */
+const EXTENSION_LIMITS = {
+    /** skills.writeFile 로 덧씌우는 .md 파일 하나 (2026-11-03) — 사내 표준 같은 문서. 모델이 읽는 글이라 크게 두지 않는다 */
+    skillFileBytes: 512 * 1024,
+    /** project.writeFile 로 `.litecode/` 에 쓰는 .md 파일 하나 (#1232) — 팀이 커밋하는 표준 문서 같은 글. skillFileBytes 와 같은 근거 */
+    projectWriteBytes: 512 * 1024,
+    /** zip 파일 자체 크기 — 이보다 크면 목록도 읽지 않는다 */
+    zipBytes: 100 * MB,
+    /** 항목 수 (폴더 항목 포함) — 목록을 읽기 전에 zip 끝 레코드의 수로 본다 */
+    entries: 2000,
+    /** 선언된 해제 크기의 합 */
+    totalBytes: 200 * MB,
+    /** 항목 하나의 선언된 해제 크기 */
+    fileBytes: 50 * MB,
+    /** extension.json — 메모리로 읽는 유일한 항목이라 따로 작게 */
+    manifestBytes: 64 * 1024,
+    /** manifest 의 name·description 글자 수 — 카드 제목·설명 한 줄 */
+    nameLength: 80,
+    descriptionLength: 300,
+    /** manifest 의 details(선택, 이슈 #519) — 카드를 펼친 상세에 여러 줄로 보이는 긴 설명. 근거: 게임 규칙·조작법 같은 몇 문단이면 충분하고,
+     *  목록(ExtensionSummary)에 실려 확장마다 IPC 로 오가므로 manifestBytes(64KB) 보다 훨씬 작게 둔다 */
+    detailsLength: 2000,
+    /** 진입 HTML 을 읽어 화면에 보내는 크기 (이슈 #511, readEntry). 근거: 한 파일짜리 HTML(인라인 스크립트·스타일)은 보통 수백 KB 다 — 이 글은 IPC 로 한 번,
+     *  iframe srcdoc 에 base64(약 1.33배)로 한 번 더 실리므로 파일 미리보기의 HTML 상한(1MB)의 두 배에서 멈춘다 */
+    entryBytes: 2 * MB,
+    /** 진입 HTML 이 상대 경로로 적은 같은 zip 의 스크립트 · 스타일시트 · 이미지 (#1339) — 수 · 하나 · 합. 근거: HTML 미리보기의 같은 폴더 자산과 같은 값
+     *  (64개 · 하나 4MB · 합 32MB). 설치 검사의 fileBytes(50MB)보다 작게 둔 것은 이 글이 IPC 로 한 번, iframe srcdoc 에 base64 로 한 번 더 실리기 때문이다.
+     *  넘는 자산은 패널 전체를 실패시키지 않고 빼기만 한다 */
+    panelAssets: 64,
+    panelAssetBytes: 4 * MB,
+    panelAssetsBytes: 32 * MB,
+    /** manifest agents 의 파일 수 (#1340). 근거: 검토·작성 같은 역할 몇 개면 충분하다 — 에이전트마다 설명이 엔진의 task 도구 목록에 실려 매 턴 오가므로 작게 둔다.
+     *  파일 하나의 크기는 사용자·프로젝트 에이전트와 같은 상한(shared/projectAgents.ts MAX_AGENT_FILE_BYTES) */
+    agents: 20,
+    /** manifest fileActions (#1341) — 파일 우클릭 메뉴는 짧아야 한다(시안: 맞는 항목 3개까지 바로, 넘으면 하위 메뉴). 플러그인 하나가 메뉴를 채우지 않게
+     *  항목 3개 · 메뉴 글 40자(언어 팩 이름 칸과 같은 폭) · 항목 하나의 파일 이름 패턴 10개 · 패턴 하나 64자 */
+    fileActions: 3,
+    fileActionLabelLength: 40,
+    fileActionPatterns: 10,
+    fileActionPatternLength: 64,
+    // 언어 팩 (이슈 #525) — 번들(JSON)은 부팅·설치 검사·언어 전환 때 메모리로 읽고, 화면에 IPC 로 한 번 보낸다.
+    // 근거(2026-10-20 실측): 내장 사전은 1309키, JSON 으로 ko 85KB·en 77KB, 가장 긴 값 745자(en). 한자는 UTF-8 3바이트라 같은 키 수의 중국어도 수백 KB 안이다
+    /** 번들 파일 크기 — 내장 사전 JSON 의 약 12배 */
+    localeBytes: 1 * MB,
+    /** 번들 맨 위 키 수 — 지금 키 수의 약 4배(키가 늘어날 여지). 넘으면 번들을 통째로 거절한다 */
+    localeKeys: 5000,
+    /** 값 하나의 글자 수 — 가장 긴 문구의 약 2.7배. 넘는 값은 버린다(그 키는 en 으로 보인다) */
+    localeValueLength: 2000,
+    /** manifest 의 locale.label — 설정 > 일반 언어 드롭다운의 한 줄 */
+    localeLabelLength: 40,
+    // 확장 ↔ 앱 통로 (이슈 #536)
+    /** storage 값 전체(확장 하나, JSON 글자 수). 근거: 서버 주소·고른 프로젝트 키·화면 상태 같은 설정이면 수 KB 다. 쓸 때마다 파일 전체를 다시 쓰고
+     *  get 마다 IPC 로 오가므로 manifest 상한과 같은 크기에서 멈춘다 — 큰 자료(응답 캐시)는 담지 않는다 */
+    storageBytes: 64 * 1024,
+    /** secrets 파일 전체(봉한 값의 base64 포함). 근거: 토큰·비밀번호 몇 개 — 봉하면 base64 로 약 1.4배가 되어도 storage 와 같은 상한이면 넉넉하다 */
+    secretsBytes: 64 * 1024,
+    /** network.fetch 의 기한 — 요청부터 본문 끝까지. 근거: 사내 서버 API 는 보통 1초 안이고, 느린 검색 API 도 몇 초다. 패널이 오래 멈춰 보이지 않게 15초에서 끊는다 */
+    fetchTimeoutMs: 15_000,
+    /** network.fetch 응답 본문. 근거: JSON API 한 쪽(이슈 500개 페이지)이 수백 KB — 글로 IPC 두 번(메인→화면→iframe) 오가므로 5MB 에서 끊는다 */
+    fetchBytes: 5 * MB,
+    /** 같은 origin 리다이렉트를 따라가는 횟수 (브라우저는 20 — 로그인 리다이렉트 몇 번이면 충분하다) */
+    fetchRedirects: 5,
+    /** project.readFile. 근거: 설정 파일(sonar-project.properties 등)을 읽는 용도라 수 KB — 소스 파일 하나도 대부분 들어가는 256KB */
+    projectFileBytes: 256 * 1024,
+    /** project.pickPath (이슈 #538, QA 03_qa_538) — 고르기 창은 앱 창에 모달로 붙는다. 확장이 취소된 창을 곧바로 다시 띄우면 사용자가 그 확장을 끄러 갈
+     *  틈이 없다. 이 사이에 두 번 연달아 취소하면 pickBlockMs 동안 열지 않는다. 근거: 사람이 실수로 취소하고 다시 고르는 데는 몇 초면 되고,
+     *  되풀이를 알아채고 설정 > 기능에서 끄기에는 30초면 넉넉하다 */
+    /** chat.compose 의 글 길이 (이슈 #557) — 이슈 여러 개를 담은 요청 글이 넉넉히 들어가고, 입력창이 버거워지지 않는 정도 */
+    composeChars: 20_000,
+    /** project.listDir 한 번에 돌려줄 항목 수 (이슈 #548) — 패널의 폴더 트리 한 단계. 그 이상은 truncated 로 알린다 */
+    listDirEntries: 1000,
+    /** project.findFiles · countFiles 가 한 번에 훑는 항목 수 (2026-11-03) — 큰 저장소에서 멈추지 않게. 넘으면 truncated */
+    walkEntries: 200_000,
+    /** project.findFiles 결과 수 — 기본 · 최대 */
+    findFilesDefault: 200,
+    findFilesMax: 500,
+    /** project.countFiles 가 세는 최대 파일 수 */
+    countFilesMax: 100_000,
+    pickCancelWindowMs: 10_000,
+    pickBlockMs: 30_000,
+    /** panel.notify · 도구 결과의 notify (#1337) — 알림 한 장의 제목 · 본문 글자 수. 근거: 토스트는 몇 초 머무는 한두 줄이라 manifest 의 name·description 과 같은 길이 */
+    noticeTitleLength: 80,
+    noticeBodyLength: 300,
+    /** 플러그인 하나가 noticeWindowMs 안에 낼 수 있는 알림 수 — 넘으면 notify-limit. 근거: "분석 끝" 같은 소식은 몇 분에 한 번이고, 되풀이해 화면을 덮지 못하게 */
+    noticesPerWindow: 5,
+    noticeWindowMs: 60_000,
+};
+
 // --- shared/extensions/serviceApi.ts
 // shared/extensions/ 의 조각 — 설치형 서비스의 호스트 API 허용 목록 (#1614, 설계 5·6장). 설치 검사 · 호스트 · 계약 테스트가 모두 이 파일 하나를 본다.
 // 같은 프로세스에서 앱과 같은 권한으로 도는 코드라 이 목록은 실수를 막는 가드레일이지 보안 경계가 아니다(보안은 출처 확인 · 기본 꺼짐 · 동의 · 해시)
@@ -110,7 +194,7 @@ function serviceEventPermission(event) {
 function isAppOnlyServiceEvent(event) {
     return SERVICE_EVENTS[event].project === 'app';
 }
-/** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 패널의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
+/** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 앱의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
  *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
  *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
  *  호출 표에 메서드가 늘면 여기에 넣을지 빼놓을지 정해야 한다 — tests/unit/arch/pluginServiceApi.test.ts */
@@ -142,7 +226,6 @@ const SERVICE_CALL_METHODS = [
     'chat.current',
     'chat.exists',
     'chat.titles',
-    'tools.run',
     'mcp.call',
     'mcp.status',
     'usage.summary',
@@ -225,6 +308,24 @@ async function serviceCallGate(scope, method, directory, enabledIn) {
         return scope === 'app' ? undefined : 'not-on';
     return (await enabledIn(directory)) ? undefined : 'not-on';
 }
+const OVERLAY_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
+/** 덧씌움 경로 — 스킬 폴더 안 하위 경로(`references/guide.md`): 글자·숫자·. _ - 로 된 2~4단, .md 로 끝난다. 폴더 밖(..)·절대 경로·SKILL.md(1단이라 못 온다)는 undefined */
+function skillOverlayPath(raw) {
+    if (typeof raw !== 'string')
+        return undefined;
+    const parts = raw.split('/');
+    if (parts.length < 2 || parts.length > 4 || !parts.every((part) => OVERLAY_SEGMENT.test(part) && part !== '..'))
+        return undefined;
+    return /\.md$/i.test(raw) ? raw : undefined;
+}
+/** 덧씌울 글 — 비어 있지 않은 글, 한 파일 상한(skillFileBytes) 이하. 아니면 ServiceCallError */
+function skillOverlayText(raw) {
+    if (typeof raw !== 'string' || raw.trim() === '')
+        throw new ServiceCallError('params-invalid');
+    if (new TextEncoder().encode(raw).length > EXTENSION_LIMITS.skillFileBytes)
+        throw new ServiceCallError('file-too-large');
+    return raw;
+}
 /** expose 한 이름 → 함수. 번들의 Service 바탕이 들고, 호스트가 부른다 */
 class ServiceBaseCore {
     ctx;
@@ -295,11 +396,11 @@ class ProjectSet {
             this.enable(directory);
     }
 }
-/** manifest tools 의 도구 이름 규칙(extensions/tools/toolDeclaration.ts)과 같다 */
+/** 도구 이름 규칙 — 소문자·숫자·`-`·`_`, 첫 글자 소문자 */
 const SERVICE_TOOL_NAME = /^[a-z][a-z0-9_-]{0,39}$/;
 const SERVICE_TOOL_DESCRIPTION_MAX = 4_000;
 const isPlainObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
-/** AI 에 보이는 도구 이름 — manifest tools 와 같은 `<플러그인 id>_<이름>` */
+/** AI 에 보이는 도구 이름 — `<플러그인 id>_<이름>` */
 function serviceToolFullName(id, name) {
     return `${id}_${name}`;
 }
@@ -377,6 +478,7 @@ export function createFakeHost(options = {}) {
     const callLog = [];
     const cleanups = [];
     const enabled = new Set();
+    const allowedOrigins = options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
     let inner;
     let projectSet;
     const enabledIn = async (directory) => scope === 'app' || enabled.has(directory);
@@ -400,6 +502,7 @@ export function createFakeHost(options = {}) {
         logger,
     };
     const locales = [];
+    const grammarList = [];
     const tools = new Map();
     const mcpServers = [];
     const pushed = [];
@@ -418,6 +521,32 @@ export function createFakeHost(options = {}) {
         cleanups.push(off);
         return off;
     };
+    /** host.skills 의 readFile · writeFile · deleteFile — 폴더(dir)로 올린 스킬에만, 얹은 글은 메모리에 둔다(스킬 폴더에 든 원래 파일은 읽지 않는다) */
+    const overlays = new Map();
+    const overlayKey = (skill, relativePath) => {
+        const rel = skillOverlayPath(relativePath);
+        if (rel === undefined || !skills.some((item) => item.name === skill && 'dir' in item))
+            throw new ServiceCallError('params-invalid');
+        return `${skill}/${rel}`;
+    };
+    const overlayGate = async (directory) => {
+        if (scope !== 'app' && (directory === undefined || !(await enabledIn(directory))))
+            throw new ServiceCallError('not-on');
+    };
+    const skillOverlay = {
+        readFile: async (skill, relativePath) => overlays.get(overlayKey(skill, relativePath)),
+        writeFile: async (skill, relativePath, content, options) => {
+            const text = skillOverlayText(content);
+            const key = overlayKey(skill, relativePath);
+            await overlayGate(options?.directory);
+            overlays.set(key, text);
+        },
+        deleteFile: async (skill, relativePath, options) => {
+            const key = overlayKey(skill, relativePath);
+            await overlayGate(options?.directory);
+            overlays.delete(key);
+        },
+    };
     const markdown = (kind, list, item) => {
         if (typeof item.name !== 'string' || item.name === '')
             throw new Error(`host.${kind}.register: name is required`);
@@ -428,6 +557,16 @@ export function createFakeHost(options = {}) {
     const host = {
         Service: (ServiceBaseCore),
         id,
+        dir: options.dir ?? '/fake/plugin',
+        grammars: {
+            register: (grammar) => {
+                if (scope !== 'app')
+                    throw new Error('host.grammars.register is only for services with scope "app"');
+                if (grammarList.some((other) => other.id === grammar.id))
+                    throw new Error(`host.grammars.register: duplicate grammar id: ${grammar.id}`);
+                return track(grammarList, grammar);
+            },
+        },
         enabledIn,
         projects: async () => (scope === 'app' ? [] : [...enabled]),
         settings: async () => ({ ...settings }),
@@ -445,7 +584,10 @@ export function createFakeHost(options = {}) {
                 return off;
             },
         },
-        skills: { register: (skill) => markdown('skills', skills, skill) },
+        skills: {
+            register: (skill) => markdown('skills', skills, skill),
+            ...skillOverlay,
+        },
         agents: { register: (agent) => markdown('agents', agents, agent) },
         lsp: {
             register: (server) => {
@@ -458,6 +600,9 @@ export function createFakeHost(options = {}) {
             const denied = await serviceCallGate(scope, method, callOptions.directory, enabledIn);
             if (denied)
                 throw new ServiceCallError(denied);
+            const origin = allowedOrigins && method === 'network.fetch' ? originOf(params) : undefined;
+            if (allowedOrigins && origin !== undefined && !allowedOrigins.has(origin))
+                throw new ServiceCallError('consent-required', origin);
             callLog.push({ method, params, ...(callOptions.directory !== undefined && { directory: callOptions.directory }) });
             const handler = isCallMethod(method) ? options.calls?.[method] : undefined;
             if (!handler)
@@ -558,6 +703,10 @@ export function createFakeHost(options = {}) {
         },
         /** expose 한 이름 */
         names: () => [...running().exposed.keys()],
+        /** 사용자가 그 주소를 허용한 것처럼 목록에 더한다 — allowedOrigins 를 줬을 때, 다음 host.fetch 부터 통한다 */
+        allowOrigin(origin) {
+            allowedOrigins?.add(origin);
+        },
         /** host.call 로 부른 것의 기록 — 허용 앞문을 지난 것만 */
         calls: callLog,
         /** host.panel.emit 으로 밀어 보낸 소식 — 이름은 `service.<이름>`, 값은 JSON 으로 복사된 것(상한을 넘은 것은 버려져 없다) */
@@ -566,6 +715,8 @@ export function createFakeHost(options = {}) {
         settings,
         /** host.locale.register 로 올려 둔 언어 팩 — 해제하면 빠진다 */
         locales: () => [...locales],
+        /** host.grammars.register 로 올려 둔 문법 — 해제하면 빠진다 */
+        grammars: () => [...grammarList],
         /** host.tools.register 로 올려 둔 AI 도구 — 해제하거나 서비스를 내리면 빠진다 */
         tools: () => [...tools].map(([name, { description, inputSchema }]) => ({ name, description, inputSchema })),
         /** AI 가 그 도구를 부른 것처럼 run 을 부른다 — 진짜 앱처럼 그 프로젝트에서 서비스가 켜져 있어야 보인다(아니면 없는 도구) */
@@ -589,6 +740,18 @@ export function createFakeHost(options = {}) {
             inner = undefined;
         },
     };
+}
+/** network.fetch 의 params.url 이 가리키는 origin — 주소가 아니면 undefined(그대로 handler 가 받는다) */
+function originOf(params) {
+    const url = typeof params === 'object' && params !== null && 'url' in params ? params.url : undefined;
+    if (typeof url !== 'string')
+        return undefined;
+    try {
+        return new URL(url).origin;
+    }
+    catch {
+        return undefined;
+    }
 }
 function isCallMethod(method) {
     return isServiceCallMethod(method);
