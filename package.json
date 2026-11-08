@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "new-plugin": "node scripts/new-plugin.mjs",
     "release": "node scripts/release.mjs",
     "sync:sdk": "node scripts/sync-sdk.mjs",
     "test": "vitest run",

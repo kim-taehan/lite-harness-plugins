@@ -33,6 +33,7 @@ lite-harness-desktop 앱에 까는 플러그인의 원본과 카탈로그.
 ## 명령
 - `npm test` — 전부: 플러그인 테스트 + catalog ↔ dist 정합 + 표준 검사
 - `npm test -- --project <id>` — 그 플러그인 테스트만 (플러그인 하나를 고칠 때)
+- `npm run new-plugin -- <id> [--name <이름>] [--scope app|project]` — 새 서비스 플러그인 뼈대(`plugins/<id>/`)를 만든다 (`docs/README.md` "처음 만든다면")
 - `npm run test:changed` — 바뀐 플러그인 테스트 + 공통 검사 (머지 조건, 머지 훅이 돌린다)
 - `npm run release <폴더…>` · `--all` · `--changed [--dry-run]` · `--zip <파일>` — dist 와 catalog.json 갱신 (자세한 건 `docs/guides/publish.md`)
 - `npm run sync:sdk` — 옆 `../desktop/docs/plugin-sdk/` 생성물을 `sdk/` 로 복사 (`node scripts/sync-sdk.mjs --check` 는 같은지만 본다. 위치가 다르면 `LITECODE_DESKTOP=<desktop 폴더>`)
