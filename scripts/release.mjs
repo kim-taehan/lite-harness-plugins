@@ -80,7 +80,7 @@ function release(folder, platform, catalog) {
   const zipFile = path.join(distDir, zipName)
   rmSync(zipFile, { force: true })
   // -X: 여분 속성 없이 · -r: 하위 폴더 · -q: 조용히. 폴더 안에서 묶어 zip 맨 위에 extension.json 이 오게
-  execFileSync('zip', ['-qrX', zipFile, '.', '-x', '.DS_Store', '*/.DS_Store', 'changes.txt'], { cwd: path.join(extensionsDir, folder) })
+  execFileSync('zip', ['-qrX', zipFile, '.', '-x', '.DS_Store', '*/.DS_Store', 'changes.txt', 'tests/*'], { cwd: path.join(extensionsDir, folder) })
   const versioned = new RegExp(`^${id.replace(/[-]/g, '\\-')}-\\d+\\.\\d+\\.\\d+\\.zip$`) // 플랫폼 zip(-darwin-arm64.zip)은 건드리지 않는다
   for (const old of readdirSync(distDir)) if (versioned.test(old) && old !== zipName) rmSync(path.join(distDir, old))
   const sha256 = createHash('sha256').update(readFileSync(zipFile)).digest('hex')
