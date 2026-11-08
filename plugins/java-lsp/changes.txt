@@ -1,0 +1,2 @@
+언어 서버를 서비스가 올림 — manifest 의 lsp 선언 대신 서비스가 host.lsp.register 로 올립니다(설치할 때 동의를 거칩니다)
+동작은 그대로: 동봉한 Java 런타임 + Eclipse JDT LS, 오프라인
