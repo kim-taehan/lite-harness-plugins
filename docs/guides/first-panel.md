@@ -196,7 +196,7 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 
 | 권한 | 메서드 | 하는 일 |
 |---|---|---|
-| (없음) | `storage.get` · `set` · `delete` | 플러그인별 JSON 값 `{ key, value }`. 전체 64KB — 설정 · 화면 상태용, 큰 캐시는 담지 않습니다 |
+| (없음) | `storage.get` · `set` · `delete` | 플러그인별 JSON 값 `{ key, value }`. 전체 64KB — 화면 상태용, 큰 캐시는 담지 않습니다. `project` 플러그인은 프로젝트마다 따로입니다. 설정 칸 값은 여기 없으니 `settings.summary` 로 읽습니다 |
 | (없음) | `panel.fullscreen` | `{ on }` — 오른쪽 패널을 전체 화면으로. 가운데 탭에서는 `panel-hidden` |
 | (없음) | `panel.notify` | `{ title, body?, level? }` — 앱 알림을 띄웁니다. 아래 [알림](#알림) |
 | (이벤트마다) | `events.subscribe` | `{ events: [...] }` — 앱 소식을 받습니다. 이벤트마다 권한을 따로 봅니다. 아래 [앱 소식 받기](#앱-소식-받기) |

@@ -389,15 +389,46 @@ async function waitForRun(key, budgetMs) {
   }
 }
 
-/** 남긴 것을 치우고 자리를 뺀다 — stale·done 이면 치우고, wx 로 뺏기 (이미 뺏겼으면 false) */
-function takeOver(key) {
-  const state = runState()
-  if (state === 'stale' || state === 'done') {
-    const run = readRun()
-    if (run?.key) cleanState(run.key)
-    cleanRun()
+// 자리 다툼 잠금 — "상태 읽기 → 치우기 → 뺏기" 사이에 다른 호출이 끼면, 그 호출이 막 뺏은 run.json 을 옛것으로 알고 지워
+// 스캐너가 둘 뜬다. mkdir 은 원자적이라 한 호출만 이 구간에 들어온다. 잡은 프로세스가 죽어 남은 잠금은 LOCK_STALE_MS 뒤 치운다
+const CLAIM_LOCK = path.join(ANALYSIS_DIR, 'claim.lock')
+const LOCK_STALE_MS = 10_000
+
+/** 잠금을 잡으면 fn() 의 값, 다른 호출이 쥐고 있으면 undefined (부르는 쪽이 조금 뒤 다시 본다) */
+function withClaimLock(fn) {
+  fs.mkdirSync(ANALYSIS_DIR, { recursive: true })
+  try {
+    fs.mkdirSync(CLAIM_LOCK)
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw error
+    try {
+      if (Date.now() - fs.statSync(CLAIM_LOCK).mtimeMs > LOCK_STALE_MS) fs.rmSync(CLAIM_LOCK, { recursive: true, force: true })
+    } catch {
+      // 그사이 풀렸다
+    }
+    return undefined
   }
-  return tryClaim(key)
+  try {
+    return fn()
+  } finally {
+    fs.rmSync(CLAIM_LOCK, { recursive: true, force: true })
+  }
+}
+
+/** 남긴 것을 치우고 자리를 뺀다 — 잠금 안에서 상태를 다시 읽어, 돌고 있으면 false · stale·done 이면 치우고 wx 로 뺏기 */
+function takeOver(key) {
+  return (
+    withClaimLock(() => {
+      const state = runState()
+      if (state === 'live') return false
+      if (state === 'stale' || state === 'done') {
+        const run = readRun()
+        if (run?.key) cleanState(run.key)
+        cleanRun()
+      }
+      return tryClaim(key)
+    }) ?? false
+  )
 }
 
 // --- 도구 호출 (CLI) ---
