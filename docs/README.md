@@ -29,7 +29,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 ## 역할
 
 - 하는 일: 사용자가 얻는 것
-- 앱에 닿는 자리: 서비스(`service`) · 패널 · AI 도구(`host.tools` · mcp · tools) · 스킬 · 언어 서버(lsp) · 언어 팩 · 문법 팩 중 무엇
+- 앱에 닿는 자리: 서비스(`service`) · 패널 · AI 도구(`host.tools` · mcp · tools) · 스킬 · 언어 서버(서비스의 `host.lsp.register`) · 언어 팩 · 문법 팩 중 무엇
 - 범위: `scope`(app · project) 와 그렇게 고른 이유 (언어 · 문법 팩 서비스는 `app`)
 - 권한: 권한마다 왜 필요한지 (없으면 "없음")
 
@@ -59,7 +59,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 | [서비스 플러그인 만들기](guides/service-plugin.md) | 패널을 닫아도 앱 안에서 도는 코드. 앱 소식 받기 · 앱 기능 부르기(`host.call`) · 패널에 밀어 보내기(`host.panel.emit`) · AI 도구 · 정리와 테스트(가짜 host). | 30분 · service · host · events |
 | [MCP 플러그인 만들기](guides/mcp-plugin.md) | AI 가 부를 수 있는 도구를 MCP 서버로 싣습니다. 설정 칸 · 비밀 값 · [연결 확인] · 같이 설치되는 스킬, 그리고 `build.mjs` 로 한 파일에 묶기까지. | 30분 · mcp · settings · skills |
 | [언어 팩 · 문법 팩 만들기](guides/locale-grammar.md) | 앱 문구를 다른 언어로 바꾸는 언어 팩과, 파일 개요가 새 언어를 읽게 하는 tree-sitter 문법 팩. 데이터를 앱에 올리기만 하는 작은 서비스로 만듭니다. | 20분 · service · host.locale · host.grammars |
-| [언어 서버(LSP) 플러그인 만들기](guides/lsp-plugin.md) | 언어 서버를 실어 파일 보기와 AI 가 그 언어의 오류 · 정의 · 참조 · 설명을 정확하게 얻게 합니다. `lsp` 선언 · `${lspWorkspaceDir}` · 런타임 동봉 · 폐쇄망 설정 · 플랫폼 전용 묶기. | 30분 · lsp · build.mjs |
+| [언어 서버(LSP) 플러그인 만들기](guides/lsp-plugin.md) | 언어 서버를 실어 파일 보기와 AI 가 그 언어의 오류 · 정의 · 참조 · 설명을 정확하게 얻게 합니다. 서비스의 `host.lsp.register` · `${lspWorkspaceDir}` · 런타임 동봉 · 폐쇄망 설정 · 플랫폼 전용 묶기. | 30분 · service · host.lsp · build.mjs |
 | [저장소로 내보내기](guides/publish.md) | 만든 플러그인을 이 저장소에 올려 앱의 [플러그인 둘러보기] 에 보이게 합니다. 분류 · 바뀐 것 · `npm run release` · 버전 규칙. | 10분 · catalog.json · dist |
 
 ## 참고

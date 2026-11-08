@@ -33,6 +33,7 @@
               │                   └ 처음 부를 때 서버 프로세스를 띄움 (프로젝트마다 하나, stdio)
               ├─ tools ───────▶ 같은 자리, 부를 때마다 실행 파일 한 번 (stdin JSON → stdout JSON)
               ├─ lsp ─────────▶ 언어 서버 (src/services/lsp) — 파일 보기의 밑줄 · 풍선, AI 의 code_* 도구 (폴더마다 하나)
+              │                   └ 서비스의 host.lsp.register 로 올림 (manifest lsp 선언은 곧 삭제될 옛 경로)
               ├─ skills ──────▶ 앱 스킬 폴더로 복사 (userData/opencode/skills) ──▶ 엔진
               ├─ settings ────▶ 앱이 그리는 설정 폼 → storage · secrets → mcp.env 자리표시
               ├─ type locale ─▶ 화면 · 메인 문구 사전 (설정 › 일반 › 언어) — 옛 길, 서비스의 host.locale 로 이전 중
@@ -55,7 +56,7 @@
 | 대화 | 새 대화를 열고 입력창 채우기 · 바로 보내기, 대화 제목 · 열기 | — | `chat` |
 | AI 도구 (서버) | MCP 서버를 실어 AI 가 부르는 도구로 올림, 패널도 같은 서버를 부름. 앱 MCP `litecode` 안에(기본) 또는 플러그인 이름의 별도 서버로(`mcp.attach: "server"`) | `mcp` | `mcp` |
 | AI 도구 (한 번 실행) | 부를 때마다 실행 파일 하나를 돌림 | `tools` | `tools` |
-| 언어 서버 | 그 확장자 파일이 필요할 때 폴더마다 띄워 LSP 로 이음 — 파일 보기의 오류 밑줄 · 마우스 풍선 · 문제 목록, AI 의 `code_diagnostics` 등, 코드 탐색의 정의 · 참조. 만드는 법은 [언어 서버 플러그인](guides/lsp-plugin.md) | `lsp` | `lsp` |
+| 언어 서버 | 서비스가 `host.lsp.register` 로 서버를 올리면, 그 확장자 파일이 필요할 때 폴더마다 띄워 LSP 로 이음 — 파일 보기의 오류 밑줄 · 마우스 풍선 · 문제 목록, AI 의 `code_diagnostics` 등, 코드 탐색의 정의 · 참조. 만드는 법은 [언어 서버 플러그인](guides/lsp-plugin.md) | `service` (옛 경로 `lsp`, 곧 삭제) | `service` (옛 경로 `lsp`) |
 | 설치형 서비스 | 패널을 닫아도 앱 안에서 도는 코드 — 앱 소식 받기, 앱 기능 부르기(`host.call`), 패널에 밀어 보내기(`host.panel.emit`), AI 도구 · MCP · 스킬 · 에이전트 · 언어 서버 · 언어 · 문법 올리기. 새 기능과 코드를 가진 플러그인의 기본 길. [서비스](#서비스-설치형) | `service` | `service` |
 | 스킬 | 켜져 있는 동안 앱 스킬로 보임, 패널이 자기 스킬에 `.md` 덧씌우기(`skills.*`) | `skills` | 없음 |
 | 설정 폼 | 설치 2단계 · [고치기] 에 앱이 그리는 폼, [연결 확인] | `settings` · `settingsCheck` | 없음 |
@@ -117,7 +118,7 @@
 | `host.call(method, params, { directory })` | 패널이 쓰는 호출 표를 같은 이름 · 같은 권한 검사 · 같은 오류 코드로 부름. 창이 해 줘야 하는 것(`chat.compose` · `project.openFile` · `panel.fullscreen` 등)은 그 프로젝트 창에 보내고 못 찾으면 `no-window` |
 | `host.panel.emit(name, data, { directory })` | 자기 패널에 소식을 밀어 보냄(`service.<이름>`, 64KB · 초당 20번) |
 | `host.tools` · `host.mcp` | AI 도구 올리기(`<id>_<도구>`) · 별도 프로세스 MCP 서버 선언(플러그인에 하나). 도구 이름 규칙은 desktop 안내를 따름 |
-| `host.skills` · `host.agents` · `host.lsp` | 스킬 · 에이전트(.md) · 언어 서버 올리기 |
+| `host.skills` · `host.agents` · `host.lsp` | 스킬 · 에이전트(.md) · 언어 서버 올리기. `host.lsp.register` 는 `lsp` 권한 없이 `service` 만으로 되고, 서버 실행 파일은 플러그인 폴더 안만이며 `.mjs` 가 아니면 zip 안에서 실행 비트가 필요 |
 | `host.locale` · `host.grammars` | 언어 팩 번역 · 문법(파일 개요) 올리기 — `scope: "app"` 서비스만 |
 | `host.settings(directory?)` · `host.enabledIn` · `host.projects` · `host.dir` | 설정 칸 값(비밀 제외) · 켜짐 여부 · 켜진 프로젝트 목록 · 설치 폴더 경로(자산은 여기서 읽음) |
 | `host.fetch(url, init)` | 바깥으로 나가는 유일한 길 — `network` 권한 + 사용자가 허용한 주소만 |
@@ -128,7 +129,7 @@
 
 **설치 정책** — 서비스를 담은 플러그인은 설치만으로 켜지지 않습니다. 확인창에서 "앱 안에서 직접 실행됩니다. 출처를 확인했습니다" 에 동의하고 설치하면 그 자리에서 켜집니다(창을 거치지 않은 설치는 꺼진 채). 업데이트가 서비스를 새로 담았거나 권한 · `inject` · `events` · `service.api` · `scope` 를 바꿨으면 다시 동의해야 켜지고, 같은 선언의 버전 올림은 켜진 채 그대로입니다. 서비스 기록이 없는 이전 방식 설치본은 "다시 설치해야 합니다". 개발 모드(개발 실행에서만)는 개발자 본인 폴더라 재동의 없이 이어 가고 카드에 DEV 가 붙습니다.
 
-**옛 길과 폐지 예정** — 패널이 호출 표(`CALL_TABLE`)로 앱 기능을 직접 부르는 길과 manifest 의 `type: locale` · `type: grammar` 는 옛 길입니다. 지금도 동작하고, 서비스가 같은 호출 표를 `host.call` 로 불러 쓰므로 표는 당분간 남습니다. desktop 은 코드를 가진 플러그인과 언어 · 문법 팩이 모두 서비스로 옮겨진 직후 옛 길을 한 번에 지울 예정이고, 그 일정은 desktop 이 정합니다. 선언형(`tools` · `mcp` · `lsp` · skills · agents)은 서비스 없이도 쓸 수 있다고 desktop 문서가 적습니다.
+**옛 길과 폐지 예정** — 패널이 호출 표(`CALL_TABLE`)로 앱 기능을 직접 부르는 길과 manifest 의 `type: locale` · `type: grammar` 는 옛 길입니다. 지금도 동작하고, 서비스가 같은 호출 표를 `host.call` 로 불러 쓰므로 표는 당분간 남습니다. desktop 은 코드를 가진 플러그인과 언어 · 문법 팩이 모두 서비스로 옮겨진 직후 옛 길을 한 번에 지울 예정이고, 그 일정은 desktop 이 정합니다. **manifest `lsp` 선언은 옛 경로로 곧 삭제됩니다**(desktop 폐지 PR B) — 언어 서버는 서비스의 `host.lsp.register` 로 올립니다. `tools` · `mcp` · skills · agents 선언형은 서비스 없이도 쓸 수 있다고 desktop 문서가 적습니다.
 
 ## 적용 범위
 
@@ -254,7 +255,7 @@ plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.j
 | 상한 값 (알림 상한 포함) | `src/services/extensions/install/limits.ts` |
 | 설치 · 부팅 · 분배 | `src/services/extensions/extensions.ts` · `install/store.ts` · `data.ts` |
 | MCP 서버 · 도구 · 스킬 · 범위 | `mcp/servers.ts` · `tools/runner.ts` · `skills.ts` · `scope/` |
-| 언어 서버 선언 · 띄우기 | `lsp/lspDeclaration.ts` · `lsp/lspLaunch.ts`, 잇기는 `src/services/lsp/` |
+| 언어 서버 정의 검사 · 띄우기 | `shared/extensions/lspDeclaration.ts` · `lsp/lspLaunch.ts`, 올리기는 서비스의 `host.lsp.register`(`pluginServices/registrations/lsp.ts`), 잇기는 `src/services/lsp/` |
 | 알림 | `notify/notices.ts` |
 | 앱 소식 (이벤트 ↔ 권한) | `shared/extensions.ts` 의 `PANEL_EVENT_PERMISSIONS` · 구독은 `calls/table.ts` 의 `events.subscribe` |
 | 에이전트 | `agents/register.ts` · 검사는 `manifest.ts` (`agents-invalid`) |
