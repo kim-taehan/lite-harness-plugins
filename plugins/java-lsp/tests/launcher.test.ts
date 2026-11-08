@@ -53,8 +53,14 @@ describe('java-lsp 실행기 (server/jdtls.mjs)', () => {
   })
 })
 
-describe('java-lsp 오프라인 설정 (lsp-options.json — desktop #1262 머지 뒤 manifest 의 lsp 에 그대로 옮긴다)', () => {
-  const options = JSON.parse(fs.readFileSync(path.join(here, '..', 'lsp-options.json'), 'utf8'))
+describe('java-lsp 오프라인 설정 (plugin.json 의 lsp[0] — desktop #1262)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'plugin.json'), 'utf8'))
+  const options = manifest.lsp[0]
+  it('선언: java · server/jdtls.mjs · -data ${lspWorkspaceDir} · lsp 권한 · project 범위', () => {
+    expect(options).toMatchObject({ languageId: 'java', extensions: ['java'], command: 'server/jdtls.mjs', args: ['-data', '${lspWorkspaceDir}'] })
+    expect(manifest.permissions).toEqual(['lsp'])
+    expect(manifest.scope).toBe('project')
+  })
   for (const [name, java] of [['initializationOptions.settings', options.initializationOptions.settings.java], ['settings', options.settings.java]] as const) {
     it(`${name}: Maven 오프라인 · Gradle 가져오기 끔 · 내려받기 끔 · 프로젝트 폴더에 메타데이터 안 씀`, () => {
       expect(java.import.maven.offline.enabled).toBe(true)

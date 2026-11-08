@@ -13,7 +13,6 @@
 | `runtime/` | Temurin 25.0.5+8 로 jlink 한 런타임 (Temurin JRE 모듈 전부, 압축) | `fetch-runtime.mjs` 가 Adoptium 에서 받음 (버전 · sha256 고정) |
 | `jdtls/` | Eclipse JDT LS 1.63.0 (그 타깃의 `config_*` 만) | `fetch-runtime.mjs` 가 download.eclipse.org 에서 받음 (sha256 고정) |
 | `server/jdtls.mjs` | 실행기 — 동봉 런타임으로 JDT LS 를 stdio 로 띄움 | 이 폴더 |
-| `lsp-options.json` | 오프라인 설정 (manifest 의 `initializationOptions` · `settings` 로 옮길 값) | 이 폴더 (zip 에는 안 들어감) |
 
 - **Java 25 가 필요합니다.** JDT LS 1.63 의 번들이 `osgi.ee JavaSE 25` 를 요구해 Java 21 로는 뜨지 않습니다.
 - JRE 를 그대로 담으면 `lib/modules` 하나가 앱의 플러그인 상한(파일 하나 50MB)을 넘어서 jlink 로 압축합니다. 모듈을 빼지 않는 이유: JDT LS 는
@@ -40,7 +39,7 @@ node plugins/java-lsp/build.mjs --platform darwin-arm64 --dir  # → build/java-
 - **Gradle 버전 목록 요청 막기** — Buildship 은 Gradle 가져오기를 꺼도 시작할 때 `services.gradle.org` 에서 버전 목록을 받습니다(작업 공간의 캐시가 없거나 하루 지났을 때).
   실행기가 띄우기 전에 그 캐시(`<작업 공간>/.metadata/.plugins/org.eclipse.buildship.core/gradle/versions.json`)를 빈 목록으로 두고 날짜를 지금으로 바꿔 바깥 요청이 나가지 않게 합니다(표준 7번).
 
-## 오프라인 설정 (`lsp-options.json`)
+## 오프라인 설정 (`plugin.json` 의 `lsp[0].initializationOptions` · `settings`)
 
 | 설정 | 값 | 이유 |
 |---|---|---|
@@ -54,22 +53,11 @@ node plugins/java-lsp/build.mjs --platform darwin-arm64 --dir  # → build/java-
 없으면 JDT LS 가 "Could not calculate build plan" 으로 그 프로젝트를 Java 프로젝트로 못 만들어 오류 · 정의가 하나도 오지 않습니다.
 폐쇄망 PC 는 사내 저장소(Nexus 등)로 한 번 `mvn` 빌드해 두면 됩니다 — 사용자 `~/.m2/settings.xml` 을 그대로 씁니다.
 
-## desktop #1262 머지 뒤 넣을 선언
+## 선언 (`plugin.json`)
 
-```json
-"permissions": ["lsp"],
-"scope": "project",
-"lsp": [{
-  "languageId": "java",
-  "extensions": ["java"],
-  "command": "server/jdtls.mjs",
-  "args": ["-data", "${lspWorkspaceDir}"],
-  "env": { "JAVA_OPTS": "-Xmx1g" },
-  "initializationOptions": { "settings": { "java": { … lsp-options.json 의 값 … } } },
-  "settings": { "java": { … lsp-options.json 의 값 … } },
-  "idleMs": 600000
-}]
-```
+`permissions: ["lsp"]` · `scope: "project"` · `lsp[0]` — `languageId: "java"`, `extensions: ["java"]`, `command: "server/jdtls.mjs"`,
+`args: ["-data", "${lspWorkspaceDir}"]`(폴더 · 언어마다 따로인 작업 공간), `env.JAVA_OPTS: "-Xmx1g"`, 위 오프라인 설정, `idleMs: 600000`(쉬면 10분 뒤 내림).
+`.java` 파일을 파일 보기에서 열거나 AI 가 `code_*` 도구를 부르면 앱이 띄웁니다(그 프로젝트에서 켜졌을 때만).
 
 ## 확인한 것 (darwin-arm64)
 

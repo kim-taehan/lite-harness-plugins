@@ -9,7 +9,7 @@
 //
 // JDT LS 의 설정 폴더(config_*)는 플러그인 안의 것을 읽기 전용 공유 설정으로 쓰고, 쓰는 설정(OSGi 캐시)은 작업 공간 아래
 // .jdtls-config 에 둔다 — 플러그인 폴더는 여러 프로젝트가 같이 쓰고 업데이트 때 바뀌므로 쓰지 않는다.
-// 오프라인(Maven · Gradle) 설정은 여기서 하지 않는다 — 앱이 manifest 의 initializationOptions · settings 로 넘긴다(lsp-options.json).
+// 오프라인(Maven · Gradle) 설정은 여기서 하지 않는다 — 앱이 manifest(plugin.json 의 lsp[0]) 의 initializationOptions · settings 로 넘긴다.
 // 한 가지만 여기서 막는다: Buildship 은 Gradle 가져오기를 꺼도 시작할 때 Gradle 버전 목록을 services.gradle.org 에서 받는다
 // (작업 공간의 캐시가 없거나 하루 지났을 때). 띄우기 전에 그 캐시를 빈 목록으로 두고 날짜를 지금으로 바꿔, 바깥 요청이 나가지 않게 한다(표준 7번).
 import { spawn } from 'node:child_process'
