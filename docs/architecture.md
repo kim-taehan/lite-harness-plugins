@@ -39,7 +39,7 @@
 
 | 자리 | 하는 일 | manifest | 권한 |
 |---|---|---|---|
-| 오른쪽 패널 탭 | 한 파일 HTML 이 `+` 메뉴의 탭으로 열림, 전체 화면(`panel.fullscreen`) | `entry` | 없음 |
+| 오른쪽 패널 탭 | 진입 HTML 이 `+` 메뉴의 탭으로 열림(같은 zip 의 스크립트 · 스타일시트 · 이미지는 앱이 읽어 넣음), 전체 화면(`panel.fullscreen`) | `entry` | 없음 |
 | 앱 알림 | 앱이 그리는 토스트(플러그인 이름 + 제목 + 본문), 누르면 그 플러그인 탭. 패널의 `panel.notify` · `tools` 도구 결과의 `notify` 로 냄 (MCP 서버는 직접 못 냄) | — | 없음 |
 | 플러그인 저장 칸 | 플러그인별 JSON 값 (`storage.*`, 64KB) | — | 없음 |
 | 프로젝트 읽기 | 이름 · 파일 읽기 · 목록 · 찾기 · 크기 · git 바뀐 파일 · 연 탭 · 앱 미리보기로 열기 · 고르기 창 | — | `project` |
@@ -71,7 +71,8 @@
 ## 패널: 격리와 통로
 
 - 메인은 진입 HTML 을 **읽어 화면에 넘길 뿐 실행하지 않습니다**. 화면이 `sandbox="allow-scripts"` iframe 에 CSP 를 맨 앞에 붙여 돌립니다.
-- CSP 가 `fetch` · XHR · WebSocket · 외부 스크립트/스타일/이미지/글꼴 · 하위 iframe · 폼 전송을 막습니다. 인라인 스크립트 · 스타일은 됩니다 — 그래서 한 파일입니다. 링크 · `location` 같은 이동은 메인이 막습니다.
+- CSP 가 `fetch` · XHR · WebSocket · 외부 스크립트/스타일/이미지/글꼴 · 하위 iframe · 폼 전송을 막습니다. 인라인 스크립트 · 스타일은 됩니다. 링크 · `location` 같은 이동은 메인이 막습니다.
+- 같은 zip 의 자산은 진입 HTML 이 직접 적은 `<script src>`(module 제외) · `<link rel="stylesheet">` · `<img src>` 만, 메인이 설치 폴더 안에서 안전하게 읽어(진입 HTML 과 같은 읽기) 화면이 iframe 안에 글 · `data:` 주소로 바꿔 넣습니다. 64개 · 하나 4MB · 합쳐 32MB, 넘거나 못 읽은 것은 조용히 빠집니다. 플러그인이 꺼져 있거나 그 프로젝트에서 켜지지 않았으면 비어 있습니다 — [패널 가이드](guides/first-panel.md#같은-zip-의-파일-쓰기).
 - 요청은 `parent.postMessage({ litecode: 1, id, method, params })`, 답은 `{ litecode: 1, id, ok, result | error }`. 화면은 **자기 탭의 iframe 에서 온 메시지만** 받아 IPC 로 메인에 넘기고, 메인이 manifest `permissions` 로 검사합니다.
 - 처음 가는 주소는 화면이 iframe **바깥**에 동의 띠를 그려 묻습니다 — 플러그인이 흉내 낼 수 없는 자리입니다. 허용한 주소는 플러그인 카드에 남습니다.
 - 바깥 요청은 메인이 Chromium 네트워크로 보냅니다(사내 CA · 시스템 프록시를 따름, 쿠키 안 실음). http/https 만, 같은 origin 리다이렉트만, 기한 15초, 응답 5MB.
@@ -160,6 +161,7 @@ plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.j
 | 설치 · 부팅 · 분배 | `src/services/extensions/extensions.ts` · `install/store.ts` · `data.ts` |
 | MCP 서버 · 도구 · 스킬 · 범위 | `mcp/servers.ts` · `tools/runner.ts` · `skills.ts` · `scope/` |
 | 알림 | `notify/notices.ts` |
+| 패널 자산 (같은 zip 의 js · css · 이미지) | `install/panelAssets.ts` · 참조 고르기는 `renderer/htmlPreview.ts` |
 | 패널 탭 · 통로 · CSP | `renderer/ExtensionTab.tsx` · `extensionBridge.ts` · `htmlPreview.ts` |
 | 플러그인 저장소 | `src/services/extensionRepo/` |
 

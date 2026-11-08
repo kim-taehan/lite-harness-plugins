@@ -8,7 +8,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 
 | 가이드 | 만드는 것 | 시간 · 다루는 것 |
 |---|---|---|
-| [첫 패널 플러그인 만들기](guides/first-panel.md) | `plugin.json` 과 한 파일짜리 `index.html` 로 오른쪽 패널 탭을 만들고, 앱 통로로 값을 저장하고 프로젝트 이름을 읽고 AI 에게 말을 보냅니다. | 15분 · storage · project · chat |
+| [첫 패널 플러그인 만들기](guides/first-panel.md) | `plugin.json` 과 `index.html` 로 오른쪽 패널 탭을 만들고, 앱 통로로 값을 저장하고 프로젝트 이름을 읽고 AI 에게 말을 보냅니다. | 15분 · storage · project · chat |
 | [MCP 플러그인 만들기](guides/mcp-plugin.md) | AI 가 부를 수 있는 도구를 MCP 서버로 싣습니다. 설정 칸 · 비밀 값 · [연결 확인] · 같이 설치되는 스킬, 그리고 `build.mjs` 로 한 파일에 묶기까지. | 30분 · mcp · settings · skills |
 | [언어 팩 · 문법 팩 만들기](guides/locale-grammar.md) | 코드 없이 데이터만 담는 플러그인. 앱 문구를 다른 언어로 바꾸는 언어 팩과, 파일 개요가 새 언어를 읽게 하는 tree-sitter 문법 팩. | 20분 · type: locale · grammar |
 | [저장소로 내보내기](guides/publish.md) | 만든 플러그인을 이 저장소에 올려 앱의 [플러그인 둘러보기] 에 보이게 합니다. 분류 · 바뀐 것 · `npm run release` · 버전 규칙. | 10분 · catalog.json · dist |
