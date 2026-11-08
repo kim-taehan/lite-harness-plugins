@@ -6,10 +6,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
-const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'lsp']
+const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'service', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
+const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'lsp', 'service']
 // 선언과 권한이 짝인 필드 — desktop shared/extensions.ts 의 PLUGIN_DECLARATIONS 중 permission 이 있는 것 (<필드>-mismatch)
-const PAIRED = ['tools', 'mcp', 'lsp']
+const PAIRED = ['tools', 'mcp', 'lsp', 'service']
 const ID = /^[a-z0-9-]{3,40}$/
 const VERSION = /^\d+\.\d+\.\d+$/
 
@@ -96,9 +96,9 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
     expect(['역할', '구성', '개발'].filter((title) => !new RegExp(`^## ${title}\\s*$`, 'm').test(text)), '빠진 절').toEqual([])
   })
 
-  it('17 · mcp 플러그인의 build.mjs 는 --dir 을 받는다', () => {
+  it('17 · mcp · service 플러그인의 build.mjs 는 --dir 을 받는다', () => {
     const build = path.join(pluginsDir, folder, 'build.mjs')
-    if (!manifest.mcp || !existsSync(build)) return
+    if ((!manifest.mcp && !manifest.service) || !existsSync(build)) return
     expect(readFileSync(build, 'utf8'), 'build.mjs 가 --dir 을 받지 않습니다').toContain("'--dir'")
   })
 })

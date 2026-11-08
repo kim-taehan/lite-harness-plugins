@@ -1,0 +1,250 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "litecode plugin.json — service · permissions",
+  "description": "생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "enum": [
+        "app",
+        "project"
+      ],
+      "description": "생략하면 프로젝트별. usage.changed 처럼 프로젝트를 모르는 소식을 받으려면 \"app\""
+    },
+    "permissions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "network",
+          "secrets",
+          "project",
+          "projectWrite",
+          "chat",
+          "tools",
+          "mcp",
+          "usage",
+          "lsp",
+          "service"
+        ]
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "main",
+        "api"
+      ],
+      "properties": {
+        "main": {
+          "type": "string",
+          "pattern": "\\.mjs$",
+          "description": "폴더 안의 번들 한 파일(.mjs)"
+        },
+        "api": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1,
+          "description": "호스트 API 버전"
+        },
+        "inject": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "projects",
+              "usage"
+            ]
+          }
+        },
+        "events": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "chat.turnEnded",
+              "project.filesChanged",
+              "usage.changed"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "service"
+        ]
+      },
+      "then": {
+        "required": [
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "contains": {
+              "const": "service"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "contains": {
+              "const": "service"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "service"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "required": [
+              "events"
+            ],
+            "properties": {
+              "events": {
+                "contains": {
+                  "const": "chat.turnEnded"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "contains": {
+              "const": "chat"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "required": [
+              "events"
+            ],
+            "properties": {
+              "events": {
+                "contains": {
+                  "const": "project.filesChanged"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "contains": {
+              "const": "project"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "required": [
+              "events"
+            ],
+            "properties": {
+              "events": {
+                "contains": {
+                  "const": "usage.changed"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "contains": {
+              "const": "usage"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "required": [
+              "events"
+            ],
+            "properties": {
+              "events": {
+                "contains": {
+                  "const": "usage.changed"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "scope"
+        ],
+        "properties": {
+          "scope": {
+            "const": "app"
+          }
+        }
+      }
+    }
+  ],
+  "$comment": {
+    "chat.turnEnded": "앱 안의 이름 chat/turn-ended · 필요한 권한 chat · 켜진 프로젝트의 소식만 받는다",
+    "project.filesChanged": "앱 안의 이름 llm/tool-done (쓰기·고치기) · 필요한 권한 project · 켜진 프로젝트의 소식만 받는다",
+    "usage.changed": "앱 안의 이름 usage/changed · 필요한 권한 usage · 프로젝트 정보 없음 — manifest scope \"app\" 서비스만 받는다"
+  }
+}

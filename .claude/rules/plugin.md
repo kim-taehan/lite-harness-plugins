@@ -10,7 +10,7 @@
 2. **[필수]** `id` 는 소문자·숫자·`-` 로 3~40자, `version` 은 `주.부.수`. — 테스트
 3. **[필수]** manifest 에는 앱이 아는 필드만 쓴다. 모르는 필드가 하나라도 있으면 설치가 거절된다 — 메모·분류(`category`)·`changes` 를 넣지 않는다. 분류는 `categories.json`, 업데이트 글은 `changes.txt`. — 테스트
 4. **[필수]** 새 플러그인의 manifest 파일 이름은 `plugin.json`. `extension.json` 은 옛 플러그인에만 남는다.
-5. **[필수]** `permissions` 는 앱이 아는 값만(`network` · `secrets` · `project` · `projectWrite` · `chat` · `tools` · `mcp` · `usage` · `lsp`). `tools` · `mcp` · `lsp` 는 같은 이름의 선언과 권한이 둘 다 있거나 둘 다 없다. — 테스트
+5. **[필수]** `permissions` 는 앱이 아는 값만(`network` · `secrets` · `project` · `projectWrite` · `chat` · `tools` · `mcp` · `usage` · `lsp` · `service`). `tools` · `mcp` · `lsp` · `service` 는 같은 이름의 선언과 권한이 둘 다 있거나 둘 다 없다. — 테스트
 6. **[검토]** 권한은 실제로 부르는 앱 통로에 필요한 것만 적는다. 업데이트에서 권한이 늘면 사용자가 다시 허락해야 한다 — 늘렸다면 PR 에 이유를 적는다.
 
 ## 폐쇄망 · 비밀 값
@@ -28,7 +28,7 @@
 14. **[검토]** 사용자가 알아야 할 변경이면 `changes.txt` 에 한 줄씩 적는다.
 15. **[필수]** `dist/` 와 `catalog.json` 은 `npm run release` 로만 바꾼다. 플러그인을 없앨 때도 먼저 `categories.json` 을 `unlisted` 로 두고 release 해 목록에서 내린 뒤 원본 폴더와 분류 줄을 지운다. (편집 훅이 막고, `tests/catalog.test.ts` 가 정합을 본다)
 16. **[검토]** 도구·서버 로직을 바꾸면 `plugins/<id>/tests/` 에 동작을 보는 테스트를 더하거나 고친다. 실제 DB·서버가 필요한 확인은 테스트 대신 PR 에 "확인 못 한 것" 으로 적는다.
-17. **[필수]** `mcp` 선언과 `build.mjs` 가 같이 있는 플러그인의 build.mjs 는 `--dir` 을 받아 zip 과 같은 내용을 `build/<id>/` 폴더로 낸다. 원본 폴더는 묶기 전이라 앱이 띄울 수 없어서, 앱의 개발 모드(desktop #1348)는 이 폴더를 연결한다. — 테스트
+17. **[필수]** `mcp` 또는 `service` 선언과 `build.mjs` 가 같이 있는 플러그인의 build.mjs 는 `--dir` 을 받아 zip 과 같은 내용을 `build/<id>/` 폴더로 낸다. 원본 폴더는 묶기 전이라 앱이 띄울 수 없어서, 앱의 개발 모드(desktop #1348)는 이 폴더를 연결한다. — 테스트
 18. **[필수]** `mcp.attach` 는 `litecode`(기본) · `server` 만 쓴다. `server` 면 id 가 `litecode` 이면 안 된다(예약 이름, 설치 거절). — 테스트
 19. **[검토]** 도구가 많거나 사용자가 도구를 골라 쓰게 할 플러그인은 `attach: "server"` 를 검토한다. 방식을 바꾸면 스킬에 적힌 도구 이름(`litecode_<id>_<도구>` ↔ `<id>_<도구>`)도 같이 고친다.
 20. **[필수]** 새 플러그인(아직 `catalog.json` 에 없는 id)은 `scope` 를 적는다 — 앱 전체용이면 `"app"`, 프로젝트마다 다르게 켜면 `"project"`. 만들기 전에 가장 먼저 정한다(`docs/README.md` "먼저 정할 것"). 언어 팩 · 문법 팩은 적지 않는다(설치 거절 `scope-invalid`). — 테스트

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>턴 세기</title>
+<style>
+  :root { color-scheme: light dark; font: 14px system-ui, sans-serif }
+  body { margin: 0; padding: 16px; display: grid; gap: 8px }
+  #n { font-size: 40px; font-weight: 700 }
+  #msg { color: GrayText; min-height: 1.4em }
+</style>
+</head>
+<body>
+<div>이 프로젝트에서 끝난 AI 대화 턴</div>
+<div id="n">–</div>
+<div id="msg"></div>
+<button id="refresh">새로 고침</button>
+<script>
+// 앱 통로: postMessage { litecode: 1, id, method, params } → 돌아오는 { litecode: 1, id, ok, result | error }
+let next = 1
+const pending = new Map()
+window.addEventListener('message', (event) => {
+  const data = event.data
+  if (!data || data.litecode !== 1 || !pending.has(data.id)) return
+  const done = pending.get(data.id)
+  pending.delete(data.id)
+  data.ok ? done.resolve(data.result) : done.reject(new Error(String(data.error)))
+})
+const call = (method, params) => new Promise((resolve, reject) => {
+  const id = next++
+  pending.set(id, { resolve, reject })
+  parent.postMessage({ litecode: 1, id, method, params }, '*')
+})
+async function refresh() {
+  try {
+    const { turns } = await call('service.call', { name: 'count' })
+    document.getElementById('n').textContent = String(turns)
+    document.getElementById('msg').textContent = ''
+  } catch (error) {
+    document.getElementById('msg').textContent = '서비스에 묻지 못했습니다: ' + error.message
+  }
+}
+document.getElementById('refresh').addEventListener('click', refresh)
+refresh()
+setInterval(refresh, 5000)
+</script>
+</body>
+</html>

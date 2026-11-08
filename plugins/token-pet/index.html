@@ -99,6 +99,7 @@ body.field .stage { height: 100%; border-radius: 0; background: linear-gradient(
   <p class="note">설치한 뒤에 AI 에 쓴 토큰을 먹고 자랍니다. 캐시로 읽은 토큰은 반만 칩니다. 빛톨을 누르거나 대화창에서 "빛톨아" 하고 불러 보세요. 기록은 이 PC 에만 남습니다.</p>
 </div>
 <script src="persona.js"></script>
+<script src="game.js"></script>
 <script>
 // 몬스터 그림 — 원본 도트(글자 하나 = 픽셀 하나). L·R 은 걷기 발(프레임마다 번갈아)
 const SPECIES = [
@@ -339,18 +340,15 @@ const EGG = { id: 'egg', name: '빛알', pal: { o: '#2b3448', a: '#f4f6fb', b: '
   '...oooooooo...',
 ] }] }
 
-// 기준 (#1186, 0.2.0 에서 ⅓ 로) — 턴 하나가 맥락 전체를 실어 수십만~백만 토큰이다(캐시는 반만 친다). 흔한 종 기준 하루 50턴이면
-// 부화 ~1시간 미만 · 2단계 몇 시간 · 3단계 반나절~하루 · 졸업 ~2일. 보통 ×1.25, 드묾 ×2(~4일). 값은 부화 뒤 누적
-const HATCH = 1_500_000
-const BASE = [10_000_000, 40_000_000, 100_000_000]
+// 규칙(기준 · 부화 · 진화 · 졸업)은 서비스가 계산하고 game.js 가 정한다 — 패널은 같은 규칙으로 진행률만 그린다
+const { HATCH, ends, stageOf } = window.TOKEN_PET_GAME
+// 종마다 걷는 빠르기와 혼잣말(그림 쪽 값 — 게임 규칙은 game.js)
 const SPEC = {
-  squirrel: { weight: 60, mult: 1, speed: 52, lines: ['버그 냄새!', '빨리빨리!', '찌릿!'] },
-  sheep: { weight: 30, mult: 1.25, speed: 30, lines: ['음… 5분만…', '커피…', 'Zzz'] },
-  turtle: { weight: 10, mult: 2, speed: 18, lines: ['느긋하게~', '따뜻하다', '괜찮아, 안 터져'] },
+  squirrel: { speed: 52, lines: ['버그 냄새!', '빨리빨리!', '찌릿!'] },
+  sheep: { speed: 30, lines: ['음… 5분만…', '커피…', 'Zzz'] },
+  turtle: { speed: 18, lines: ['느긋하게~', '따뜻하다', '괜찮아, 안 터져'] },
 }
-const NATURES = ['급한', '차분한', '느긋한', '호기심 많은', '수줍은']
 const byId = (id) => SPECIES.find((s) => s.id === id)
-const ends = (id) => BASE.map((t) => Math.round(t * SPEC[id].mult))
 // 페르소나 (0.2.0) — persona.js 는 같은 zip 의 스크립트라 그것을 넣어 주는 앱(desktop #1339)에서만 실린다. 옛 앱이면 SPEC.lines 로
 const PERSONA = window.TOKEN_PET_PERSONA
 const FX = { hop: '♪', dash: '💨', zap: '⚡', doze: '💤', spin: '✨', shy: '💦', nod: '♨️' }
@@ -376,122 +374,41 @@ function call(method, params) {
   return new Promise((resolve, reject) => waiting.set(id, { resolve, reject }))
 }
 addEventListener('message', ({ data }) => {
-  if (data && data.litecode === 1 && data.event) return onEvent(data.event)
+  if (data && data.litecode === 1 && data.event) return onEvent(data.event, data.data)
   const w = data && data.litecode === 1 && waiting.get(data.id)
   if (!w) return
   waiting.delete(data.id)
   data.ok ? w.resolve(data.result) : w.reject(new Error(data.error))
 })
-/** 앱 소식 (events.subscribe, desktop #1336) — 사용량이 늘면 먹이, AI 턴이 끝나면 빛톨이 한 말을 받아 온다 */
-function onEvent(event) {
-  if (event === 'usage.changed') void poll()
-  else if (event === 'chat.turnEnded') void fetchSaid(true)
+/** 서비스 소식 (service.update) — 서비스가 먹이를 주거나 AI 가 say 로 말하면 지금 모습이 온다 */
+function onEvent(event, data) {
+  if (event === 'service.update') apply(data)
 }
 
-// ── 상태 ──
-const fresh = () => ({ v: 1, baseline: null, feed: 0, species: null, nature: null, seen: [], graduated: [], startedAt: Date.now() })
-let state = fresh()
-let summary = null
+// ── 상태 — 서비스가 들고 있는 것을 받아 그린다 (패널은 저장하지 않는다) ──
+let state = window.TOKEN_PET_GAME.fresh()
+let today = null
+let said = null
+let saidAt = 0
+const serviceCall = (name, params) => call('service.call', { name, params })
 
-function stageOf(s) {
-  if (!s.species) return { stage: -1, from: 0, to: HATCH }
-  const e = ends(s.species)
-  const fed = s.feed - HATCH
-  if (fed < e[0]) return { stage: 0, from: 0, to: e[0] }
-  if (fed < e[1]) return { stage: 1, from: e[0], to: e[1] }
-  return { stage: 2, from: e[1], to: e[2] }
-}
-function pickSpecies() {
-  const total = Object.values(SPEC).reduce((n, s) => n + s.weight, 0)
-  let r = Math.random() * total
-  for (const [id, s] of Object.entries(SPEC)) if ((r -= s.weight) < 0) return id
-  return 'squirrel'
-}
-const markSeen = (id, stage) => { const key = `${id}:${stage}`; if (!state.seen.includes(key)) state.seen.push(key) }
-
-/** 먹이를 주고 부화·진화·졸업을 정한다. 일어난 일을 돌려준다 */
-function feed(amount) {
-  if (amount <= 0) return null
-  const before = stageOf(state)
-  state.feed += amount
-  let event = 'eat'
-  if (!state.species && state.feed >= HATCH) {
-    state.species = pickSpecies()
-    state.nature = NATURES[Math.floor(Math.random() * NATURES.length)]
-    event = 'hatch'
+/** 서비스가 준 지금 모습(state · today · error · said · event)을 받는다 */
+function apply(snapshot) {
+  if (!snapshot || !snapshot.state) return
+  state = { ...window.TOKEN_PET_GAME.fresh(), ...snapshot.state }
+  today = snapshot.today
+  const error = document.getElementById('error')
+  error.textContent = snapshot.error ? (snapshot.error.includes('permission') ? '사용량을 읽을 권한이 없습니다 — 플러그인을 다시 설치해 usage 권한을 허락해 주세요.' : '사용량을 읽지 못했습니다. 잠시 뒤 다시 봅니다.') : ''
+  if (snapshot.event && hero) react(snapshot.event)
+  // AI 가 say 로 남긴 말 — 새 말이면 빛톨이 말풍선으로 한다
+  if (snapshot.said && snapshot.said.at > saidAt) {
+    saidAt = snapshot.said.at
+    if (hero && !firstApply) { hero.talk(snapshot.said.text, 6); if (snapshot.said.action) hero.act(snapshot.said.action) } // 처음 한 번은 기준만 잡는다(열자마자 지난 말을 보이지 않게)
   }
-  if (state.species) {
-    const e = ends(state.species)
-    if (state.feed - HATCH >= e[2]) {
-      state.graduated.push({ id: state.species, nature: state.nature, at: Date.now() })
-      for (let s = 0; s <= 2; s++) markSeen(state.species, s)
-      state.species = null
-      state.nature = null
-      state.feed = 0
-      return 'graduate'
-    }
-    const now = stageOf(state)
-    // 기준이 ⅓ 로 줄어(0.2.0) 한 번에 여러 단계를 건너뛸 수 있다 — 지나간 단계도 도감 기록에 남긴다
-    for (let s = 0; s <= now.stage; s++) markSeen(state.species, s)
-    if (event !== 'hatch' && now.stage > before.stage) event = 'evolve'
-  }
-  return event
-}
-
-async function save() {
-  try { await call('storage.set', { key: 'state', value: state }) } catch { /* 다음에 다시 */ }
-}
-
-async function poll() {
-  if (document.hidden) return
-  try {
-    summary = await call('usage.summary')
-    document.getElementById('error').textContent = ''
-  } catch (error) {
-    document.getElementById('error').textContent = String(error.message).includes('permission') ? '사용량을 읽을 권한이 없습니다 — 확장을 다시 설치해 usage 권한을 허용해 주세요.' : '사용량을 읽지 못했습니다. 잠시 뒤 다시 봅니다.'
-    return render()
-  }
-  const total = summary.total
-  let event = null
-  if (!state.baseline || total.tokens < state.baseline.tokens) state.baseline = { tokens: total.tokens, cacheRead: total.cacheRead } // 처음(또는 장부가 새로 시작) — 지난 것은 먹이로 치지 않는다
-  else {
-    const dTokens = total.tokens - state.baseline.tokens
-    const dCache = Math.max(0, total.cacheRead - state.baseline.cacheRead)
-    state.baseline = { tokens: total.tokens, cacheRead: total.cacheRead }
-    event = feed(Math.max(0, Math.round(dTokens - dCache / 2)))
-  }
-  if (event) {
-    react(event)
-    void save()
-  } else if (!state.savedOnce) { state.savedOnce = true; void save() }
+  firstApply = false
   render()
 }
-
-// ── MCP 서버와 맞추기 (0.2.0) — AI 가 persona 도구로 지금 빛톨을 알 수 있게. 서버가 없거나(옛 앱 · 권한) 실패하면 조용히 넘어간다 ──
-let syncTimer = null
-let synced = ''
-function scheduleSync() {
-  clearTimeout(syncTimer)
-  syncTimer = setTimeout(async () => {
-    const { sp, stage } = current()
-    const pet = { species: state.species, stage: state.species ? stage : 0, nature: state.nature, name: sp.stages[stage].name, todayTokens: summary ? summary.today.tokens : 0, graduated: state.graduated.length, bg: state.bg ?? 'meadow' }
-    const key = JSON.stringify(pet)
-    if (key === synced) return
-    try { await call('mcp.call', { tool: 'sync', args: { pet } }); synced = key } catch { /* 다음 변경 때 다시 */ }
-  }, 800)
-}
-
-/** AI 가 say 로 남긴 말 — show 면 새 말을 빛톨이 말풍선으로 한다. 처음 한 번은 기준만 잡는다(열자마자 지난 말을 보이지 않게) */
-async function fetchSaid(show) {
-  try {
-    const result = await call('mcp.call', { tool: 'last_said', args: {} })
-    const said = result && !result.isError ? JSON.parse(result.text) : null
-    if (!said || !(said.at > (state.saidAt ?? 0))) return
-    state.saidAt = said.at
-    void save()
-    if (show && hero) { hero.talk(said.text, 6); if (said.action) hero.act(said.action) }
-  } catch { /* 서버 없음 */ }
-}
+let firstApply = true
 
 // ── 그리기 ──
 function drawSprite(canvas, sp, stage, frame = 0, scale = 4, flip = false) {
@@ -540,8 +457,8 @@ function render() {
   document.getElementById('bar').style.width = `${Math.round(progress * 100)}%`
   document.getElementById('barLabel').textContent = !state.species ? '부화까지' : stage === 2 ? '졸업까지' : '다음 진화까지'
   document.getElementById('barValue').textContent = `${Math.round(progress * 100)}% · ${compact(Math.max(0, st.to - fed))} tok 남음`
-  document.getElementById('todayTokens').textContent = summary ? compact(summary.today.tokens) : '—'
-  document.getElementById('todayTurns').textContent = summary ? String(summary.today.turns) : '—'
+  document.getElementById('todayTokens').textContent = today ? compact(today.tokens) : '—'
+  document.getElementById('todayTurns').textContent = today ? String(today.turns) : '—'
   document.getElementById('days').textContent = `${Math.max(1, Math.floor((Date.now() - state.startedAt) / 86_400_000) + 1)}일`
   // 도감은 졸업한(3단계) 몬스터만 (#1186) — 종마다 한 칸, 몇 번 졸업했는지 함께
   const dex = document.getElementById('dex')
@@ -557,8 +474,7 @@ function render() {
   document.getElementById('dexTitle').textContent = `도감 ${seen} / ${SPECIES.length}${state.graduated.length ? ` · 졸업 ${state.graduated.length}` : ''}`
   renderBgs()
   if (hero) hero.refresh()
-  scheduleSync()
-}
+  }
 
 // ── 배경 ──
 const bgsEl = document.getElementById('bgs')
@@ -574,7 +490,7 @@ function renderBgs() {
     btn.setAttribute('aria-pressed', String((state.bg ?? 'meadow') === b.id))
     btn.title = open ? b.name : `졸업 ${b.need}번에 열려요`
     const sw = document.createElement('i'); sw.style.background = b.sw; btn.append(sw, open ? b.name : `🔒 ${b.name}`)
-    btn.addEventListener('click', () => { state.bg = b.id; applyBg(); renderBgs(); scheduleSync(); void save() })
+    btn.addEventListener('click', () => { state.bg = b.id; applyBg(); renderBgs(); void serviceCall('setBg', { bg: b.id }).catch(() => {}) })
     bgsEl.appendChild(btn)
   }
   applyBg()
@@ -712,12 +628,12 @@ function setField(on) {
   hero.remove()
   hero = walker(heroInfo, { vertical: on })
   applyBg()
-  call('panel.fullscreen', { on }).catch(() => {})
+  serviceCall('fullscreen', { on }).catch(() => {})
 }
 document.getElementById('full').addEventListener('click', () => setField(!document.body.classList.contains('field')))
 // 말 걸기 — 패널은 AI 를 직접 부르지 못해서 새 대화를 "빛톨아, " 로 채워 연다. 대답은 스킬 + persona · say 도구가 한다
 document.getElementById('talk').addEventListener('click', () => {
-  call('chat.compose', { text: '빛톨아, ', send: false }).catch((error) => {
+  serviceCall('talk').catch((error) => {
     document.getElementById('error').textContent = String(error.message).includes('permission') ? '말 걸기는 chat 권한이 필요합니다 — 플러그인을 다시 설치해 허용해 주세요.' : '대화를 열지 못했습니다. 프로젝트를 연 상태에서 다시 눌러 주세요.'
   })
 })
@@ -725,22 +641,14 @@ addEventListener('keydown', (e) => e.key === 'Escape' && document.body.classList
 
 // ── 시작 ──
 ;(async () => {
-  try {
-    const saved = await call('storage.get', { key: 'state' })
-    if (saved && saved.v === 1) state = { ...fresh(), ...saved }
-  } catch { /* 처음 */ }
-  // 0.1.1 에서 이미 부화한 빛톨은 성격이 없다 — 하나 정해 남긴다
-  if (state.species && !state.nature) { state.nature = NATURES[Math.floor(Math.random() * NATURES.length)]; void save() }
   hero = walker(heroInfo)
   render()
-  await poll()
-  await fetchSaid(false)
-  // 앱 소식을 받으면 사용량은 소식 때 + 60초 안전 폴링, 못 받는 옛 앱이면 지금처럼 5초 폴링
-  let subscribed = false
-  try { await call('events.subscribe', { events: ['usage.changed', 'chat.turnEnded'] }); subscribed = true } catch { /* 옛 앱 · 권한 */ }
-  setInterval(poll, subscribed ? 60_000 : 5000)
-  if (!subscribed) setInterval(() => fetchSaid(true), 5000)
-  document.addEventListener('visibilitychange', () => !document.hidden && poll())
+  // 서비스 소식(service.update)을 받고, 지금 모습을 한 번 묻는다. 서비스가 아직 안 떴으면(service-off) 안내만 보인다
+  try { await call('events.subscribe', { events: ['service.update'] }) } catch { /* 권한 없음 */ }
+  try { apply(await serviceCall('state')) } catch (error) {
+    document.getElementById('error').textContent = '빛톨 서비스가 켜져 있지 않습니다 — 설정 › 기능 › 플러그인에서 빛톨 키우기를 켜 주세요.'
+  }
+  document.addEventListener('visibilitychange', () => !document.hidden && serviceCall('state').then(apply).catch(() => {}))
   if (!still) {
     let last = performance.now()
     const tick = (now) => { const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!document.hidden) for (const w of [hero, ...friends]) w && w.tick(dt); requestAnimationFrame(tick) }
