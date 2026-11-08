@@ -2,6 +2,7 @@
   "chrome-browser": "unlisted",
   "csharp-grammar": "unlisted",
   "ja-pack": "unlisted",
+  "java-lsp": "unlisted",
   "kotlin-grammar": "unlisted",
   "rust-grammar": "unlisted",
   "service-example": "unlisted",

@@ -6,6 +6,9 @@
 
 *약 15분 · 권한: project · chat*
 
+> **방향 — 패널은 화면, 앱 기능과 상태는 서비스.** 코드를 가진 플러그인은 **서비스**(앱 안에서 도는 코드) 한 길로 가는 중이고, 패널은 서비스에 `service.call` 로 묻고 서비스가 밀어 보내는 소식으로 다시 그리는 방식이 기본이 됩니다 → [서비스 플러그인 만들기](service-plugin.md).
+> 이 가이드는 **서비스 없이 패널만** 있는 가장 작은 플러그인입니다. 순수 화면(메모 · 계산기 · 뷰어)이면 이것으로 충분하고, 아래 **앱 통로**(`storage` · `project` · `chat` …)가 지금 앱에서 도는 **옛 방식 — 서비스로 옮기는 중**입니다. 병행 기간에는 둘 다 됩니다. 패널이 앱 기능이나 앱 소식을 써야 하면 처음부터 [서비스](service-plugin.md)로 만드세요.
+
 ## 만들 것
 
 **메모장** 패널을 만듭니다. 오른쪽 패널의 `+` 메뉴에서 열면
@@ -26,7 +29,7 @@
 
 - HTML 은 **sandbox iframe** 에서 돕니다. 바깥 스크립트 · 스타일 · 이미지 · 글꼴과 `fetch` 는 CSP 로 막힙니다.
 - 같은 zip 의 스크립트 · 스타일시트 · 이미지는 진입 HTML 이 상대 경로로 적으면 앱이 읽어 넣어 줍니다 — 아래 [같은 zip 의 파일 쓰기](#같은-zip-의-파일-쓰기). 작은 패널은 한 파일에 다 넣어도 됩니다.
-- 앱에 무언가를 부탁하는 길은 `parent.postMessage` 하나(**앱 통로**)입니다. 앱은 메시지가 어느 iframe 에서 왔는지로 플러그인을 알아보고, manifest 의 `permissions` 에 적힌 것만 들어 줍니다.
+- 앱에 무언가를 부탁하는 길은 `parent.postMessage` 하나(**앱 통로**)입니다. 앱은 메시지가 어느 iframe 에서 왔는지로 플러그인을 알아보고, manifest 의 `permissions` 에 적힌 것만 들어 줍니다. 서비스가 있는 플러그인은 이 통로 중 `service.call` 하나로 서비스에 묻고, 앱 기능은 서비스가 대신 부릅니다 — [아래](#서비스가-있는-패널).
 
 ## 1. 폴더와 plugin.json
 
@@ -62,7 +65,7 @@
 
 ## 2. 패널 HTML
 
-이 예제는 짧아서 한 파일 안에 화면 · 스타일 · 스크립트를 다 넣습니다(나누는 법은 아래 [같은 zip 의 파일 쓰기](#같은-zip-의-파일-쓰기)). 맨 위 `call()` 이 앱 통로입니다 — 요청에 번호를 붙여 보내고, 같은 번호의 답을 기다립니다.
+이 예제는 서비스 없이 패널이 앱 통로를 직접 씁니다(옛 방식, 서비스로 옮기는 중 — 순수 패널의 첫걸음으로 남겨 둔 것입니다). 짧아서 한 파일 안에 화면 · 스타일 · 스크립트를 다 넣습니다(나누는 법은 아래 [같은 zip 의 파일 쓰기](#같은-zip-의-파일-쓰기)). 맨 위 `call()` 이 앱 통로입니다 — 요청에 번호를 붙여 보내고, 같은 번호의 답을 기다립니다.
 
 `plugins/hello-panel/index.html`
 
@@ -162,7 +165,7 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 - 검사는 zip 설치와 같습니다. 개발 모드에서 통과하면 zip 으로도 통과합니다.
 - version 은 올리지 않아도 됩니다. 같은 버전으로 다시 설치해도 새 내용으로 바뀝니다. MCP 서버는 다음 호출 때 새 코드로 뜨고 도구 목록도 다시 받습니다.
 - 연결한 플러그인은 목록과 패널 탭에 **DEV** 표시가 붙습니다. **[지금 다시 읽기]** 로 바로 다시 설치하고, **[연결 끊기]** 로 감시를 멈춥니다. 연결을 끊어도 플러그인은 설치된 채로 남습니다.
-- 빌드가 필요한 플러그인(MCP 서버 등)은 원본 대신 빌드한 폴더를 연결합니다 — [MCP 가이드의 7번](mcp-plugin.md#7-고치면서-바로-확인하기).
+- 빌드가 필요한 플러그인(서비스 · MCP 서버 등)은 원본 대신 빌드한 폴더를 연결합니다 — [MCP 가이드의 8번](mcp-plugin.md#8-고치면서-바로-확인하기).
 
 개발 모드가 없는 앱에서는 `version` 을 올리고(`0.1.1`) 3번처럼 다시 묶어 설치합니다. 설치 카드에 지금 버전이 같이 보이고 새 버전으로 바뀝니다. 저장소로 나갈 때는 버전이 높아야만 업데이트로 보이니, 올리기 전에 버전을 꼭 올리세요(표준 13번). 권한을 늘리면 앱이 사용자에게 다시 묻습니다.
 
@@ -190,9 +193,35 @@ zip -r ../../build/hello-panel.zip . -x '.DS_Store'
 - 글꼴과 CSS 배경 이미지는 넣어 주지 않습니다. 필요하면 CSS 안에 `data:` 주소로 직접 넣습니다.
 - CSP 는 그대로라 바깥 주소(CDN 등)는 여전히 막힙니다(표준 7번). 라이브러리는 zip 에 담아 상대 경로로 적습니다.
 
+## 서비스가 있는 패널
+
+서비스를 같이 담은 플러그인에서 패널은 **화면만** 맡습니다. 상태 · 앱 기능 · 앱 소식은 서비스가 맡고, 패널은 앱 통로 중 두 가지만 씁니다.
+
+```js
+const serviceCall = (name, params) => call('service.call', { name, params })   // call() 은 위 2번의 앱 통로
+
+await call('events.subscribe', { events: ['service.update'] })   // 서비스가 host.panel.emit('update', …) 로 밀어 보낸 소식
+const snapshot = await serviceCall('state')                       // 서비스가 expose('state', …) 로 낸 메서드
+```
+
+- 답은 위와 같은 모양(`{ litecode: 1, id, ok, result }`)이고 `result` 가 서비스가 돌려준 값입니다. 서비스가 꺼져 있으면 `service-off`, 그 프로젝트에서 꺼져 있으면 `not-on`, 서비스가 던지면 `service-failed` 입니다.
+- 서비스가 밀어 보낸 소식은 이름에 `service.` 가 붙고 권한은 `service` 입니다. 구독은 iframe 이 살아 있는 동안만이라 패널이 시작할 때마다 구독합니다.
+- 패널은 상태를 자기 저장소에 쓰지 않습니다(서비스가 들고 있고 패널은 읽기만). 둘 다 써야 하면 키를 나눕니다.
+
+옛 앱 통로의 일이 서비스에서는 이렇게 바뀝니다.
+
+| 패널이 앱 통로로 하던 일 | 서비스가 있으면 |
+|---|---|
+| `storage.*` · `project.*` · `chat.*` · `network.*` · `settings.*` · `usage.summary` · `panel.notify` · `skills.readFile` | 서비스가 `host.call` 로 같은 이름 · 같은 권한 검사로 부르고 패널에는 `expose` 로 냅니다 |
+| `events.subscribe`(앱 소식 — `usage.changed` 등) | 서비스의 `ctx.on` 이 받고, 패널이 알아야 하면 `host.panel.emit` 으로 보냅니다 |
+| `mcp.call` · `mcp.status` | 서비스가 `host.call('mcp.call')` 로 **자기가 등록한** 서버를 부릅니다 — [MCP 가이드](mcp-plugin.md) |
+| `panel.fullscreen` · `settings.open` | 서비스가 `host.call` 로 엽니다(그 플러그인 탭이 보이는 탭일 때만 — 아니면 `no-window`) |
+| `secrets.get` | 서비스는 비밀을 읽지 못합니다. 비밀은 설정 `secret` 칸 + `${secret:}` → MCP 서버 환경 변수로만 |
+| `panel.args` · `fileActions` 로 열린 파일 | 패널이 받습니다(서비스에는 받을 탭이 없어 못 부름) |
+
 ## 앱 통로와 권한
 
-패널이 부를 수 있는 것과 필요한 권한입니다. 권한이 없는 메서드를 부르면 `permission-missing` 이 돌아옵니다.
+패널이 부를 수 있는 것과 필요한 권한입니다. **병행 기간의 옛 방식입니다 — 서비스로 옮기는 중**이고, 서비스가 있는 플러그인은 위 표대로 서비스가 대신 부릅니다. 권한이 없는 메서드를 부르면 `permission-missing` 이 돌아옵니다.
 
 | 권한 | 메서드 | 하는 일 |
 |---|---|---|
@@ -226,7 +255,7 @@ await call('panel.notify', { title: '분석 끝', body: '느린 쿼리 3개를 �
 
 ### 앱 소식 받기
 
-패널이 계속 물어보지 않아도(폴링) 앱에서 일이 생기면 알려 받을 수 있습니다. `events.subscribe` 로 받을 이벤트를 고르면, 답장과 같은 길로 `{ litecode: 1, event, data }` 가 옵니다. 답장과 달리 `id` 가 없습니다.
+패널이 계속 물어보지 않아도(폴링) 앱에서 일이 생기면 알려 받을 수 있습니다. (서비스가 있으면 앱 소식은 서비스가 `ctx.on` 으로 받고 패널은 서비스가 밀어 보내는 `service.<이름>` 소식만 구독하는 것이 기본입니다.) `events.subscribe` 로 받을 이벤트를 고르면, 답장과 같은 길로 `{ litecode: 1, event, data }` 가 옵니다. 답장과 달리 `id` 가 없습니다.
 
 ```js
 addEventListener('message', ({ data }) => {
@@ -297,9 +326,10 @@ await call('events.subscribe', { events: ['panel.args'] })
 
 ## 정리
 
-`plugin.json` 과 HTML 하나로 패널 플러그인을 만들고, 앱 통로로 저장 · 프로젝트 읽기 · 대화 열기를 했습니다. 실제 예로는 [token-pet](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/token-pet)(`usage` · `storage` · 전체 화면)이 같은 모양입니다.
+`plugin.json` 과 HTML 하나로 패널 플러그인을 만들고, 앱 통로로 저장 · 프로젝트 읽기 · 대화 열기를 했습니다. 순수 화면은 이것으로 충분합니다. 앱 기능 · 상태 · 앱 소식이 필요하면 패널은 화면만 맡고 나머지는 서비스로 옮깁니다 — 실제 예는 [token-pet](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins/token-pet)(서비스가 먹이를 쌓고 패널은 `service.call` · `service.update` 로 그립니다)입니다.
 
 ## 다음
 
-- [MCP 플러그인 만들기](mcp-plugin.md) — AI 가 부르는 도구를 싣기
+- [서비스 플러그인 만들기](service-plugin.md) — 앱 소식 · 상태 · AI 도구를 서비스로
+- [MCP 플러그인 만들기](mcp-plugin.md) — 오래 걸리는 일 · 비밀을 별도 프로세스로
 - [저장소로 내보내기](publish.md) — 메모장을 [플러그인 둘러보기] 에 올리기
