@@ -1,0 +1,23 @@
+[
+  {
+    "id": "kotlin",
+    "label": "Kotlin",
+    "extensions": [
+      "kt",
+      "kts"
+    ],
+    "wasm": "tree-sitter-kotlin.wasm",
+    "definitions": {
+      "class_declaration": "class",
+      "object_declaration": "class",
+      "function_declaration": "function",
+      "type_alias": {
+        "field": "type",
+        "kinds": {
+          "*": "type"
+        },
+        "name": "type"
+      }
+    }
+  }
+]
