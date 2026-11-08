@@ -3,104 +3,13 @@
   "name": "Java 언어 서버",
   "description": "동봉한 Eclipse JDT LS 로 Java 코드의 오류 · 정의 · 참조 · 설명을 앱 화면과 AI 에 줍니다 (폐쇄망 · 오프라인)",
   "details": "Java 런타임과 Eclipse JDT LS 를 플러그인에 담아, 인터넷 없이 Java 프로젝트를 분석합니다.\n파일 미리보기에 오류 밑줄 · 설명 · 정의로 가기를, AI 에게는 정의 · 참조 · 오류 · 심볼 도구를 줍니다. 언어 서버는 프로젝트마다 하나만 띄워 화면과 AI 가 같이 씁니다.\nMaven 프로젝트는 PC 의 로컬 저장소(~/.m2)에 이미 있는 의존성만 씁니다 — 없는 의존성은 받지 않고 오류로 보입니다. Gradle 가져오기는 빌드 스크립트를 실행하므로 기본으로 꺼 둡니다.\n처음 열 때 프로젝트를 읽느라 수십 초 걸릴 수 있고, 프로젝트 하나에 메모리를 약 1GB 까지 씁니다. 쉬면 내립니다.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "scope": "project",
   "permissions": [
-    "lsp"
+    "service"
   ],
-  "lsp": [
-    {
-      "languageId": "java",
-      "extensions": [
-        "java"
-      ],
-      "command": "server/jdtls.mjs",
-      "args": [
-        "-data",
-        "${lspWorkspaceDir}"
-      ],
-      "env": {
-        "JAVA_OPTS": "-Xmx1g"
-      },
-      "initializationOptions": {
-        "settings": {
-          "java": {
-            "import": {
-              "maven": {
-                "enabled": true,
-                "offline": {
-                  "enabled": true
-                }
-              },
-              "gradle": {
-                "enabled": false,
-                "offline": {
-                  "enabled": true
-                },
-                "wrapper": {
-                  "enabled": false
-                }
-              },
-              "generatesMetadataFilesAtProjectRoot": false
-            },
-            "maven": {
-              "downloadSources": false,
-              "updateSnapshots": false
-            },
-            "eclipse": {
-              "downloadSources": false
-            },
-            "configuration": {
-              "updateBuildConfiguration": "automatic"
-            },
-            "autobuild": {
-              "enabled": true
-            },
-            "references": {
-              "includeDecompiledSources": false
-            }
-          }
-        }
-      },
-      "settings": {
-        "java": {
-          "import": {
-            "maven": {
-              "enabled": true,
-              "offline": {
-                "enabled": true
-              }
-            },
-            "gradle": {
-              "enabled": false,
-              "offline": {
-                "enabled": true
-              },
-              "wrapper": {
-                "enabled": false
-              }
-            },
-            "generatesMetadataFilesAtProjectRoot": false
-          },
-          "maven": {
-            "downloadSources": false,
-            "updateSnapshots": false
-          },
-          "eclipse": {
-            "downloadSources": false
-          },
-          "configuration": {
-            "updateBuildConfiguration": "automatic"
-          },
-          "autobuild": {
-            "enabled": true
-          },
-          "references": {
-            "includeDecompiledSources": false
-          }
-        }
-      },
-      "idleMs": 600000
-    }
-  ]
+  "service": {
+    "main": "service.mjs",
+    "api": 1
+  }
 }

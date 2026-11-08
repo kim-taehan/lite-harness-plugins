@@ -3,22 +3,23 @@
 ## 역할
 
 동봉한 Java 런타임과 Eclipse JDT LS 로, 인터넷 없이 Java 프로젝트의 오류 · 정의 · 참조 · 설명 · 심볼을 앱(파일 미리보기)과 AI 도구에 줍니다.
-언어 서버는 desktop 이 프로젝트 폴더마다 하나 띄워 화면과 AI 가 같이 씁니다 (desktop #1262 의 manifest `lsp` 자리).
+서비스가 이 언어 서버를 앱에 올리고(`host.lsp.register`), 앱이 프로젝트 폴더마다 하나 띄워 화면과 AI 가 같이 씁니다 (desktop #1262 의 언어 서버 자리).
 
-- 앱에 닿는 자리: 언어 서버(`lsp`) — 파일 보기의 오류 밑줄 · 마우스 풍선 · 문제 목록, AI 의 `code_*` 도구, 코드 탐색의 정의 · 참조.
+- 앱에 닿는 자리: 서비스(`service`)가 올리는 언어 서버(`host.lsp.register`) — 파일 보기의 오류 밑줄 · 마우스 풍선 · 문제 목록, AI 의 `code_*` 도구, 코드 탐색의 정의 · 참조.
 - 범위: `"project"` — Java 프로젝트에서만 켜 둔다(언어 서버 하나가 수백 MB~1GB).
-- 권한: `lsp` — 앱이 이 선언대로 언어 서버를 띄운다.
+- 권한: `service` — 서비스가 언어 서버를 올린다(`lsp` 권한은 필요 없다). 앱이 그 선언대로 서버를 띄운다.
 
 ## 구성
 
 | 자리 | 무엇 | 어디서 |
 |---|---|---|
-| `plugin.json` | manifest — `lsp[0]` 선언(아래 "선언") · `lsp` 권한 · `scope` | 이 폴더 |
+| `plugin.json` | manifest — `service`(`main: "service.mjs"`, `api: 1`) · `service` 권한 · `scope` | 이 폴더 |
+| `service/index.mjs` | 서비스 원본 — `host.lsp.register` 로 언어 서버 선언(아래 "선언")을 올린다. `build.mjs` 가 `service.mjs` 한 파일로 묶는다 | 이 폴더 |
 | `runtime/` | Temurin 25.0.5+8 로 jlink 한 런타임 (Temurin JRE 모듈 전부, 압축) | `fetch-runtime.mjs` 가 Adoptium 에서 받음 (버전 · sha256 고정) |
 | `jdtls/` | Eclipse JDT LS 1.63.0 (그 타깃의 `config_*` 만) | `fetch-runtime.mjs` 가 download.eclipse.org 에서 받음 (sha256 고정) |
 | `server/jdtls.mjs` | 실행기 — 동봉 런타임으로 JDT LS 를 stdio 로 띄움 | 이 폴더 |
 | `fetch-runtime.mjs` · `build.mjs` | 런타임 · JDT LS 받기, 플랫폼별 묶기 | 이 폴더 (zip 에는 안 들어감) |
-| `tests/launcher.test.ts` | 실행기 인자 · 오프라인 설정 · 선언 테스트 | 이 폴더 (zip 에는 안 들어감) |
+| `tests/launcher.test.ts` | 실행기 인자 · 서비스가 올리는 선언 · 오프라인 설정 테스트(SDK 가짜 host) | 이 폴더 (zip 에는 안 들어감) |
 
 - **Java 25 가 필요합니다.** JDT LS 1.63 의 번들이 `osgi.ee JavaSE 25` 를 요구해 Java 21 로는 뜨지 않습니다.
 - JRE 를 그대로 담으면 `lib/modules` 하나가 앱의 플러그인 상한(파일 하나 50MB)을 넘어서 jlink 로 압축합니다. 모듈을 빼지 않는 이유: JDT LS 는
@@ -36,11 +37,11 @@ node plugins/java-lsp/build.mjs --platform darwin-arm64        # → build/java-
 node plugins/java-lsp/build.mjs --platform darwin-arm64 --dir  # → build/java-lsp-darwin-arm64/ (개발 모드에서 연결)
 ```
 
-플랫폼 전용이라 `npm run release -- java-lsp --platform <p>` 로 올립니다(sonarqube 와 같음).
+플랫폼 전용이라 `npm run release -- java-lsp --platform <p>` 로 올립니다(sonarqube 와 같음). 지금은 목록에서 내려 둔 상태(`categories.json` `unlisted`)라 release 하지 않습니다. 서비스를 담았으므로 설치할 때 "앱 안에서 직접 실행됩니다" 동의를 거칩니다.
 
 ### 테스트
 
-`npm test -- --project java-lsp` — 실행기(인자 · `JAVA_OPTS` · Gradle 캐시)와 `plugin.json` 의 선언. 언어 서버 동작은 아래 "확인한 것" 처럼 LSP 클라이언트 · 앱에서 본다.
+`npm test -- --project java-lsp` — 실행기(인자 · `JAVA_OPTS` · Gradle 캐시)와 서비스가 `host.lsp.register` 로 올리는 선언(SDK 가짜 host, 내리면 걷히는지). 앱이 서비스를 올리고 서버를 띄우는 것과 언어 서버 동작은 아래 "확인한 것" 처럼 LSP 클라이언트 · 앱에서 본다.
 
 ## 실행기
 
@@ -51,7 +52,7 @@ node plugins/java-lsp/build.mjs --platform darwin-arm64 --dir  # → build/java-
 - **Gradle 버전 목록 요청 막기** — Buildship 은 Gradle 가져오기를 꺼도 시작할 때 `services.gradle.org` 에서 버전 목록을 받습니다(작업 공간의 캐시가 없거나 하루 지났을 때).
   실행기가 띄우기 전에 그 캐시(`<작업 공간>/.metadata/.plugins/org.eclipse.buildship.core/gradle/versions.json`)를 빈 목록으로 두고 날짜를 지금으로 바꿔 바깥 요청이 나가지 않게 합니다(표준 7번).
 
-## 오프라인 설정 (`plugin.json` 의 `lsp[0].initializationOptions` · `settings`)
+## 오프라인 설정 (`service/index.mjs` 의 `initializationOptions` · `settings`)
 
 | 설정 | 값 | 이유 |
 |---|---|---|
@@ -65,9 +66,9 @@ node plugins/java-lsp/build.mjs --platform darwin-arm64 --dir  # → build/java-
 없으면 JDT LS 가 "Could not calculate build plan" 으로 그 프로젝트를 Java 프로젝트로 못 만들어 오류 · 정의가 하나도 오지 않습니다.
 폐쇄망 PC 는 사내 저장소(Nexus 등)로 한 번 `mvn` 빌드해 두면 됩니다 — 사용자 `~/.m2/settings.xml` 을 그대로 씁니다.
 
-## 선언 (`plugin.json`)
+## 선언 (`service/index.mjs`)
 
-`permissions: ["lsp"]` · `scope: "project"` · `lsp[0]` — `languageId: "java"`, `extensions: ["java"]`, `command: "server/jdtls.mjs"`,
+`plugin.json` 은 `permissions: ["service"]` · `scope: "project"` · `service`, 서비스가 `host.lsp.register` 로 올리는 서버 — `languageId: "java"`, `extensions: ["java"]`, `command: "server/jdtls.mjs"`,
 `args: ["-data", "${lspWorkspaceDir}"]`(폴더 · 언어마다 따로인 작업 공간), `env.JAVA_OPTS: "-Xmx1g"`, 위 오프라인 설정, `idleMs: 600000`(쉬면 10분 뒤 내림).
 `.java` 파일을 파일 보기에서 열거나 AI 가 `code_*` 도구를 부르면 앱이 띄웁니다(그 프로젝트에서 켜졌을 때만).
 

@@ -1,7 +1,9 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { build } from 'esbuild'
 import { describe, expect, it } from 'vitest'
+import { createFakeHost } from '../../../sdk/litecode-service-testing.mjs'
 // @ts-expect-error — 플러그인 실행기는 .mjs (타입 없음)
 import { javaArgs, locate, parseArgs, seedGradleVersions, splitJavaOpts } from '../server/jdtls.mjs'
 
@@ -53,27 +55,63 @@ describe('java-lsp 실행기 (server/jdtls.mjs)', () => {
   })
 })
 
-describe('java-lsp 오프라인 설정 (plugin.json 의 lsp[0] — desktop #1262)', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'plugin.json'), 'utf8'))
-  const options = manifest.lsp[0]
-  it('선언: java · server/jdtls.mjs · -data ${lspWorkspaceDir} · lsp 권한 · project 범위', () => {
-    expect(options).toMatchObject({ languageId: 'java', extensions: ['java'], command: 'server/jdtls.mjs', args: ['-data', '${lspWorkspaceDir}'] })
-    expect(manifest.permissions).toEqual(['lsp'])
+// 서비스(service/index.mjs)가 host.lsp.register 로 올리는 선언 — 묶은 service.mjs 와 같은 묶음을 가짜 host(sdk/)에 올려 본다
+type Server = { languageId: string; extensions: string[]; command: string; args: string[]; env: Record<string, string>; initializationOptions: { settings: { java: Java } }; settings: { java: Java }; idleMs: number }
+type Java = { import: { maven: { offline: { enabled: boolean }; enabled: boolean }; gradle: { enabled: boolean; offline: { enabled: boolean }; wrapper: { enabled: boolean } }; generatesMetadataFilesAtProjectRoot: boolean }; maven: { downloadSources: boolean }; eclipse: { downloadSources: boolean } }
+
+async function register() {
+  const out = await build({ entryPoints: [path.join(here, '..', 'service/index.mjs')], bundle: true, platform: 'node', format: 'esm', write: false, logLevel: 'silent' })
+  const bundle = (await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0]!.text).toString('base64')}`)).default
+  const fake = createFakeHost({ id: 'java-lsp', scope: 'project' })
+  const registered: Server[] = []
+  const lsp = fake.host.lsp
+  const original = lsp.register.bind(lsp)
+  lsp.register = (server) => {
+    registered.push(server as unknown as Server)
+    return original(server)
+  }
+  fake.mount(bundle)
+  return { fake, registered }
+}
+
+describe('java-lsp 서비스 (service/index.mjs — host.lsp.register)', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(here, '..', 'plugin.json'), 'utf8')) as Record<string, unknown>
+  it('manifest: service 선언 · service 권한만 · lsp 선언과 lsp 권한 없음 · project 범위', () => {
+    expect(manifest.service).toEqual({ main: 'service.mjs', api: 1 })
+    expect(manifest.permissions).toEqual(['service'])
+    expect(manifest.lsp).toBeUndefined()
     expect(manifest.scope).toBe('project')
   })
-  for (const [name, java] of [['initializationOptions.settings', options.initializationOptions.settings.java], ['settings', options.settings.java]] as const) {
-    it(`${name}: Maven 오프라인 · Gradle 가져오기 끔 · 내려받기 끔 · 프로젝트 폴더에 메타데이터 안 씀`, () => {
-      expect(java.import.maven.offline.enabled).toBe(true)
-      expect(java.import.gradle.enabled).toBe(false)
-      expect(java.import.gradle.offline.enabled).toBe(true)
-      expect(java.import.gradle.wrapper.enabled).toBe(false)
-      expect(java.maven.downloadSources).toBe(false)
-      expect(java.eclipse.downloadSources).toBe(false)
-      expect(java.import.generatesMetadataFilesAtProjectRoot).toBe(false)
-    })
-  }
-  it('두 자리의 java 설정이 같고, initializationOptions 는 64KB 이하(desktop #1262 상한)', () => {
-    expect(options.settings.java).toEqual(options.initializationOptions.settings.java)
-    expect(Buffer.byteLength(JSON.stringify(options.initializationOptions))).toBeLessThanOrEqual(64 * 1024)
+  it('올라오면 java · server/jdtls.mjs · -data ${lspWorkspaceDir} 서버 하나를 올린다', async () => {
+    const { fake, registered } = await register()
+    expect(registered).toHaveLength(1)
+    expect(registered[0]).toMatchObject({ languageId: 'java', extensions: ['java'], command: 'server/jdtls.mjs', args: ['-data', '${lspWorkspaceDir}'], env: { JAVA_OPTS: '-Xmx1g' }, idleMs: 600_000 })
+    expect(fake.lspServers().map((server) => server.languageId)).toEqual(['java'])
+  })
+  it('서비스를 내리면 등록한 언어 서버가 걷힌다', async () => {
+    const { fake } = await register()
+    await fake.dispose()
+    expect(fake.lspServers()).toEqual([])
+  })
+  it('실행 파일은 플러그인 폴더 안에 있다(zip 에 들어가는 server/)', () => {
+    expect(fs.existsSync(path.join(here, '..', 'server', 'jdtls.mjs'))).toBe(true)
+  })
+  it.each(['initializationOptions.settings', 'settings'])('%s: Maven 오프라인 · Gradle 가져오기 끔 · 내려받기 끔 · 프로젝트 폴더에 메타데이터 안 씀', async (where) => {
+    const { registered } = await register()
+    const server = registered[0]!
+    const java = where === 'settings' ? server.settings.java : server.initializationOptions.settings.java
+    expect(java.import.maven.offline.enabled).toBe(true)
+    expect(java.import.gradle.enabled).toBe(false)
+    expect(java.import.gradle.offline.enabled).toBe(true)
+    expect(java.import.gradle.wrapper.enabled).toBe(false)
+    expect(java.maven.downloadSources).toBe(false)
+    expect(java.eclipse.downloadSources).toBe(false)
+    expect(java.import.generatesMetadataFilesAtProjectRoot).toBe(false)
+  })
+  it('두 자리의 java 설정이 같고, initializationOptions 는 64KB 이하(desktop #1262 상한)', async () => {
+    const { registered } = await register()
+    const server = registered[0]!
+    expect(server.settings.java).toEqual(server.initializationOptions.settings.java)
+    expect(Buffer.byteLength(JSON.stringify(server.initializationOptions))).toBeLessThanOrEqual(64 * 1024)
   })
 })
