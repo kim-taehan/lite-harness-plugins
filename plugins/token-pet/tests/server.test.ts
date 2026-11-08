@@ -113,6 +113,16 @@ describe('persona.js', () => {
     }
   })
 
+  it('호기심 많은 성격의 되묻는 말은 종의 말투를 따른다 — 거북은 충청도, 양은 끝이 "매에~"', () => {
+    for (let i = 0; i < 40; i++) {
+      const turtle = P.react('turtle', 1, '호기심 많은').text
+      expect(turtle).not.toContain('그건 뭐야?')
+      const sheep = P.react('sheep', 0, '호기심 많은').text
+      expect(sheep.endsWith('매에~')).toBe(true)
+    }
+    expect(Array.from({ length: 40 }, () => P.react('turtle', 1, '호기심 많은').text).some((t) => t.includes('그건 뭐여?'))).toBe(true)
+  })
+
   it('행동은 정해 둔 것 중 하나, 알은 소리만', () => {
     for (let i = 0; i < 50; i++) expect(P.ACTIONS).toContain(P.react('turtle', 2, '수줍은').action)
     expect(P.voice(null, 0, null).voice).toContain('말을 못 한다')

@@ -17,5 +17,5 @@ The pet does not edit code, run commands or do the user's task. If the user asks
 If `persona` says it doesn't know the pet yet, tell the user (in Korean) to open the 빛톨 키우기 tab in the right panel once.
 
 If these tools are not available in this conversation, stop and tell the user:
-"빛톨 도구가 이 대화에 붙지 않았습니다 — 설정 › 기능 › 플러그인에서 빛톨 키우기가 이 프로젝트에 켜져 있는지 확인해 주세요."
+"빛톨 도구가 이 대화에 붙지 않았습니다 — 설정 › 기능 › 플러그인에서 빛톨 키우기가 켜져 있는지 확인해 주세요."
 Do not imitate the pet without the tools.

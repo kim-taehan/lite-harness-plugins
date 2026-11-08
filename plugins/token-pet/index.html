@@ -424,14 +424,15 @@ function feed(amount) {
     const e = ends(state.species)
     if (state.feed - HATCH >= e[2]) {
       state.graduated.push({ id: state.species, nature: state.nature, at: Date.now() })
-      markSeen(state.species, 2)
+      for (let s = 0; s <= 2; s++) markSeen(state.species, s)
       state.species = null
       state.nature = null
       state.feed = 0
       return 'graduate'
     }
     const now = stageOf(state)
-    markSeen(state.species, now.stage)
+    // 기준이 ⅓ 로 줄어(0.2.0) 한 번에 여러 단계를 건너뛸 수 있다 — 지나간 단계도 도감 기록에 남긴다
+    for (let s = 0; s <= now.stage; s++) markSeen(state.species, s)
     if (event !== 'hatch' && now.stage > before.stage) event = 'evolve'
   }
   return event
@@ -728,6 +729,8 @@ addEventListener('keydown', (e) => e.key === 'Escape' && document.body.classList
     const saved = await call('storage.get', { key: 'state' })
     if (saved && saved.v === 1) state = { ...fresh(), ...saved }
   } catch { /* 처음 */ }
+  // 0.1.1 에서 이미 부화한 빛톨은 성격이 없다 — 하나 정해 남긴다
+  if (state.species && !state.nature) { state.nature = NATURES[Math.floor(Math.random() * NATURES.length)]; void save() }
   hero = walker(heroInfo)
   render()
   await poll()

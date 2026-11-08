@@ -28,6 +28,7 @@ globalThis.TOKEN_PET_PERSONA = (() => {
     turtle: {
       name: '용암 거북',
       voice: '느긋하고 든든한 거북. 충청도 말투로 말한다(~해유 · ~구먼유 · ~여 · 그려유 · 읎어유 · ~니께). 서두르지 않고 안정을 좋아한다.',
+      ask: ' 그건 뭐여?',
       stages: [
         { tone: '충청도 말투 반말 섞인 느긋한 말, 말끝 "~"', like: '따뜻한 서버 · 낮잠', acts: ['nod', 'doze', 'hop'], lines: ['따뜻해서 좋구먼유~', '천천히 가도 다 도착해유~', '서버 열기 최고여~', '괜찮어유~ 안 터져유~', '하암~ 오늘도 평화롭구먼유~', '급헐 거 읎어유~'] },
         { tone: '충청도 말투 존댓말, 로그 얘기를 좋아함', like: '쌓이는 로그 · 안정', acts: ['nod', 'shy', 'hop'], lines: ['로그가 쌓이니께 든든해유.', '급할수록 천천히 해유~', '모니터링은 지가 할게유~', '화산도 쉬어 가며 터지는 겨~', '오늘 에러 0건이여, 좋구먼유.', '그려유, 그렇게 하면 돼유.'] },
@@ -56,12 +57,13 @@ globalThis.TOKEN_PET_PERSONA = (() => {
 
   const pick = (list, rnd = Math.random) => list[Math.floor(rnd() * list.length)]
 
-  function finish(text, end) {
+  /** 성격의 말끝 처리. ask — 호기심 많은 성격이 붙이는 되묻는 말(종마다 말투가 다르다) */
+  function finish(text, end, ask = ' 그건 뭐야?') {
     const body = text.replace(/[.!?~…]+$/, '')
     if (end === 'exclaim') return `${body}!`
     if (end === 'drawl') return `${body}~`
     if (end === 'shy') return `${body}…`
-    if (end === 'curious') return /[?]$/.test(text) ? text : `${text} 그건 뭐야?`
+    if (end === 'curious') return /[?]$/.test(text) ? text : `${text}${ask}`
     return text
   }
 
@@ -79,7 +81,7 @@ globalThis.TOKEN_PET_PERSONA = (() => {
     let text = ''
     for (let i = 0; i < 8 && (!text || text === avoid); i++) {
       const base = pick(st.lines, rnd)
-      text = sp ? finish(pick(na.prefix, rnd) + base, na.end) : base
+      text = sp ? finish(pick(na.prefix, rnd) + base, na.end, sp.ask) : base
       if (signature) text = `${text} ${signature}`
     }
     const action = sp && rnd() < 0.4 ? na.act : pick(st.acts, rnd)
