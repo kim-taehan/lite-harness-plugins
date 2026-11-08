@@ -113,9 +113,23 @@ await host.call('storage.set', { key: 'last', value: Date.now() }, { directory }
 - 프로젝트별(`scope: "project"`) 서비스는 `directory` 가 필요하고 그 프로젝트(worktree 폴더 포함)에서 켜져 있어야 한다. 아니면 `not-on`. 앱 전체(`"app"`) 서비스는 폴더 없이도 부른다.
 - `chat.compose` · `chat.open` · `project.openFile` 은 **그 프로젝트 창이 해 준다**(앱이 창에 보내고 답을 기다린다). `chat.current` · `project.openTabs` 는 창이 값을 돌려준다. 창이 없거나 답이 없으면 `no-window` 로 거절된다.
 - `panel.fullscreen`(`{ on }`) 은 그 프로젝트 오른쪽 패널에서 **이 플러그인 탭이 보이는 탭일 때** 전체 화면으로 키우고(null), `settings.open` 은 **이 플러그인 탭이 보일 때** 그 탭 위에 설정 폼을 띄워 닫힐 때 `{ saved }` 를 준다(manifest `settings` 가 있어야 한다). 보이는 탭이 없으면 조용히 성공하지 않고 `no-window` 로 거절된다.
-- `network.fetch` 는 허용 목록에 있는 주소만 된다. 새 주소의 동의 띠는 서비스에는 없어서 `network-denied` 로 거절된다 — 주소는 패널·설정에서 먼저 허용한다.
+- `network.fetch` 는 허용 목록에 있는 주소만 된다. 새 주소는 이번 요청을 `consent-required`(`error.origin` 에 주소)로 거절하고 그 플러그인의 **허용 대기**에 올린다 — 설정 > 플러그인 카드에 [허용][거부] 가 보이고, 허용하면 다음 호출부터 통한다. 사용자가 거부한 주소와 가득 찬 대기(주소 10개)는 `network-denied` 이다(거부한 주소는 앱을 다시 켤 때까지 다시 올리지 않는다).
 - `project.pickPath` 는 부모 창 없는 파일 고르기 창을 띄운다.
 - **부를 수 없는 것**: `panel.args`(패널이 파일 메뉴로 넘겨받은 값을 읽는 것 — 서비스에는 받을 탭이 없다), `events.subscribe`(서비스는 `ctx.on`), `service.call` · `service.list`(자기 자신).
+
+## 스킬 — host.skills
+
+```ts
+// 글 · .md 파일 · 폴더 중 하나로 올린다 (경로는 플러그인 폴더 기준)
+host.skills.register({ name: 'my-skill', content: '---\nname: my-skill\ndescription: …\n---\n본문' })
+host.skills.register({ name: 'my-skill', path: 'skills/my-skill.md' })
+const off = host.skills.register({ name: 'review-guide', dir: 'skills/review-guide' }) // SKILL.md 와 references/ 같은 딸린 파일이 든 폴더
+```
+
+- `dir` 폴더에는 `SKILL.md` 가 있어야 하고(frontmatter 의 `name` 이 올리는 이름과 같고 `description` 이 있어야 한다), 안의 파일은 하위 폴더까지 통째로 앱 스킬 폴더(`<이름>/`)에 놓인다 — 모델이 `references/…` 를 읽는다.
+- 플러그인 폴더 밖 경로 · 링크(경로 중간이나 폴더 안 포함) · 파일 하나 512KB 초과 · 2000개 초과는 던진다. 이름은 소문자·숫자·`-`(2~41자), 같은 서비스에서 이름이 겹쳐도 던진다. 다른 출처가 같은 이름을 먼저 놓았으면 그쪽이 이긴다.
+- 서비스가 켜지지 않은 프로젝트의 턴에서는 스킬이 숨고, 서비스가 내려가면 놓인 폴더도 걷힌다. 엔진은 도는 턴이 끝난 뒤 목록을 다시 읽는다.
+- `skills.readFile` · `writeFile` · `deleteFile` 은 manifest `skills` 에 선언한 스킬에만 듣는다 — 서비스가 올린 스킬 폴더에는 쓰이지 않는다. 서비스는 자기 플러그인 폴더의 파일을 직접 읽으면 된다.
 
 ## AI 도구와 MCP 서버 — host.tools · host.mcp
 
@@ -142,6 +156,7 @@ host.mcp.register({ command: 'bin/server.js', args: ['${dataDir}'], env: { TOKEN
 
 - **AI 도구 이름**: 서버가 알려 준 도구가 `attach` 에 따라 보인다. 기본(`litecode`)은 앱 MCP 한 곳 안에 `<플러그인 id>_<도구>` 로 올라 AI 에는 `litecode_<플러그인 id>_<도구>` 로 보인다. `attach: 'server'` 이면 플러그인 id 이름의 MCP 서버로 따로 붙고 도구 이름은 서버가 준 그대로라 AI 에는 `<플러그인 id>_<도구>` 로 보인다(사용자가 같은 이름의 서버를 이미 만들어 두었으면 `litecode` 쪽으로 붙는다. 플러그인 id 가 `litecode` 면 `server` 는 못 쓴다). `panelTools` 와 `settingsCheck` 도구는 AI 에 안 보인다.
 - **`host.call('mcp.call' | 'mcp.status')`**: `permissions` 의 `service` 만으로 **자기 서비스가 올린 서버**를 부른다(`mcp` 권한 불필요, manifest `mcp` 선언 불필요). 서버를 올리기 전에는 `permission-missing`. 다른 플러그인의 서버는 부를 수 없다. `mcp.call` 은 서버의 어느 도구든 부르고(`panelTools` 와 무관), 결과는 `{ text, isError }`.
+- **서비스가 올리는 실행 파일**: `host.mcp.register` · `host.lsp.register` 로 올리는 동봉 바이너리·셸 스크립트(`.mjs` 가 아닌 것)는 **zip 안에서 실행 비트를 가져야** 한다. 설치는 zip 에 실행 비트가 있던 일반 파일만 그대로 살리고(0o755), 없던 파일은 그대로 둔다. 심볼릭 링크와 플러그인 폴더 밖 경로는 지금처럼 거절한다.
 - **`[연결 확인]`(`settingsCheck`)**: manifest 에 `settings` · `settingsCheck`(도구 이름)를 두고 `service` 권한이 있으면 manifest `mcp` 없이도 쓸 수 있다. 서버를 올린 뒤의 설치된 플러그인(패널 · 설정 폼 · `settings.check`)에서 그 서버로 확인한다. **설치 2단계 폼은 서비스가 아직 안 떠 있어서** 서버 선언을 알 수 없어 `[연결 확인]` 을 쓰지 못한다(설치 뒤 설정 화면에서 된다).
 - **비밀 값**: 서비스는 비밀을 읽지 못한다 — `host.call('secrets.get')` 은 서비스에서 `method-unknown` 이다(`secrets.set` · `secrets.delete` 는 된다). 비밀을 쓰는 서비스의 유일한 길은 manifest `settings` 에 `type: "secret"` 칸을 선언하고, 서버 `env` 에 `${secret:키}` 를 적어 자식 프로세스에만 넘기는 것이다. 패널도 서버 `env`(manifest · 서비스 등록 모두)의 `${secret:}` 키와 `secret` 설정 칸의 키는 `secrets.get` 으로 읽지 못한다(`secret-write-only`).
 
@@ -171,7 +186,7 @@ const response = await host.fetch('https://api.example.com/items', { method: 'GE
 const items = JSON.parse(await response.text())
 ```
 
-`host.call('network.fetch')` 를 `Response` 로 감싼 것이라 규칙이 같다: `permissions` 에 `network` 가 있어야 하고, 사용자가 허용한 주소만 되며(없으면 `network-denied`, `error.origin` 에 주소 — 패널로 알려 주면 된다), GET · POST(글 본문), 헤더는 `content-type` 만 온다. 프로젝트별(`scope: "project"`) 서비스는 `host.call` 처럼 `{ directory }` 가 필요하다(`host.fetch(url, { directory })`).
+`host.call('network.fetch')` 를 `Response` 로 감싼 것이라 규칙이 같다: `permissions` 에 `network` 가 있어야 하고, 사용자가 허용한 주소만 되며(없으면 `consent-required`, `error.origin` 에 주소 — 허용 대기에 올라 사용자가 카드에서 정한다. 거부했으면 `network-denied`), GET · POST(글 본문), 헤더는 `content-type` 만 온다. 프로젝트별(`scope: "project"`) 서비스는 `host.call` 처럼 `{ directory }` 가 필요하다(`host.fetch(url, { directory })`).
 
 **설치 검사가 번들을 훑는다.** 번들 글자에 `fetch(` · `new WebSocket` · `node:http` · `https` · `http2` · `net` · `tls` · `dns` · `dgram` · `undici` 를 쓴 흔적이 있으면 설치가 거절된다(`service-network-direct`). 올릴 때도 같은 점검을 한다. 글자 점검이라 완전하지 않고(일부러 가린 코드는 못 잡는다), 반대로 `fetch(` 라는 이름의 메서드도 걸릴 수 있다 — 그때는 이름을 바꾼다.
 

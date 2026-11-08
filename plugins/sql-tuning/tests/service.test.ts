@@ -1,9 +1,10 @@
 // 서비스(service/index.mjs) — 앱 없이 SDK 의 가짜 host(sdk/litecode-service-testing.mjs)로 본다.
 // 앱이 서비스를 올리고 MCP 서버를 띄우는 것, 패널이 service.call 로 묻는 것은 앱에서 확인한다(여기서 못 본다). 실제 DB 가 필요한 확인도 마찬가지.
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import createService, { RELAY } from '../service/index.mjs'
+import createService, { BUNDLED_STANDARD, RELAY } from '../service/index.mjs'
 import { createFakeHost } from '../../../sdk/litecode-service-testing.mjs'
 
 const here = path.resolve(import.meta.dirname, '..')
@@ -13,21 +14,24 @@ const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')
   service: { main: string; api: number }
   settingsCheck?: string
   mcp?: unknown
+  skills?: unknown
 }
 const DIR = '/work/a'
 type Reply = { ok: true; value: unknown } | { ok: false; code: string }
 
-function start(calls: Record<string, (params: unknown, options: { directory?: string }) => unknown> = {}) {
+/** host.dir(설치 폴더)을 준다 — 가짜 host 는 dir 을 모른다 */
+function start(calls: Record<string, (params: unknown, options: { directory?: string }) => unknown> = {}, dir = here) {
   const fake = createFakeHost({ id: 'sql-tuning', scope: 'project', calls })
   fake.enableProject(DIR)
-  fake.mount(createService as never)
+  fake.mount(((host: object) => createService({ ...host, dir })) as never)
   const call = (name: string, params?: unknown) => fake.call(name, params, { directory: DIR }) as Promise<Reply>
   return { fake, call }
 }
 
 describe('manifest ↔ 서비스', () => {
-  it('mcp 선언은 없고 service 선언과 권한이 짝이다', () => {
+  it('mcp · skills 선언은 없고 service 선언과 권한이 짝이다', () => {
     expect(manifest.mcp).toBeUndefined()
+    expect(manifest.skills).toBeUndefined()
     expect(manifest.permissions).toContain('service')
     expect(manifest.service).toMatchObject({ main: 'service.mjs', api: 1 })
   })
@@ -67,7 +71,37 @@ describe('service', () => {
   })
 
   it('패널이 부르는 메서드를 낸다', () => {
-    expect(start().fake.names().sort()).toEqual(Object.keys(RELAY).sort())
+    expect(start().fake.names().sort()).toEqual([...Object.keys(RELAY), 'bundledFile'].sort())
+  })
+
+  it('스킬 폴더를 서비스가 올린다 — 이름이 SKILL.md frontmatter 와 같고 SKILL.md · references 가 있다', () => {
+    const { fake } = start()
+    expect(fake.skills()).toEqual([{ name: 'sql-tuning', dir: 'skills/sql-tuning' }])
+    const folder = path.join(here, 'skills/sql-tuning')
+    expect(/^name: sql-tuning$/m.test(readFileSync(path.join(folder, 'SKILL.md'), 'utf8'))).toBe(true)
+    for (const file of ['references/oracle.md', 'references/postgresql.md']) expect(() => readFileSync(path.join(folder, file), 'utf8')).not.toThrow()
+  })
+
+  it('스킬 본문은 도구 이름의 접두어를 직접 적지 않는다 — 기본 attach 라 앱이 litecode_sql-tuning_ 을 붙인다', () => {
+    const skill = readFileSync(path.join(here, 'skills/sql-tuning/SKILL.md'), 'utf8')
+    expect(skill).not.toMatch(/litecode_sql-tuning_|sql-tuning_[a-z_]+`/)
+    expect(skill).toContain('sql-tuning')
+  })
+
+  it('플러그인 기본 표준은 서비스가 자기 폴더에서 직접 읽는다(skills.readFile 이 아니라) — 없으면 io-failed', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sql-tuning-'))
+    try {
+      const { call, fake } = start({}, dir)
+      expect(await call('bundledFile', { skill: 'sql-tuning', path: 'references/sql-standard.md' })).toEqual({ ok: false, code: 'io-failed' })
+      mkdirSync(path.dirname(path.join(dir, BUNDLED_STANDARD)), { recursive: true })
+      writeFileSync(path.join(dir, BUNDLED_STANDARD), 'SQL-1 규칙')
+      expect(await call('bundledFile')).toEqual({ ok: true, value: { text: 'SQL-1 규칙' } })
+      expect(fake.calls.some((c) => c.method === 'skills.readFile')).toBe(false)
+      writeFileSync(path.join(dir, BUNDLED_STANDARD), 'x'.repeat(512 * 1024 + 1))
+      expect(await call('bundledFile')).toEqual({ ok: false, code: 'file-too-large' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('각 메서드가 같은 앱 호출로 중계하고 부른 프로젝트 폴더를 넘긴다', async () => {

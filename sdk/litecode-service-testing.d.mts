@@ -38,7 +38,7 @@ export interface FakeHost {
   /** host.locale.register 로 올려 둔 언어 팩 — 해제하면 빠진다 */
   locales(): { language: string; label: string; messages: Record<string, string>; version?: string }[]
   /** host.skills.register · agents.register 로 올려 둔 것 — 해제하면 빠진다 */
-  skills(): ({ name: string } & ({ content: string } | { path: string }))[]
+  skills(): ({ name: string } & ({ content: string } | { path: string } | { dir: string }))[]
   agents(): ({ name: string } & ({ content: string } | { path: string }))[]
   /** host.lsp.register 로 올려 둔 언어 서버 */
   lspServers(): { languageId: string; extensions: string[]; command: string }[]
