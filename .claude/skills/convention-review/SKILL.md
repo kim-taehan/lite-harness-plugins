@@ -20,7 +20,11 @@ description: "커밋 전에 바뀐 내용(git diff --cached + git diff)을 .clau
    - `— 테스트` 가 붙은 규칙도 눈으로 본다. 테스트는 머지 때에야 돌기 때문이다. 플러그인 원본이나 `tests/standards.test.ts` 가 바뀌었으면 `npx vitest run tests` 를 돌려 본다.
    - **desktop 정본 대조** — 옆에 desktop 저장소(`../desktop`)가 있으면 `tests/standards.test.ts` 의 `KNOWN_FIELDS` · `PERMISSIONS` · `ID` 를
      desktop `src/services/extensions/manifest.ts` 의 `KNOWN`(= `REQUIRED` + 나머지), `shared/extensions.ts` 의 `EXTENSION_PERMISSIONS` · `EXTENSION_ID` 와 비교한다.
+     서비스 선언도 본다: 테스트의 `EVENT_PERMISSION` · `APP_ONLY_EVENTS`(소식 ↔ 권한 표)와 `sdk/` 의 `ServiceEventName` · `ServiceInjectKey` 를 desktop `shared/extensions/serviceApi.ts`(`SERVICE_EVENTS` · `SERVICE_INJECT_ALLOWLIST` · `SERVICE_API_LATEST`)와,
+     `PAIRED` 를 `shared/extensions/declarations.ts` 의 `PLUGIN_DECLARATIONS`(permission 이 있는 행)와 비교한다.
      다르면 위반으로 적고 테스트와 `rules/plugin.md` 를 desktop 에 맞춘다. desktop 이 없으면 "desktop 대조 못 함" 이라고만 적는다.
+   - **`sdk/` 대조** — 옆 desktop 이 있으면 `node scripts/sync-sdk.mjs --check` 를 돌려 `sdk/` 가 desktop `docs/plugin-sdk/` 생성물과 같은지 본다(다르면 위반 — `npm run sync:sdk` 로 복사하고 desktop 이 dev 최신인지 확인). 위치가 다르면 `LITECODE_DESKTOP=<desktop 폴더>`.
+   - **서비스 플러그인이 바뀌었으면**(manifest `service` · `service/` 소스) 24번 금지 사항(cordis import · 직접 `fetch(` · `node:http` 등 · `args` 비밀)을 눈으로도 본다 — 테스트는 소스 글자만 보고, 일부러 가린 코드는 못 잡는다. 서비스 코드가 오래 걸리는 일 · 동기 루프를 하지 않는지(11번), 상태를 패널과 따로 쓰지 않는지(25번)도 본다.
 4. **상태 저장 (필수, 마지막)** —
    ```sh
    node .claude/hooks/convention-state.mjs store
