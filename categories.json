@@ -1,14 +1,14 @@
 {
-  "chrome-browser": "dev-tool",
-  "csharp-grammar": "dev-tool",
-  "ja-pack": "locale",
-  "kotlin-grammar": "dev-tool",
-  "rust-grammar": "dev-tool",
+  "chrome-browser": "unlisted",
+  "csharp-grammar": "unlisted",
+  "ja-pack": "unlisted",
+  "kotlin-grammar": "unlisted",
+  "rust-grammar": "unlisted",
   "service-example": "unlisted",
-  "sonarqube": "dev-tool",
-  "sql-tuning": "dev-tool",
+  "sonarqube": "unlisted",
+  "sql-tuning": "unlisted",
   "token-pet": "game",
-  "ui-test": "dev-tool",
+  "ui-test": "unlisted",
   "vi-pack": "unlisted",
-  "zh-cn-pack": "locale"
+  "zh-cn-pack": "unlisted"
 }
