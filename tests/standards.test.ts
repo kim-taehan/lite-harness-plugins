@@ -96,9 +96,9 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
     expect(['역할', '구성', '개발'].filter((title) => !new RegExp(`^## ${title}\\s*$`, 'm').test(text)), '빠진 절').toEqual([])
   })
 
-  it('17 · mcp 플러그인의 build.mjs 는 --dir 을 받는다', () => {
+  it('17 · mcp · service 플러그인의 build.mjs 는 --dir 을 받는다', () => {
     const build = path.join(pluginsDir, folder, 'build.mjs')
-    if (!manifest.mcp || !existsSync(build)) return
+    if ((!manifest.mcp && !manifest.service) || !existsSync(build)) return
     expect(readFileSync(build, 'utf8'), 'build.mjs 가 --dir 을 받지 않습니다').toContain("'--dir'")
   })
 })
