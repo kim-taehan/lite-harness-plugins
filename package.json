@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "release": "node scripts/release.mjs",
+    "sync:sdk": "node scripts/sync-sdk.mjs",
     "test": "vitest run",
     "test:changed": "node scripts/test-changed.mjs"
   },
