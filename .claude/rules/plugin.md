@@ -31,3 +31,5 @@
 17. **[필수]** `mcp` 선언과 `build.mjs` 가 같이 있는 플러그인의 build.mjs 는 `--dir` 을 받아 zip 과 같은 내용을 `build/<id>/` 폴더로 낸다. 원본 폴더는 묶기 전이라 앱이 띄울 수 없어서, 앱의 개발 모드(desktop #1348)는 이 폴더를 연결한다. — 테스트
 18. **[필수]** `mcp.attach` 는 `litecode`(기본) · `server` 만 쓴다. `server` 면 id 가 `litecode` 이거나 `gw-` 로 시작하면 안 된다(설치 거절). — 테스트
 19. **[검토]** 도구가 많거나 사용자가 도구를 골라 쓰게 할 플러그인은 `attach: "server"` 를 검토한다. 방식을 바꾸면 스킬에 적힌 도구 이름(`litecode_<id>_<도구>` ↔ `<id>_<도구>`)도 같이 고친다.
+20. **[필수]** 새 플러그인(아직 `catalog.json` 에 없는 id)은 `scope` 를 적는다 — 앱 전체용이면 `"app"`, 프로젝트마다 다르게 켜면 `"project"`. 만들기 전에 가장 먼저 정한다(`docs/README.md` "먼저 정할 것"). 언어 팩 · 문법 팩은 적지 않는다(설치 거절 `scope-invalid`). — 테스트
+21. **[검토]** 이미 배포된 플러그인은 다음 업데이트 때 `scope` 를 적는다(manifest 를 바꾸면 version 도 올린다 — 13번). `project` 플러그인은 `docs/architecture.md` "적용 범위" 의 주의점(저장 칸 · dataDir · 도구 목록은 프로젝트 없이 물음)을 확인한다.
