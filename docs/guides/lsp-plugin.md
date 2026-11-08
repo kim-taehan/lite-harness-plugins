@@ -6,6 +6,24 @@
 
 *약 30분 · 권한: lsp · 빌드: build.mjs (플랫폼 전용)*
 
+> 이 가이드는 **manifest 의 `lsp` 선언**으로 서버를 올리는 길로 쓰여 있습니다. 서비스가 같은 서버를 `host.lsp.register` 로 올리는 길도 있습니다 — [아래 두 길](#언어-서버를-올리는-두-길).
+
+## 언어 서버를 올리는 두 길
+
+언어 서버는 따로 띄운 프로세스라서(앱이 띄우고 LSP 로 잇는다) 서비스 안에서 돌지 않습니다. 올리는 선언을 어디에 적느냐만 두 가지입니다.
+
+| | manifest `lsp` 선언 | 서비스의 `host.lsp.register` |
+|---|---|---|
+| 어디에 적나 | `plugin.json` 의 `lsp` 배열 + `permissions: ["lsp"]` | 서비스 코드(`host.lsp.register({ languageId, extensions, command, … })`) |
+| 서버 정의 | 같은 모양 · 같은 검사 — `languageId` · `extensions` · `command`(플러그인 폴더 기준) · `args` · `env` · `initializationOptions` · `settings` · `idleMs` | 왼쪽과 같음 |
+| 켜지지 않은 프로젝트 | 띄우지 않습니다 | 띄우지 않습니다 |
+| 내려가면 | 플러그인을 끄거나 지우거나 업데이트하면 내립니다 | 서비스가 내려가면 걷힙니다 |
+| 겹침 | 한 플러그인 안 서버끼리 `languageId` · 확장자가 겹치면 거절 | 같은 서비스에서 겹치면 `register` 가 던집니다 |
+
+- desktop 문서(`docs/architecture.md` 5절)는 `lsp` 선언을 서비스 없이도 쓴다고 적고, 코드를 가진 플러그인의 길은 서비스 하나라고 적습니다.
+- **어느 쪽이 기본인지, `host.lsp.register` 에 `lsp` 권한이 필요한지는 이 가이드가 확인하지 못했습니다.** 타입 `litecode-service.d.ts` 의 `host.lsp` 주석과 desktop 이 정합니다. 아래 내용(폴더 구조 · 선언 필드 · 실행기 · 폐쇄망 · 크기)은 어느 길로 올려도 같습니다.
+- 서비스 번들 자체의 규칙(한 파일 · cordis 없음 · 소식 · 정리 기한)은 [서비스 플러그인 만들기](service-plugin.md).
+
 ## 앱이 언어 서버를 다루는 법
 
 앱(desktop `src/services/lsp/`)이 띄우고 LSP 로 잇습니다. 플러그인은 **서버와 실행기만** 싣고, 무엇을 언제 띄울지는 manifest 의 `lsp` 선언이 정합니다.
@@ -42,7 +60,9 @@ plugins/<id>/
 
 런타임과 서버 바이너리는 저장소에 넣지 않습니다. `build.mjs` 가 묶을 때 `build/vendor/` 에서 가져옵니다. 앱은 아무것도 내려받지 않습니다(표준 7번).
 
-## 2. manifest
+## 2. manifest (또는 서비스) 선언
+
+서비스로 올릴 때는 아래 서버 정의를 같은 모양으로 `host.lsp.register` 에 줍니다.
 
 ```json
 {
@@ -65,7 +85,7 @@ plugins/<id>/
 }
 ```
 
-`lsp` 선언과 `lsp` 권한은 둘 다 있거나 둘 다 없어야 합니다. 어긋나면 설치가 `lsp-mismatch` 로 거절됩니다(표준 5번).
+manifest 선언으로 올릴 때 `lsp` 선언과 `lsp` 권한은 둘 다 있거나 둘 다 없어야 합니다. 어긋나면 설치가 `lsp-mismatch` 로 거절됩니다(표준 5번).
 
 | 필드 | 뜻 · 제한 (desktop `src/services/extensions/lsp/lspDeclaration.ts`) |
 |---|---|
@@ -129,11 +149,12 @@ plugins/<id>/
 
 ## 정리
 
-- `permissions: ["lsp"]` + `lsp` 선언, `scope: "project"`.
+- `permissions: ["lsp"]` + `lsp` 선언(또는 서비스의 `host.lsp.register`), `scope: "project"`.
 - 런타임과 서버는 동봉하고 실행기가 띄웁니다. 작업 공간은 `${lspWorkspaceDir}`.
 - 바깥 요청을 끄고, 사용자 스크립트 실행은 기본으로 끕니다.
 - 플랫폼 전용으로 묶고, 상한(zip 100MB · 파일 50MB)을 build.mjs 가 지킵니다.
 
 ## 다음
 
-[저장소로 내보내기](publish.md) — 플랫폼 전용 플러그인을 올리는 법과 버전 규칙.
+- [서비스 플러그인 만들기](service-plugin.md) — `host.lsp.register` 를 쓰는 서비스
+- [저장소로 내보내기](publish.md) — 플랫폼 전용 플러그인을 올리는 법과 버전 규칙.
