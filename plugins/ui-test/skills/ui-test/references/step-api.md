@@ -19,9 +19,10 @@ export default async ({ step, page, expect, data, account, baseUrl }) => {
   await step('3. 고객 40세 · 상품 "든든종신" 을 고르고 [보험료 계산] 을 누른다', async () => {
     await page.getByLabel('생년월일').fill('1986-01-01')
     await page.locator('#productCode').selectOption({ label: '든든종신' })
-    const premium = page.waitForResponse((response) => response.url().includes('/api/premium'))
-    await page.getByRole('button', { name: '보험료 계산' }).click()
-    await premium
+    await Promise.all([
+      page.waitForResponse((response) => response.url().includes('/api/premium')),
+      page.getByRole('button', { name: '보험료 계산' }).click(),
+    ])
   })
   await step('4. 확인: 월 보험료가 보인다', async () => {
     await expect(page.getByText('월 보험료')).toBeVisible()
@@ -62,6 +63,7 @@ export default async ({ step, page, expect, data }) => {
 ## Do
 
 - Wait for signals: `expect(...).toBeVisible()`, `page.waitForURL`, `page.waitForResponse`, `locator.waitFor()`.
+- **Tie every wait to the action that triggers it**: `await Promise.all([page.waitForResponse(…), page.goto(…)])` (or `.click()`, `.fill()`…). Never store a wait in a variable and `await` it later (`const r = page.waitForResponse(…); await page.goto(…); await r`) — when a step between them fails, nobody awaits `r`, it rejects when the window closes and the runner records an "처리되지 않은 Promise 실패". The same goes for `waitForURL`, `waitForEvent`, `waitForRequest` and any other promise you create.
 - Prefer `getByLabel` → `getByRole(…, { name })` → `getByText` (messages) → `#id` / `[name=…]` / `[data-*=…]`.
 - Dialogs (`alert`/`confirm`): register before the click — `page.once('dialog', (dialog) => dialog.accept())`, and check `dialog.message()` inside a step when the scenario checks the message.
 - Keep one case independent of others (its own login, its own data).
@@ -70,5 +72,6 @@ export default async ({ step, page, expect, data }) => {
 
 - No `import`/`require` — the file must run where only the plugin's runner exists.
 - No `page.waitForTimeout`, no fixed sleeps.
+- No floating promises: a `waitFor…` / `page.once(…)`-style promise created and not awaited in the same statement (see "Tie every wait to the action"). Await it right away or put it in `Promise.all`.
 - No XPath, no `nth-child`, no generated CSS class names.
 - No secrets or personal data in the file other than through `account`.
