@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { configFromEnv, insideProject, reportFolder, scrub } from '../server/config.ts'
+import { configFromEnv, insideProject, scrub } from '../server/config.ts'
 import { fingerprint, parseScenario, parseSuite, specHeader, splitFrontMatter } from '../server/scenario.ts'
 
 // UI 테스트 (#1248) — 시나리오 · 묶음 md 읽기, 지문, 생성 코드 머리말, 폴더 설정 검사
@@ -52,6 +52,8 @@ describe('parseScenario', () => {
     expect(fingerprint(SCENARIO.replace('8.2초', '9.9초'))).toBe(base)
     expect(fingerprint(SCENARIO.replace('1. 로그인한다', '1. 로그인한다   \n'))).toBe(base)
     expect(fingerprint(SCENARIO.replace('40세', '41세'))).not.toBe(base)
+    // `## 시행착오` 는 `## 테스트 방법` 뒤에 두므로 고쳐도 코드가 낡지 않는다
+    expect(fingerprint(`${SCENARIO}\n## 시행착오\n- 1단계 · 11-09 · 증상: 대기 시간 초과 → 원인: SPA → 해결: 제목을 기다림\n`)).toBe(base)
   })
 })
 
@@ -77,7 +79,7 @@ describe('parseSuite · 머리말', () => {
 
 describe('폴더 설정', () => {
   const project = '/work/proj'
-  it('기본은 ui-tests · ui-tests/_reports, 이력은 앱이 준 데이터 폴더', () => {
+  it('기본은 ui-tests · ui-tests/_reports(테스트 폴더 안), 이력은 앱이 준 데이터 폴더', () => {
     const config = configFromEnv({ UI_TEST_BASE_URL: ' http://a ', UI_TEST_BROWSER: 'Edge', UI_TEST_DATA_DIR: '/data/ui-test' }, project)
     expect(config).toMatchObject({ baseUrl: 'http://a', channel: 'msedge', testDir: '/work/proj/ui-tests', reportDir: '/work/proj/ui-tests/_reports', dataDir: '/data/ui-test' })
     expect(configFromEnv({ UI_TEST_BROWSER: '' }, project).channel).toBe('chrome')
@@ -90,10 +92,11 @@ describe('폴더 설정', () => {
     expect(() => configFromEnv({ UI_TEST_DIR: 'a/../../b' }, project)).toThrow()
   })
 
-  it('결과서 폴더는 절대 경로(공유 드라이브)도 되고, 상대 경로면 프로젝트 안만', () => {
-    expect(reportFolder(project, '/share/reports')).toBe('/share/reports')
-    expect(reportFolder(project, 'out/reports')).toBe('/work/proj/out/reports')
-    expect(() => reportFolder(project, '../reports')).toThrow()
+  it('결과서 폴더는 따로 받지 않는다 — 테스트 폴더 안 _reports', () => {
+    expect(configFromEnv({ UI_TEST_DIR: 'qa/ui' }, project)).toMatchObject({ reportDir: '/work/proj/qa/ui/_reports', reportDirSetting: 'qa/ui/_reports' })
+    expect(configFromEnv({ UI_TEST_DIR: 'qa/ui/' }, project).reportDirSetting).toBe('qa/ui/_reports')
+    // 옛 설정 값(UI_TEST_REPORT_DIR)은 무시한다
+    expect(configFromEnv({ UI_TEST_REPORT_DIR: '/share/reports' }, project).reportDir).toBe('/work/proj/ui-tests/_reports')
   })
 
   it('비밀 값 지우기', () => {

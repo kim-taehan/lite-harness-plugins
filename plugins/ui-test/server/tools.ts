@@ -200,6 +200,10 @@ export function createTools(deps: ToolDeps): Tool[] {
                     stale: item.stale,
                     changed: item.changed,
                     checks: item.scenario.steps.filter((step) => step.kind !== 'action').length,
+                    // 패널 상세가 시나리오 원문을 보이는 데 쓴다 — 단계 · 데이터 표 · 테스트 방법
+                    steps: item.scenario.steps.map(({ no, text, kind }) => ({ no, text, kind })),
+                    ...(item.scenario.data && { data: item.scenario.data }),
+                    method: item.scenario.method,
                     rows: item.scenario.data?.rows.length,
                     lastStatus: lastCase?.status,
                     lastFailure: lastFailure(lastCase),
@@ -228,7 +232,7 @@ export function createTools(deps: ToolDeps): Tool[] {
       properties: {
         suite: SUITE_ARG,
         scenarios: { description: 'Which scenarios: omit for all, "failed" for the ones that failed last time, or a list of scenario ids / numbers ("01") / titles.', anyOf: [{ type: 'string', enum: ['failed'] }, { type: 'array', items: { type: 'string' } }] },
-        headed: { type: 'boolean', description: 'Show the browser window (default true). false = 화면 없이.' },
+        headed: { type: 'boolean', description: 'Show the browser window (default false = 화면 없이, the browser runs hidden). true = 보면서.' },
       },
       required: ['suite'],
     },
@@ -265,6 +269,44 @@ export function createTools(deps: ToolDeps): Tool[] {
       if (!picked) return { text: `수행 기록이 없습니다: ${String(wanted)} (있는 것: ${runs.map((item) => item.id).join(', ')})`, isError: true }
       const history = runs.map((item) => `- ${item.id} · ${counts(item)}${item.compare ? ` · ${compareLine(item.compare)}` : ' · 처음 수행'} · ${workspace.rel(item.report)}`)
       return { text: scrub([runSummary({ run: picked }, workspace), '', `이력 (최근 ${runs.length}):`, ...history].join('\n'), secrets) }
+    },
+  }
+
+  const guide: Tool = {
+    name: 'guide',
+    description:
+      'Write the user-guide form of a suite run as one HTML file (guide.html next to the report): the screen walked through step by step in the order of use, each step with its screenshot, failed steps in red with the cause (nothing is left out). Use it when the user wants the final result as a guide document instead of / besides the report table, or the panel setting "결과서 + 가이드" asks for it. Does not run anything; uses the last run (or a given run id) and the screenshots still kept for it. Returns the file path.',
+    inputSchema: { type: 'object', properties: { suite: SUITE_ARG, run: { type: 'string', description: 'Run id (YYYYMMDD-HHmmss) from run/report. Omit for the last run.' } }, required: ['suite'] },
+    async run(args) {
+      if (typeof args['suite'] !== 'string') return { text: 'suite 가 필요합니다', isError: true }
+      const wanted = typeof args['run'] === 'string' ? args['run'] : undefined
+      if (!wanted && workspace.runningId() && workspace.current().suite === args['suite']) return { text: '수행 중입니다 — 끝난 뒤(report 로 끝을 확인) 다시 불러 주세요', isError: true }
+      try {
+        const runs = await workspace.history.runs(args['suite'])
+        if (runs.length === 0) return { text: `${args['suite']}: 아직 수행 기록이 없습니다 — 먼저 수행해 주세요`, isError: true }
+        const picked = wanted ? runs.find((item) => item.id === wanted) : runs[0]
+        if (!picked) return { text: `수행 기록이 없습니다: ${String(wanted)} (있는 것: ${runs.map((item) => item.id).join(', ')})`, isError: true }
+        const file = await workspace.writeGuide(picked, await workspace.suite(args['suite']))
+        return { text: scrub(`가이드: ${workspace.rel(file)}\n수행 ${picked.id} · ${counts(picked)} · 결과서 ${workspace.rel(picked.report)}`, secrets) }
+      } catch (error) {
+        return { text: scrub(error instanceof Error ? error.message : String(error), secrets), isError: true }
+      }
+    },
+  }
+
+  const remove: Tool = {
+    name: 'delete',
+    description: 'Panel only (after the user confirmed): delete one scenario (its md and generated code, and its line in suite.md) or, without `scenario`, the whole suite. Reports and run history are kept.',
+    inputSchema: { type: 'object', properties: { suite: SUITE_ARG, scenario: { type: 'string', description: 'Scenario id (file name without .md). Omit to delete the whole suite.' } }, required: ['suite'] },
+    async run(args) {
+      if (typeof args['suite'] !== 'string') return { text: 'suite 가 필요합니다', isError: true }
+      try {
+        const done = typeof args['scenario'] === 'string' && args['scenario'] ? await workspace.removeScenario(args['suite'], args['scenario']) : await workspace.removeSuite(args['suite'])
+        const target = typeof args['scenario'] === 'string' && args['scenario'] ? `시나리오 ${args['scenario']}` : `묶음 ${args['suite']}`
+        return { text: `${target} 삭제 — ${done.files.join(', ')}${done.leftover.length ? ` (폴더에 남은 파일: ${done.leftover.join(', ')})` : ''}. 결과서 · 이력은 남깁니다` }
+      } catch (error) {
+        return { text: error instanceof Error ? error.message : String(error), isError: true }
+      }
     },
   }
 
@@ -336,7 +378,7 @@ export function createTools(deps: ToolDeps): Tool[] {
     },
   }
 
-  return [list, run, report, fingerprint, progress, stop, shot, check]
+  return [list, run, report, guide, fingerprint, progress, stop, shot, remove, check]
 }
 
 export const TOOL_NAMES = ['list', 'run', 'report', 'fingerprint', 'progress', 'stop', 'shot', 'check']
