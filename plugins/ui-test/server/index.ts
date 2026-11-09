@@ -1,6 +1,6 @@
 // UI 테스트 MCP 서버 입구 (#1248) — stdio. 앱이 plugin.json 의 mcp 선언대로 띄운다(작업 폴더 = 프로젝트, 앱 실행 파일을 Node 로).
 // 같은 파일이 CI 명령도 된다: `node ui-test.mjs run <묶음> [--failed] [--headed|--headless]` — env 는 UI_TEST_BASE_URL · UI_TEST_BROWSER ·
-// UI_TEST_USER · UI_TEST_PASSWORD · UI_TEST_DIR · UI_TEST_REPORT_DIR (앱 밖이면 이력은 결과서 폴더의 .history). 실패가 있으면 종료 코드 1
+// UI_TEST_USER · UI_TEST_PASSWORD · UI_TEST_DIR (앱 밖이면 이력은 결과서 폴더의 .history). 실패가 있으면 종료 코드 1
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
