@@ -118,11 +118,11 @@ const coverageText = (value: Coverage): string =>
 const changedText = (item: ScenarioInfo): string => item.changed.map((change) => `${change.path}${change.state === 'missing' ? '(없음)' : ''}`).join(', ')
 
 function suiteLine(info: SuiteInfo, workspace: Workspace, serverFile: string): string {
-  const { suite, scenarios, last } = info
+  const { suite, scenarios, last, lastCases } = info
   const head = `## ${suite.id} — ${suite.name}${suite.request ? ` ("${suite.request}")` : ''}${suite.created ? ` · ${suite.created} 만듦` : ''} · 대상 ${suite.target}`
   const rows = scenarios.map((item) => {
     const { scenario, hasCode, specFile } = item
-    const lastCase = last?.cases.find((result) => result.id === scenario.id)
+    const lastCase = lastCases.get(scenario.id)
     const marks = [item.stale ? `**코드 낡음** (코드 머리말 지문 ${item.codeFingerprint ?? '없음'} ≠ ${scenario.fingerprint})` : '', item.changed.length ? `**코드 바뀜**: ${changedText(item)}` : ''].filter(Boolean).join(' · ')
     return `- ${scenario.id}: ${scenario.name}${scenario.kind ? ` [${scenario.kind}]` : ''} · 단계 ${scenario.steps.length}${scenario.data ? ` · 데이터 ${scenario.data.rows.length}행 (${scenario.data.columns.join(', ')})` : ''} · 지문 ${scenario.fingerprint} · 코드 ${hasCode ? workspace.rel(specFile) : '없음'} · 테스트 방법 ${scenario.method.length ? '있음' : '없음'}${lastCase ? ` · 마지막 ${STATUS[lastCase.status]}` : ''}${marks ? ` · ${marks}` : ''}`
   })
@@ -190,7 +190,7 @@ export function createTools(deps: ToolDeps): Tool[] {
                 created: info.suite.created,
                 coverage: coverage(info.suite.rules, info.scenarios.map((item) => item.scenario.id)),
                 scenarios: info.scenarios.map((item) => {
-                  const lastCase = info.last?.cases.find((result) => result.id === item.scenario.id)
+                  const lastCase = info.lastCases.get(item.scenario.id)
                   return {
                     id: item.scenario.id,
                     name: item.scenario.name,
@@ -296,14 +296,14 @@ export function createTools(deps: ToolDeps): Tool[] {
 
   const remove: Tool = {
     name: 'delete',
-    description: 'Panel only (after the user confirmed): delete one scenario (its md and generated code, and its line in suite.md) or, without `scenario`, the whole suite. Reports and run history are kept.',
+    description: 'Panel only (after the user confirmed): delete one scenario (its md and generated code, and its line in suite.md) or, without `scenario`, the whole suite including its reports, guides, screenshots and run history. Deleting one scenario also removes its results from run history, its screenshots and the reports (rewritten without it).',
     inputSchema: { type: 'object', properties: { suite: SUITE_ARG, scenario: { type: 'string', description: 'Scenario id (file name without .md). Omit to delete the whole suite.' } }, required: ['suite'] },
     async run(args) {
       if (typeof args['suite'] !== 'string') return { text: 'suite 가 필요합니다', isError: true }
       try {
         const done = typeof args['scenario'] === 'string' && args['scenario'] ? await workspace.removeScenario(args['suite'], args['scenario']) : await workspace.removeSuite(args['suite'])
         const target = typeof args['scenario'] === 'string' && args['scenario'] ? `시나리오 ${args['scenario']}` : `묶음 ${args['suite']}`
-        return { text: `${target} 삭제 — ${done.files.join(', ')}${done.leftover.length ? ` (폴더에 남은 파일: ${done.leftover.join(', ')})` : ''}. 결과서 · 이력은 남깁니다` }
+        return { text: `${target} 삭제 — ${done.files.join(', ')}${done.leftover.length ? ` (폴더에 남은 파일: ${done.leftover.join(', ')})` : ''}. ${args['scenario'] ? '수행 이력 · 스크린샷도 지웠고 결과서는 남은 시나리오로 다시 썼습니다' : '결과서 · 가이드 · 스크린샷 · 수행 이력도 지웠습니다'}` }
       } catch (error) {
         return { text: error instanceof Error ? error.message : String(error), isError: true }
       }

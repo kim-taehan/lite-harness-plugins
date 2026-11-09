@@ -2,37 +2,40 @@
 // persona.js 처럼 export 없이 globalThis.TOKEN_PET_GAME 에 둔다: 패널은 classic 스크립트로, 서비스는 import 의 부수 효과로 읽는다.
 // 먹이 · 부화 · 진화 · 졸업은 서비스가 계산하고, 패널은 같은 규칙으로 진행률만 그린다(stageOf · ends).
 globalThis.TOKEN_PET_GAME = (() => {
-  // 기준 (#1186, 0.2.0 에서 ⅓ 로) — 턴 하나가 맥락 전체를 실어 수십만~백만 토큰이다(캐시는 반만 친다). 흔한 종 기준 하루 50턴이면
-  // 부화 ~1시간 미만 · 2단계 몇 시간 · 3단계 반나절~하루 · 졸업 ~2일. 보통 ×1.25, 드묾 ×2(~4일). 값은 부화 뒤 누적
-  const HATCH = 1_500_000
-  const BASE = [10_000_000, 40_000_000, 100_000_000]
-  const SPECIES = {
-    squirrel: { weight: 60, mult: 1 },
-    sheep: { weight: 30, mult: 1.25 },
-    turtle: { weight: 10, mult: 2 },
-  }
+  // 기준 (#1186, 0.2.0 에서 ⅓, 0.4.0 에서 다시 ⅓ 로) — 턴 하나가 맥락 전체를 실어 수십만~백만 토큰이다(캐시는 반만 친다).
+  // 모든 종이 같은 양으로 자란다(종마다 배수 없음). 값은 부화 뒤 누적
+  const HATCH = 500_000
+  const BASE = [3_300_000, 13_300_000, 33_000_000]
+  const SPECIES = ['squirrel', 'sheep', 'turtle', 'owl', 'cat', 'octopus']
   // 단계 이름 — 패널의 그림 표(index.html SPECIES)와 같다. AI 도구 persona 가 지금 빛톨의 이름을 알려 주는 데 쓴다
-  const NAMES = { squirrel: ['찌릿다람', '번쩍다람', '뇌전다람'], sheep: ['김양', '뭉게양', '폭풍양'], turtle: ['온돌북', '화산북', '용암요새'] }
+  const NAMES = { squirrel: ['찌릿다람', '번쩍다람', '뇌전다람'], sheep: ['김양', '뭉게양', '폭풍양'], turtle: ['온돌북', '화산북', '용암요새'], owl: ['솜털올빼', '야근올빼', '새벽지기'], cat: ['꼬물냥', '로그냥', '로그제왕'], octopus: ['말랑문어', '여덟손', '캐시왕'] }
   const EGG_NAME = '빛알'
   const NATURES = ['급한', '차분한', '느긋한', '호기심 많은', '수줍은']
 
-  const fresh = () => ({ v: 1, baseline: null, feed: 0, species: null, nature: null, seen: [], graduated: [], startedAt: Date.now() })
-  const ends = (id) => BASE.map((t) => Math.round(t * SPECIES[id].mult))
+  // mate: 무대에 불러온 친구(종 id · 한 마리) · names: 종마다 사용자가 지은 이름 · news: 처음 졸업해 도감에 새로 들어온(아직 안 열어 본) 종
+  const fresh = () => ({ v: 1, baseline: null, feed: 0, species: null, nature: null, seen: [], graduated: [], mate: null, names: {}, news: [], startedAt: Date.now() })
+  const NAME_MAX = 10
+  /** 종의 마지막 졸업 기록 — 불러온 친구의 성격 · 날짜 */
+  const lastGraduation = (state, id) => [...state.graduated].reverse().find((g) => g.id === id) ?? null
+  /** 이름: 지은 이름이 있으면 그것, 없으면 단계 이름 */
+  const displayName = (state, id, stage) => state.names?.[id] || NAMES[id][stage]
+  const ends = () => BASE
 
   function stageOf(s) {
     if (!s.species) return { stage: -1, from: 0, to: HATCH }
-    const e = ends(s.species)
+    const e = ends()
     const fed = s.feed - HATCH
     if (fed < e[0]) return { stage: 0, from: 0, to: e[0] }
     if (fed < e[1]) return { stage: 1, from: e[0], to: e[1] }
     return { stage: 2, from: e[1], to: e[2] }
   }
 
-  function pickSpecies(rnd = Math.random) {
-    const total = Object.values(SPECIES).reduce((n, s) => n + s.weight, 0)
-    let r = rnd() * total
-    for (const [id, s] of Object.entries(SPECIES)) if ((r -= s.weight) < 0) return id
-    return 'squirrel'
+  /** 부화할 종 — 모든 종이 같은 확률. 아직 졸업하지 못한 종이 남아 있으면 그 안에서만 뽑는다(졸업 기록 기준) */
+  function pickSpecies(rnd = Math.random, graduated = []) {
+    const done = new Set(graduated.map((g) => g.id))
+    const left = SPECIES.filter((id) => !done.has(id))
+    const pool = left.length ? left : SPECIES
+    return pool[Math.floor(rnd() * pool.length)]
   }
 
   const markSeen = (state, id, stage) => {
@@ -47,14 +50,16 @@ globalThis.TOKEN_PET_GAME = (() => {
     state.feed += amount
     let event = 'eat'
     if (!state.species && state.feed >= HATCH) {
-      state.species = pickSpecies(rnd)
+      state.species = pickSpecies(rnd, state.graduated)
       state.nature = NATURES[Math.floor(rnd() * NATURES.length)]
       event = 'hatch'
     }
     if (state.species) {
-      const e = ends(state.species)
+      const e = ends()
       if (state.feed - HATCH >= e[2]) {
+        const first = !state.graduated.some((g) => g.id === state.species)
         state.graduated.push({ id: state.species, nature: state.nature, at: Date.now() })
+        if (first && !state.news.includes(state.species)) state.news.push(state.species)
         for (let s = 0; s <= 2; s++) markSeen(state, state.species, s)
         state.species = null
         state.nature = null
@@ -81,5 +86,5 @@ globalThis.TOKEN_PET_GAME = (() => {
     return feed(state, Math.max(0, Math.round(dTokens - dCache / 2)), rnd)
   }
 
-  return { HATCH, BASE, SPECIES, NAMES, EGG_NAME, NATURES, fresh, ends, stageOf, pickSpecies, feed, applyUsage }
+  return { HATCH, BASE, SPECIES, NAMES, EGG_NAME, NATURES, NAME_MAX, lastGraduation, displayName, fresh, ends, stageOf, pickSpecies, feed, applyUsage }
 })()

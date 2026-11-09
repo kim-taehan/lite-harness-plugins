@@ -1,4 +1,4 @@
-// 빛톨 키우기 서비스 (0.3.0) — 앱 안에서 도는 코드. 패널을 닫아 둬도 토큰이 먹이로 쌓이고, AI 도구(persona · say)도 여기서 올린다.
+// 빛톨 키우기 서비스 (0.4.0) — 앱 안에서 도는 코드. 패널을 닫아 둬도 토큰이 먹이로 쌓이고, AI 도구(persona · say)도 여기서 올린다.
 // 번들(build.mjs 가 이 파일과 game.js · persona.js 를 service.mjs 한 파일로 묶는다)은 cordis 를 가져오지 않고 앱이 넘긴 host 로 만든다.
 // 상태는 서비스가 들고(storage 'state', 패널이 쓰던 키 그대로라 키우던 빛톨이 이어진다), 패널은 service.call 로 읽고 service.update 소식으로 받는다.
 import '../game.js'
@@ -45,6 +45,43 @@ export default (host) =>
         this.state.bg = bg
         this.save()
         this.push()
+        return this.snapshot()
+      })
+      // 무대에 친구 불러오기 — 졸업한 종만, 한 마리(다른 친구를 부르면 교체). null 이면 집으로 돌려보낸다
+      this.expose('setMate', async (params) => {
+        await this.loaded
+        const id = params && typeof params === 'object' ? params.id : undefined
+        if (id !== null && !this.graduatedIds().includes(id)) throw new Error('졸업한 친구만 무대에 부를 수 있습니다.')
+        this.state.mate = id
+        this.save()
+        this.push()
+        return this.snapshot()
+      })
+      // 이름 짓기 — 종마다 하나, 졸업한 종만, 빈 글이면 지운다
+      this.expose('setName', async (params) => {
+        await this.loaded
+        const id = params && typeof params === 'object' ? params.id : undefined
+        const raw = params && typeof params === 'object' && typeof params.name === 'string' ? params.name : ''
+        if (!this.graduatedIds().includes(id)) throw new Error('졸업한 친구만 이름을 지을 수 있습니다.')
+        const name = raw.trim()
+        if ([...name].length > G.NAME_MAX) throw new Error(`이름은 ${G.NAME_MAX}자까지입니다.`)
+        const names = { ...this.state.names }
+        if (name) names[id] = name
+        else delete names[id]
+        this.state.names = names
+        this.save()
+        this.push()
+        return this.snapshot()
+      })
+      // 도감에서 그 친구를 열어 봤다 — "새로 만남" 표시를 지운다
+      this.expose('seenDex', async (params) => {
+        await this.loaded
+        const id = params && typeof params === 'object' ? params.id : undefined
+        if (this.state.news.includes(id)) {
+          this.state.news = this.state.news.filter((item) => item !== id)
+          this.save()
+          this.push()
+        }
         return this.snapshot()
       })
       // 말 걸기 — 서비스는 AI 를 직접 부르지 못해서 새 대화를 "빛톨아, " 로 채워 연다. 대답은 스킬 + persona · say 도구가 한다
@@ -126,6 +163,21 @@ export default (host) =>
       this.push(event ? { event } : {})
     }
 
+    graduatedIds() {
+      return [...new Set(this.state.graduated.map((g) => g.id))]
+    }
+
+    /** 지금 무대에 서서 말하는 친구 — 불러온 친구(3단계 · 마지막 졸업 때의 성격)가 있으면 그 친구, 없으면 키우는 빛톨 */
+    onStage() {
+      const { state } = this
+      if (state.mate && this.graduatedIds().includes(state.mate)) {
+        const last = G.lastGraduation(state, state.mate)
+        return { species: state.mate, stage: 2, nature: last?.nature ?? null, name: G.displayName(state, state.mate, 2), mate: true }
+      }
+      const stage = this.stage()
+      return { species: state.species, stage, nature: state.nature, name: state.species ? G.displayName(state, state.species, stage) : G.EGG_NAME, mate: false }
+    }
+
     stage() {
       return this.state.species ? Math.max(0, G.stageOf(this.state).stage) : 0
     }
@@ -141,17 +193,18 @@ export default (host) =>
 
     persona() {
       const { state } = this
-      const stage = this.stage()
+      const who = this.onStage()
       const today = this.summary ? Number(this.summary.today.tokens) || 0 : 0
       return JSON.stringify({
-        name: state.species ? G.NAMES[state.species][stage] : G.EGG_NAME,
-        species: state.species ?? null,
-        stage: state.species ? stage + 1 : 0,
-        nature: state.nature ?? null,
+        name: who.name,
+        species: who.species ?? null,
+        stage: who.species ? who.stage + 1 : 0,
+        nature: who.nature ?? null,
         todayTokens: today,
         mood: mood(today),
         graduated: state.graduated.length,
-        ...P.voice(state.species, stage, state.nature),
+        ...(who.mate && { raising: state.species ? G.displayName(state, state.species, this.stage()) : G.EGG_NAME }),
+        ...P.voice(who.species, who.stage, who.nature),
       })
     }
 
@@ -159,7 +212,8 @@ export default (host) =>
       const text = typeof args.text === 'string' ? args.text.trim() : ''
       if (!text || text.length > SAY_MAX) throw new Error(`text 는 1~${SAY_MAX}자 글이어야 합니다.`)
       if (args.action !== undefined && !P.ACTIONS.includes(args.action)) throw new Error(`action 은 ${P.ACTIONS.join(', ')} 중 하나여야 합니다.`)
-      this.said = { text, ...(args.action && { action: args.action }), at: Date.now() }
+      const who = this.onStage()
+      this.said = { text, ...(args.action && { action: args.action }), at: Date.now(), by: { species: who.species ?? null, stage: who.stage, name: who.name } }
       this.push({ said: this.said })
       return '패널의 빛톨이 말했습니다.'
     }

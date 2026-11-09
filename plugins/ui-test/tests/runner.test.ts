@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -27,6 +28,20 @@ describe('지난 수행과 비교', () => {
     expect(compare).toEqual({ previousId: '20261105-162000', newFail: ['01', '05'], fixed: ['02'], stillFail: ['03'] })
     expect(compareLine(compare!)).toBe('새로 실패 2 · 고쳐짐 1 · 그대로 실패 1')
     expect(compareRuns(undefined, [caseOf('01', 'failed')])).toBeUndefined()
+  })
+
+  it('일부만 돌린 수행이 끼어도 — 직전 수행에 없던 시나리오는 더 오래된 기록의 마지막 결과와 견준다', () => {
+    const older = runOf('20261105-100000', [caseOf('01', 'failed'), caseOf('02', 'passed')]) // 전체 수행
+    const previous = runOf('20261105-110000', [caseOf('02', 'passed')]) // 02 만 다시 수행
+    // 01 은 older 에서 이미 실패 중이었으니 이번에도 실패면 "그대로 실패"(새로 실패가 아니다)
+    expect(compareRuns(previous, [caseOf('01', 'failed')], [older])).toEqual({ previousId: '20261105-110000', newFail: [], fixed: [], stillFail: ['01'] })
+    // 01 이 이번에 통과하면 "고쳐짐"
+    expect(compareRuns(previous, [caseOf('01', 'passed')], [older])?.fixed).toEqual(['01'])
+    // 멈춤 · 코드 없음은 돈 게 아니라 이전 결과를 덮지 않는다
+    const stopped = runOf('20261105-120000', [{ ...caseOf('01', 'stopped') }])
+    expect(compareRuns(stopped, [caseOf('01', 'failed')], [older])?.stillFail).toEqual(['01'])
+    // older 를 안 주면(옛 동작) 직전에 없던 01 의 실패는 새로 실패
+    expect(compareRuns(previous, [caseOf('01', 'failed')])?.newFail).toEqual(['01'])
   })
 
   it('이력은 최근 20개 — 넘친 것을 돌려준다(그 스크린샷 · 결과서를 지운다)', () => {
@@ -230,6 +245,38 @@ describe('실행기 — 묶음 · 이력 · 결과서 (가짜 브라우저)', ()
   }
 
   const workspace = (root: string, launch: Launch = async () => fakeBrowser()) => new Workspace(configFromEnv({ UI_TEST_BASE_URL: 'http://a', UI_TEST_PASSWORD: SECRET, UI_TEST_USER: 'tester', UI_TEST_DATA_DIR: path.join(dir, 'data') }, root), launch)
+
+  it('시나리오를 지우면 그 시나리오의 이력 · 결과서 내용이 빠지고, 묶음을 지우면 결과서 · 이력 · 스크린샷이 전부 사라진다', async () => {
+    const root = await project('p', 'ok')
+    const space = workspace(root)
+    const first = await space.run({ suite: 'login' })
+    const reportDir = path.dirname(first.run.report)
+    const shots = space.history.shotsDir('login', first.run.id)
+    expect(await fs.readFile(first.run.report, 'utf8')).toContain('에이')
+
+    await space.removeScenario('login', '01-a')
+    const runs = await space.history.runs('login')
+    expect(runs[0]!.cases.map((item) => item.id)).toEqual(['02-b'])
+    expect(await fs.readFile(first.run.report, 'utf8')).not.toContain('에이')
+
+    // 남은 결과가 없는 수행은 통째로 사라진다
+    await space.removeScenario('login', '02-b')
+    expect(await space.history.runs('login')).toEqual([])
+    expect(existsSync(reportDir)).toBe(false)
+    expect(existsSync(shots)).toBe(false)
+  })
+
+  it('묶음 삭제는 결과서 폴더 · 스크린샷 · 이력 파일까지 지운다', async () => {
+    const root = await project('p', 'ok')
+    const space = workspace(root)
+    const first = await space.run({ suite: 'login' })
+    const suiteReports = path.join(root, 'ui-tests', '_reports', 'login')
+    expect(existsSync(suiteReports)).toBe(true)
+    await space.removeSuite('login')
+    expect(existsSync(suiteReports)).toBe(false)
+    expect(existsSync(space.history.shotsDir('login', first.run.id))).toBe(false)
+    expect(await space.history.runs('login')).toEqual([])
+  })
 
   it('브라우저는 기본으로 화면 없이 — headed: true 일 때만 보이게', async () => {
     const root = await project('p', 'ok')
