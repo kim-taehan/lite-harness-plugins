@@ -41,6 +41,8 @@ function uiActionOf(method, result) {
         return { kind: 'current-conversation' };
     if (method === 'project.openTabs')
         return { kind: 'open-tabs' };
+    if (method === 'panel.open')
+        return { kind: 'open-panel' };
     if (typeof result !== 'object' || result === null)
         return undefined;
     if (method === 'panel.fullscreen') {
@@ -106,9 +108,6 @@ const EXTENSION_LIMITS = {
     panelAssets: 64,
     panelAssetBytes: 4 * MB,
     panelAssetsBytes: 32 * MB,
-    /** manifest agents 의 파일 수 (#1340). 근거: 검토·작성 같은 역할 몇 개면 충분하다 — 에이전트마다 설명이 엔진의 task 도구 목록에 실려 매 턴 오가므로 작게 둔다.
-     *  파일 하나의 크기는 사용자·프로젝트 에이전트와 같은 상한(shared/projectAgents.ts MAX_AGENT_FILE_BYTES) */
-    agents: 20,
     /** manifest fileActions (#1341) — 파일 우클릭 메뉴는 짧아야 한다(시안: 맞는 항목 3개까지 바로, 넘으면 하위 메뉴). 플러그인 하나가 메뉴를 채우지 않게
      *  항목 3개 · 메뉴 글 40자(언어 팩 이름 칸과 같은 폭) · 항목 하나의 파일 이름 패턴 10개 · 패턴 하나 64자 */
     fileActions: 3,
@@ -117,13 +116,11 @@ const EXTENSION_LIMITS = {
     fileActionPatternLength: 64,
     // 언어 팩 (이슈 #525) — 번들(JSON)은 부팅·설치 검사·언어 전환 때 메모리로 읽고, 화면에 IPC 로 한 번 보낸다.
     // 근거(2026-10-20 실측): 내장 사전은 1309키, JSON 으로 ko 85KB·en 77KB, 가장 긴 값 745자(en). 한자는 UTF-8 3바이트라 같은 키 수의 중국어도 수백 KB 안이다
-    /** 번들 파일 크기 — 내장 사전 JSON 의 약 12배 */
-    localeBytes: 1 * MB,
     /** 번들 맨 위 키 수 — 지금 키 수의 약 4배(키가 늘어날 여지). 넘으면 번들을 통째로 거절한다 */
     localeKeys: 5000,
     /** 값 하나의 글자 수 — 가장 긴 문구의 약 2.7배. 넘는 값은 버린다(그 키는 en 으로 보인다) */
     localeValueLength: 2000,
-    /** manifest 의 locale.label — 설정 > 일반 언어 드롭다운의 한 줄 */
+    /** 서비스 언어 팩의 label — 설정 > 일반 언어 드롭다운의 한 줄 */
     localeLabelLength: 40,
     // 확장 ↔ 앱 통로 (이슈 #536)
     /** storage 값 전체(확장 하나, JSON 글자 수). 근거: 서버 주소·고른 프로젝트 키·화면 상태 같은 설정이면 수 KB 다. 쓸 때마다 파일 전체를 다시 쓰고
@@ -161,6 +158,8 @@ const EXTENSION_LIMITS = {
     /** 플러그인 하나가 noticeWindowMs 안에 낼 수 있는 알림 수 — 넘으면 notify-limit. 근거: "분석 끝" 같은 소식은 몇 분에 한 번이고, 되풀이해 화면을 덮지 못하게 */
     noticesPerWindow: 5,
     noticeWindowMs: 60_000,
+    /** panel.open — 한 플러그인이 이 시간 안에 패널을 열 수 있는 것은 한 번(넘으면 panel-open-limit). 근거: 답이 연달아 와도 사용자가 보던 탭이 계속 바뀌지 않게, 몇 초면 한 번 본 탭을 읽을 만하다 */
+    panelOpenWindowMs: 10_000,
 };
 
 // --- shared/extensions/serviceApi.ts
@@ -196,7 +195,7 @@ function isAppOnlyServiceEvent(event) {
 }
 /** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 앱의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
  *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
- *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
+ *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · panel.open · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
  *  호출 표에 메서드가 늘면 여기에 넣을지 빼놓을지 정해야 한다 — tests/unit/arch/pluginServiceApi.test.ts */
 const SERVICE_CALL_METHODS = [
     'storage.get',
@@ -231,14 +230,12 @@ const SERVICE_CALL_METHODS = [
     'usage.summary',
     'panel.notify',
     'panel.fullscreen',
+    'panel.open',
     'settings.open',
-    'skills.readFile',
-    'skills.writeFile',
-    'skills.deleteFile',
 ];
 /** 호출이 통과하면 그 프로젝트의 창이 해야 끝나는 것 — 메인이 화면 동작(ExtensionUiAction)을 보내고 창의 답을 기다린다. 답이 없으면(창이 없다) no-window.
  *  new 대화 · 대화 열기 · 파일 열기는 null, chat.current · project.openTabs 는 화면이 준 값을 돌려준다 */
-const SERVICE_UI_METHODS = ['chat.compose', 'chat.open', 'project.openFile', 'chat.current', 'project.openTabs', 'panel.fullscreen', 'settings.open'];
+const SERVICE_UI_METHODS = ['chat.compose', 'chat.open', 'project.openFile', 'chat.current', 'project.openTabs', 'panel.fullscreen', 'panel.open', 'settings.open'];
 function isServiceCallMethod(value) {
     return typeof value === 'string' && SERVICE_CALL_METHODS.some((method) => method === value);
 }

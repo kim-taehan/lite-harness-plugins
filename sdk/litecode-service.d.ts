@@ -22,7 +22,7 @@ export interface ServiceEventMap {
 }
 
 /** host.call 로 부를 수 있는 앱 호출 표의 메서드 — 패널이 쓰는 이름과 같고, 권한은 manifest permissions 로 패널과 같게 검사한다 */
-export type ServiceCallMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'secrets.set' | 'secrets.delete' | 'network.fetch' | 'network.connection' | 'network.setConnection' | 'project.info' | 'project.readFile' | 'project.openFile' | 'project.openTabs' | 'project.pickPath' | 'project.changedFiles' | 'project.listDir' | 'project.findFiles' | 'project.countFiles' | 'project.fileInfo' | 'project.writeFile' | 'project.removeFile' | 'settings.summary' | 'settings.check' | 'chat.compose' | 'chat.open' | 'chat.current' | 'chat.exists' | 'chat.titles' | 'mcp.call' | 'mcp.status' | 'usage.summary' | 'panel.notify' | 'panel.fullscreen' | 'settings.open' | 'skills.readFile' | 'skills.writeFile' | 'skills.deleteFile'
+export type ServiceCallMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'secrets.set' | 'secrets.delete' | 'network.fetch' | 'network.connection' | 'network.setConnection' | 'project.info' | 'project.readFile' | 'project.openFile' | 'project.openTabs' | 'project.pickPath' | 'project.changedFiles' | 'project.listDir' | 'project.findFiles' | 'project.countFiles' | 'project.fileInfo' | 'project.writeFile' | 'project.removeFile' | 'settings.summary' | 'settings.check' | 'chat.compose' | 'chat.open' | 'chat.current' | 'chat.exists' | 'chat.titles' | 'mcp.call' | 'mcp.status' | 'usage.summary' | 'panel.notify' | 'panel.fullscreen' | 'panel.open' | 'settings.open'
 
 /** host.call 이 던지는 오류 — code 는 패널 통로와 같은 오류 코드(permission-missing · not-on · no-project · method-unknown · no-window · network-denied …), origin 은 network 오류가 알려 주는 주소 */
 export interface ServiceCallError extends Error {
@@ -105,12 +105,13 @@ export interface ServiceHost {
   /** 에이전트(.md)를 올린다 — 모양은 skills 와 같고 frontmatter 는 사용자 에이전트(.litecode/agents)와 같은 형식(name 이 같아야 한다). 같은 이름이면 사용자·프로젝트 에이전트가 이긴다.
    *  서비스가 켜지지 않은 프로젝트에서는 막히고, 서비스가 내려가면 걷힌다 */
   agents: { register(agent: { name: string } & ({ content: string } | { path: string })): () => void }
-  /** 언어 서버를 올린다 — manifest lsp 항목과 같은 모양 · 같은 검사(command 는 플러그인 폴더 기준). 서비스가 켜지지 않은 프로젝트에서는 띄우지 않고, 내려가면 걷힌다. 같은 서비스에서 languageId · 확장자가 겹치면 던진다 */
+  /** 언어 서버를 올린다 — 모양 · 검사는 앱의 언어 서버 선언 기준(command 는 플러그인 폴더 기준). 서비스가 켜지지 않은 프로젝트에서는 띄우지 않고, 내려가면 걷힌다. 같은 서비스에서 languageId · 확장자가 겹치면 던진다 */
   lsp: {
     register(server: { languageId: string; extensions: string[]; command: string; args?: string[]; env?: Record<string, string>; initializationOptions?: unknown; settings?: unknown; idleMs?: number }): () => void
   }
   /** 앱의 호출 표를 그대로 부른다 — 성공하면 값, 실패하면 ServiceCallError. 프로젝트별(scope "project") 서비스는 directory 가 있어야 하고 그 프로젝트에서 켜져 있어야 한다(아니면 not-on).
-   *  chat.compose · chat.open · project.openFile · panel.fullscreen · settings.open 은 그 프로젝트의 창이 해 주고(창이 없거나 보이는 그 플러그인 탭이 없으면 no-window), chat.current · project.openTabs 는 창이 값을 돌려준다.
+   *  chat.compose · chat.open · project.openFile · panel.fullscreen · panel.open · settings.open 은 그 프로젝트의 창이 해 주고(창이 없거나 보이는 그 플러그인 탭이 없으면 no-window), chat.current · project.openTabs 는 창이 값을 돌려준다.
+   *  panel.open 은 자기 탭을 오른쪽 패널에 열거나 앞으로 가져온다(권한 없이) — 사용자가 설정 > 플러그인에서 끄면 panel-open-off, 10초 안에 또 부르면 panel-open-limit. 입력 중이면 포커스는 그대로 둔다.
    *  빠진 것: panel.args · events.subscribe(ctx.on 을 쓴다) · service.call · service.list */
   call(method: ServiceCallMethod, params?: unknown, options?: { directory?: string }): Promise<unknown>
   /** 자기 패널(같은 플러그인)에 소식을 밀어 보낸다 — 이름은 `service.<name>` 이 되고, 패널은 `events.subscribe(['service.<name>'])`(service 권한)로 받는다.
@@ -121,7 +122,7 @@ export interface ServiceHost {
   fetch(url: string | URL, init?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; directory?: string }): Promise<Response>
   /** AI 도구를 앱에 올린다 — 이름은 AI 에 `<플러그인 id>_<이름>` 으로 보이고, 그 프로젝트에서 서비스가 켜진 때만 보인다. 이름이 겹치거나 모양이 틀리면 던진다. 서비스가 내려가면 걷힌다 */
   tools: { register(tool: ServiceTool): () => void }
-  /** 별도 프로세스 MCP 서버를 선언한다 — manifest 의 mcp 와 같은 모양 · 같은 규칙(설치 폴더 기준 실행 파일, 자리표시). 플러그인에 서버는 하나. 오래 걸리는 일 · 비밀을 서비스 밖에서 돌릴 때 쓴다. 서비스가 내려가면 걷힌다 */
+  /** 별도 프로세스 MCP 서버를 선언한다 — 설치 폴더 기준 실행 파일 규칙(자리표시). 플러그인에 서버는 하나. 오래 걸리는 일 · 비밀을 서비스 밖에서 돌릴 때 쓴다. 서비스가 내려가면 걷힌다 */
   mcp: { register(server: ServiceMcpServer): () => void }
 }
 
@@ -159,7 +160,7 @@ export interface ServiceToolCall {
   conversation?: string
 }
 
-/** host.mcp.register 에 주는 선언 — manifest 의 mcp 와 같다 */
+/** host.mcp.register 에 주는 선언 */
 export interface ServiceMcpServer {
   /** 설치 폴더 기준 실행 파일 */
   command: string
