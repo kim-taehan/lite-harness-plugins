@@ -37,6 +37,10 @@ button.small{height:26px;padding:0 9px;font-size:12px}
 .faint{color:var(--faint)}
 .sec-t{padding:9px 12px;font-size:11.5px;font-weight:700;color:var(--sub);letter-spacing:.04em;background:var(--raise);border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
 .card>.sec-t:first-child{border-top:0}
+.toggle{display:flex;gap:8px;align-items:flex-start;text-align:left;border:0;background:none;padding:0;height:auto;min-width:0;flex:1;color:inherit;font-weight:400;white-space:normal}
+.toggle:hover{background:none}
+.toggle .chv{margin-top:3px;color:var(--faint);transition:transform .12s}
+.toggle[aria-expanded=true] .chv{transform:rotate(90deg)}
 .bar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:var(--idle-bg);margin:0 12px 10px}
 .bar>i{display:block;height:100%}.bar .p{background:var(--ok)}.bar .f{background:var(--bad)}.bar .r{background:var(--accent)}
 .row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;height:auto;text-align:left;border:0;border-top:1px solid var(--line);border-radius:0;padding:10px 12px;font-weight:400;background:var(--card)}
@@ -136,6 +140,7 @@ const state = {
   error: '',
   view: { name: 'list' }, // { name: 'list' } | { name: 'detail', suite, id }
   menu: '', // 열린 [다시 수행 ▾] 의 묶음
+  open: new Set(), // 펼친 묶음 — 기본은 접힘
   picking: undefined, // { suite, chosen: Set }
   headed: true, // 기본값(환경 팝업에서 저장) — 메뉴에서 이번만 바꿀 수 있다
   env: undefined, // 환경 팝업 { headed, saved }
@@ -186,6 +191,7 @@ const iconBtn = (name, label, onclick, attrs = {}) => el('button', { type: 'butt
 async function load() {
   try {
     state.data = JSON.parse(await tool('list', { json: true }))
+    state.data.suites.sort((a, b) => latest(b) - latest(a))
     state.error = ''
     const view = state.view
     if (view.name === 'detail' && !findScenario(view.suite, view.id)) state.view = { name: 'list' }
@@ -193,6 +199,10 @@ async function load() {
     state.error = errorText(error)
   }
   render()
+}
+/** 묶음의 최근 활동 시각 — 마지막 수행, 없으면 만든 날짜. 목록은 이 값이 큰(최신) 묶음부터 */
+function latest(suite) {
+  return Math.max(suite.runs[0]?.startedAt ?? 0, Date.parse(suite.created) || 0)
 }
 function findScenario(suiteId, id) {
   const suite = state.data?.suites.find((item) => item.id === suiteId)
@@ -330,7 +340,7 @@ function runMenu(suite, running) {
         { class: 'menu', role: 'menu' },
         btn(`전체 (${suite.scenarios.length})`, () => rerun(suite.id), { role: 'menuitem' }),
         btn(`실패만 (${failedLast})`, () => rerun(suite.id, 'failed'), { role: 'menuitem', disabled: !failedLast }),
-        btn('시나리오 고르기…', () => ((state.menu = ''), (state.picking = { suite: suite.id, chosen: new Set(suite.scenarios.map((item) => item.id)) }), render()), { role: 'menuitem' }),
+        btn('시나리오 고르기…', () => ((state.menu = ''), state.open.add(suite.id), (state.picking = { suite: suite.id, chosen: new Set(suite.scenarios.map((item) => item.id)) }), render()), { role: 'menuitem' }),
         el('hr'),
         btn(`${state.headed ? '●' : '○'} 보면서`, () => ((state.headed = true), render()), { role: 'menuitemradio', 'aria-checked': String(state.headed) }),
         btn(`${state.headed ? '○' : '●'} 화면 없이`, () => ((state.headed = false), render()), { role: 'menuitemradio', 'aria-checked': String(!state.headed) }),
@@ -342,6 +352,8 @@ function runMenu(suite, running) {
 function suiteCard(suite) {
   const running = state.progress?.running
   const last = suite.runs[0]
+  const expanded = state.open.has(suite.id) || (running && state.progress?.suite === suite.id)
+  const count = (status) => suite.scenarios.filter((item) => item.lastStatus === status).length
   const picking = state.picking?.suite === suite.id
     ? el(
         'div',
@@ -356,14 +368,25 @@ function suiteCard(suite) {
     el(
       'div',
       { class: 'card-head' },
-      el('div', { style: 'min-width:0' }, el('h2', {}, suite.name), el('div', { class: 'sub' }, [suite.created && `${suite.created} 만듦`, `시나리오 ${suite.scenarios.length}`, last && `${when(last.startedAt)} 수행`].filter(Boolean).join(' · '))),
+      el(
+        'button',
+        { type: 'button', class: 'toggle', 'aria-expanded': String(!!expanded), 'aria-label': `${suite.name} 시나리오 ${expanded ? '접기' : '펼치기'}`, onclick: () => (state.open.has(suite.id) ? state.open.delete(suite.id) : state.open.add(suite.id), render()) },
+        el('span', { class: 'chv' }, icon('chev')),
+        el(
+          'span',
+          { style: 'min-width:0' },
+          el('h2', {}, suite.name),
+          el('div', { class: 'sub' }, [suite.created && `${suite.created} 만듦`, `시나리오 ${suite.scenarios.length}`, last && `${when(last.startedAt)} 수행`].filter(Boolean).join(' · ')),
+          el('div', { class: 'sub' }, [count('passed') && `성공 ${count('passed')}`, count('failed') && `실패 ${count('failed')}`, suite.scenarios.length - count('passed') - count('failed') && `수행 전·그 밖 ${suite.scenarios.length - count('passed') - count('failed')}`].filter(Boolean).join(' · ')),
+        ),
+      ),
       coverageView(suite),
       runMenu(suite, running),
     ),
     suite.scenarios.length ? resultBar(suite) : '',
-    picking,
-    suite.scenarios.map((item) => scenarioRow(suite, item)),
-    suite.coverage?.uncovered?.length
+    expanded ? picking : '',
+    expanded ? suite.scenarios.map((item) => scenarioRow(suite, item)) : '',
+    expanded && suite.coverage?.uncovered?.length
       ? el(
           'div',
           { class: 'rules' },
