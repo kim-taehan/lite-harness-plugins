@@ -9,6 +9,8 @@
 const WATCH_MS = 1000
 /** 수행을 시작하고 첫 진행을 읽기까지 — 서버가 수행 상태를 만들 시간 */
 const FIRST_WATCH_MS = 400
+/** 패널 기본값을 담는 저장 칸 키 */
+const PREFS_KEY = 'prefs'
 
 export default (host) =>
   class UiTest extends host.Service {
@@ -28,12 +30,11 @@ export default (host) =>
           UI_TEST_PASSWORD: '${secret:password}',
           UI_TEST_BACKEND_DIRS: '${storage:backendDirs}',
           UI_TEST_DIR: '${storage:testDir}',
-          UI_TEST_REPORT_DIR: '${storage:reportDir}',
           UI_TEST_DATA_DIR: '${dataDir}',
         },
         idleMs: 1_800_000,
         timeoutMs: 1_800_000,
-        panelTools: ['progress', 'stop', 'shot'],
+        panelTools: ['progress', 'stop', 'shot', 'delete'],
       })
       // 스킬 — SKILL.md 와 references/ 가 통째로 올라간다(zip 의 skills/ui-test). 서비스가 켜진 프로젝트의 대화에서만 보인다
       host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })
@@ -60,9 +61,25 @@ export default (host) =>
         this.watch(directory, FIRST_WATCH_MS)
         return { started: true }
       })
+      // 기본값(환경 팝업) — 프로젝트별 저장 칸에 둔다. 서비스에는 영구 저장소가 없어 host.call('storage.*') 를 쓴다. headed(브라우저 창 보이게 — 기본 false = 화면 없이) · output(수행 뒤 산출물: report | both)
+      this.expose('prefs', async (params, { directory }) => {
+        const current = record(await host.call('storage.get', { key: PREFS_KEY }, { directory }))
+        const set = record(record(params).set)
+        const next = { ...current }
+        if (typeof set.headed === 'boolean') next.headed = set.headed
+        if (set.output === 'report' || set.output === 'both') next.output = set.output
+        if (next.headed === current.headed && next.output === current.output) return current
+        await host.call('storage.set', { key: PREFS_KEY, value: next }, { directory })
+        return next
+      })
+      // 삭제 — 시나리오 하나(scenario) 또는 묶음 전체. 패널이 확인을 받은 뒤 부르는 패널 전용 도구(AI 에는 노출하지 않는다)
+      this.expose('delete', (params, call) => this.tool('delete', record(params), call))
+      // 가이드형 결과물 — 서버가 수행 기록으로 guide.html 을 쓰고 경로를 돌려준다
+      this.expose('guide', (params, call) => this.tool('guide', record(params), call))
       // 앱 기능 — 패널은 앱 통로를 직접 쓰지 않고 서비스를 거친다
       this.expose('openFile', (params, { directory }) => host.call('project.openFile', { path: record(params).path }, { directory }))
-      this.expose('ask', (params, { directory }) => host.call('chat.compose', { text: record(params).text, send: true }, { directory }))
+      // send: false 면 새 대화의 입력창만 채우고 보내지 않는다(변경 요청처럼 사용자가 이어 쓸 때)
+      this.expose('ask', (params, { directory }) => host.call('chat.compose', { text: record(params).text, send: record(params).send !== false }, { directory }))
     }
 
     /** 서버 도구 하나를 부른다 — 실패(isError)면 던진다 */

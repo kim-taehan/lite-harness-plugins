@@ -21,6 +21,7 @@ afterEach(() => vi.useRealTimers())
 /** 서버 도구를 흉내 낸다 — tools[이름](args) 가 { text } 또는 { text, isError } 를 돌려준다 */
 function start(tools: Record<string, (args: Record<string, unknown>) => { text: string; isError?: boolean } | Promise<{ text: string; isError?: boolean }>>) {
   const calls: McpCall[] = []
+  const store = new Map<string, unknown>()
   const fake = createFakeHost({
     id: 'ui-test',
     scope: 'project',
@@ -31,6 +32,8 @@ function start(tools: Record<string, (args: Record<string, unknown>) => { text: 
         const handler = tools[tool]
         return handler ? handler(args) : { text: `모르는 도구: ${tool}`, isError: true }
       },
+      'storage.get': (params) => store.get((params as { key: string }).key) ?? null,
+      'storage.set': (params) => void store.set((params as { key: string }).key, (params as { value: unknown }).value),
       'project.openFile': () => true,
       'chat.compose': () => true,
     },
@@ -47,7 +50,7 @@ describe('service', () => {
     const { fake } = start({})
     const [server, ...rest] = fake.mcpServers()
     expect(rest).toEqual([])
-    expect(server).toMatchObject({ command: 'server/ui-test.mjs', idleMs: 1_800_000, timeoutMs: 1_800_000, panelTools: ['progress', 'stop', 'shot'] })
+    expect(server).toMatchObject({ command: 'server/ui-test.mjs', idleMs: 1_800_000, timeoutMs: 1_800_000, panelTools: ['progress', 'stop', 'shot', 'delete'] })
     expect(server?.env).toMatchObject({ UI_TEST_BASE_URL: '${storage:baseUrl}', UI_TEST_PASSWORD: '${secret:password}', UI_TEST_DATA_DIR: '${dataDir}' })
     expect(JSON.stringify(server?.args ?? [])).not.toContain('secret')
   })
@@ -67,7 +70,7 @@ describe('service', () => {
 
   it('패널이 부를 메서드를 올린다', () => {
     const { fake } = start({})
-    expect(fake.names().sort()).toEqual(['ask', 'list', 'openFile', 'progress', 'run', 'shot', 'stop'])
+    expect(fake.names().sort()).toEqual(['ask', 'delete', 'guide', 'list', 'openFile', 'prefs', 'progress', 'run', 'shot', 'stop'])
   })
 
   it('list · shot · stop 은 서버 도구의 글을 그대로 돌려준다 (list 는 json 으로)', async () => {
@@ -141,6 +144,42 @@ describe('service', () => {
       { method: 'project.openFile', params: { path: 'ui-tests/_reports/a/index.html' }, directory: DIR },
       { method: 'chat.compose', params: { text: '보강해 줘', send: true }, directory: DIR },
     ])
+  })
+
+  it('ask — send: false 면 입력창만 채운다(변경 요청)', async () => {
+    const { fake } = start({})
+    await fake.call('ask', { text: '3 번 시나리오를 바꿔 줘:', send: false }, { directory: DIR })
+    expect(fake.calls).toEqual([{ method: 'chat.compose', params: { text: '3 번 시나리오를 바꿔 줘:', send: false }, directory: DIR }])
+  })
+
+  it('prefs — 기본값(headed)을 그 프로젝트의 저장 칸에 두고 읽는다', async () => {
+    const { fake } = start({})
+    expect(await fake.call('prefs', undefined, { directory: DIR })).toEqual({})
+    expect(await fake.call('prefs', { set: { headed: false } }, { directory: DIR })).toEqual({ headed: false })
+    expect(await fake.call('prefs', undefined, { directory: DIR })).toEqual({ headed: false })
+    expect(fake.calls.filter((c) => c.method === 'storage.set')).toEqual([{ method: 'storage.set', params: { key: 'prefs', value: { headed: false } }, directory: DIR }])
+  })
+
+  it('prefs — 산출물(output)은 report | both 만, 바뀐 것이 없으면 쓰지 않는다', async () => {
+    const { fake } = start({})
+    expect(await fake.call('prefs', { set: { output: 'both' } }, { directory: DIR })).toEqual({ output: 'both' })
+    expect(await fake.call('prefs', { set: { output: 'pdf' } }, { directory: DIR })).toEqual({ output: 'both' })
+    expect(await fake.call('prefs', { set: { headed: false, output: 'report' } }, { directory: DIR })).toEqual({ output: 'report', headed: false })
+    expect(await fake.call('prefs', { set: { output: 'report' } }, { directory: DIR })).toEqual({ output: 'report', headed: false })
+    expect(fake.calls.filter((c) => c.method === 'storage.set')).toHaveLength(2)
+  })
+
+  it('guide — 서버의 guide 도구 결과를 그대로 돌려준다', async () => {
+    const { fake, calls } = start({ guide: () => ({ text: '가이드: ui-tests/_reports/s/r1/guide.html' }) })
+    expect(await fake.call('guide', { suite: 's', run: 'r1' }, { directory: DIR })).toBe('가이드: ui-tests/_reports/s/r1/guide.html')
+    expect(calls).toEqual([{ tool: 'guide', args: { suite: 's', run: 'r1' } }])
+  })
+
+  it('prefs — 모르는 값이나 틀린 형태는 저장하지 않는다', async () => {
+    const { fake } = start({})
+    await fake.call('prefs', { set: { headed: false } }, { directory: DIR })
+    expect(await fake.call('prefs', { set: { headed: 'no', other: 1 } }, { directory: DIR })).toEqual({ headed: false })
+    expect(fake.calls.filter((c) => c.method === 'storage.set')).toHaveLength(1)
   })
 
   it('서비스를 내리면 감시가 걷힌다', async () => {

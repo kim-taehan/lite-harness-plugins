@@ -231,6 +231,14 @@ describe('실행기 — 묶음 · 이력 · 결과서 (가짜 브라우저)', ()
 
   const workspace = (root: string, launch: Launch = async () => fakeBrowser()) => new Workspace(configFromEnv({ UI_TEST_BASE_URL: 'http://a', UI_TEST_PASSWORD: SECRET, UI_TEST_USER: 'tester', UI_TEST_DATA_DIR: path.join(dir, 'data') }, root), launch)
 
+  it('브라우저는 기본으로 화면 없이 — headed: true 일 때만 보이게', async () => {
+    const root = await project('p', 'ok')
+    const space = workspace(root)
+    expect((await space.run({ suite: 'login' })).run.headed).toBe(false)
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    expect((await space.run({ suite: 'login', headed: true })).run.headed).toBe(true)
+  })
+
   it('묶음 순서대로 · 코드 없는 시나리오는 "코드 없음" · 결과서는 결과서 폴더 · 처음 결과서에 .gitignore 제안 한 번', async () => {
     const root = await project('p', 'ok')
     const space = workspace(root)

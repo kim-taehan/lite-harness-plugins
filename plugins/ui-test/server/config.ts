@@ -1,10 +1,11 @@
 // 설정 칸 → 실행 값 (#1248). 앱이 plugin.json 의 mcp.env 자리표시로 넘긴다. 작업 폴더 = 그 프로젝트.
-// 테스트 폴더는 프로젝트 안만(기본 ui-tests), 결과서 폴더는 프로젝트 안 또는 절대 경로(공유 드라이브, 기본 ui-tests/_reports)
+// 폴더 설정은 테스트 폴더 하나(프로젝트 안만, 기본 ui-tests) — 결과서는 그 안 `_reports` 에 둔다
 
 import path from 'node:path'
 
 export const DEFAULT_TEST_DIR = 'ui-tests'
-export const DEFAULT_REPORT_DIR = 'ui-tests/_reports'
+/** 결과서는 테스트 폴더 안 이 이름의 폴더에 둔다 */
+export const REPORTS_FOLDER = '_reports'
 export const KEEP_RUNS = 20
 
 export type Channel = 'chrome' | 'msedge'
@@ -61,15 +62,10 @@ export function sourceFile(config: Pick<Config, 'project' | 'backendDirs'>, valu
   throw new Error(`코드 파일이 프로젝트와 백엔드 코드 폴더 밖입니다: ${value}`)
 }
 
-/** 결과서 폴더 — 절대 경로는 그대로, 상대 경로는 프로젝트 안만 */
-export function reportFolder(project: string, value: string): string {
-  return path.isAbsolute(value) ? path.normalize(value) : insideProject(project, value, '결과서 폴더')
-}
-
 export function configFromEnv(env: NodeJS.ProcessEnv, project: string): Config {
   const testDirSetting = env['UI_TEST_DIR']?.trim() || DEFAULT_TEST_DIR
-  const reportDirSetting = env['UI_TEST_REPORT_DIR']?.trim() || DEFAULT_REPORT_DIR
-  const reportDir = reportFolder(project, reportDirSetting)
+  const testDir = insideProject(project, testDirSetting, '테스트 폴더')
+  const reportDir = path.join(testDir, REPORTS_FOLDER)
   const backend = backendFolders(env['UI_TEST_BACKEND_DIRS'])
   return {
     project,
@@ -77,14 +73,14 @@ export function configFromEnv(env: NodeJS.ProcessEnv, project: string): Config {
     channel: channelOf(env['UI_TEST_BROWSER']),
     user: env['UI_TEST_USER']?.trim() ?? '',
     password: env['UI_TEST_PASSWORD'] ?? '',
-    testDir: insideProject(project, testDirSetting, '테스트 폴더'),
+    testDir,
     reportDir,
     // 앱은 플러그인 데이터 폴더를 준다 — 앱 밖(CI)에서 돌리면 결과서 폴더 안 .history
     dataDir: env['UI_TEST_DATA_DIR']?.trim() || path.join(reportDir, '.history'),
     backendDirs: backend.dirs,
     backendIgnored: backend.ignored,
     testDirSetting,
-    reportDirSetting,
+    reportDirSetting: `${testDirSetting.replace(/[\\/]+$/, '')}/${REPORTS_FOLDER}`,
   }
 }
 

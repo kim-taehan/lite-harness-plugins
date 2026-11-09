@@ -46,6 +46,9 @@ canvas { image-rendering: pixelated; display: block; }
 .bgs button i { width: 10px; height: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); }
 .bgs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .bgs button:disabled { opacity: .5; cursor: default; }
+.said { margin: 0; padding: 7px 11px; border-radius: 10px; background: var(--panel); border: 1px solid var(--border); font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.said:empty { display: none; }
+.said small { color: var(--text-3); margin-left: 6px; }
 .talkbtn { font: inherit; font-size: 12.5px; padding: 4px 12px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
 .bgs button:focus-visible, .talkbtn:focus-visible, .full:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .walker.talk .say { opacity: 1; }
@@ -83,6 +86,7 @@ body.field .stage { height: 100%; border-radius: 0; background: linear-gradient(
     <div class="bgs" id="bgs" role="group" aria-label="배경"></div>
     <button type="button" class="talkbtn" id="talk" title="새 대화를 '빛톨아, ' 로 채워 엽니다">💬 말 걸기</button>
   </div>
+  <p class="said" id="said" aria-live="polite"></p>
   <div>
     <div class="who" id="who"></div>
     <div class="bar"><i id="bar"></i></div>
@@ -403,12 +407,21 @@ function apply(snapshot) {
   // AI 가 say 로 남긴 말 — 새 말이면 빛톨이 말풍선으로 한다
   if (snapshot.said && snapshot.said.at > saidAt) {
     saidAt = snapshot.said.at
-    if (hero && !firstApply) { hero.talk(snapshot.said.text, 6); if (snapshot.said.action) hero.act(snapshot.said.action) } // 처음 한 번은 기준만 잡는다(열자마자 지난 말을 보이지 않게)
+    if (hero && !firstApply) { hero.talk(snapshot.said.text, saySecs(snapshot.said.text), true); if (snapshot.said.action) hero.act(snapshot.said.action) } // 처음 한 번은 기준만 잡는다(열자마자 지난 말을 풍선으로 보이지 않게)
+  }
+  // 마지막 답변은 풍선과 별개로 줄에 남긴다 — 풍선이 사라져도(처음 열 때도) 읽을 수 있게
+  if (snapshot.said?.text) {
+    const at = new Date(snapshot.said.at)
+    const sayEl = document.getElementById('said')
+    sayEl.textContent = `💬 ${snapshot.said.text}`
+    const when = document.createElement('small'); when.textContent = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`; sayEl.appendChild(when)
   }
   firstApply = false
   render()
 }
 let firstApply = true
+/** 답변 말풍선이 보이는 시간 — 글이 길수록 오래(10초 ~ 40초) */
+const saySecs = (text) => Math.min(40, 10 + String(text).length * 0.3)
 
 // ── 그리기 ──
 function drawSprite(canvas, sp, stage, frame = 0, scale = 4, flip = false) {
@@ -533,7 +546,11 @@ function walker(get, { vertical = false } = {}) {
     const maxY = a.height - cv.height - 8
     s.ty = vertical ? minY + Math.random() * Math.max(0, maxY - minY) : Math.max(0, minY)
   }
-  const talk = (text, secs = 2.4) => { say.textContent = text; el.classList.add('talk'); s.talk = secs }
+  // strong 은 사용자에게 하는 답변 · 큰 이벤트 — 보이는 동안 약한 말(냠 · 혼잣말 · 건드림 대사)이 덮어쓰지 못한다. 가장 최근 답변은 아래 #said 줄에도 남는다
+  const talk = (text, secs = 2.4, strong = false) => {
+    if (s.talk > 0 && s.strong && !strong) return
+    say.textContent = text; el.classList.add('talk'); s.talk = secs; s.strong = strong
+  }
   /** 행동 하나 — 몸(canvas)의 CSS 애니메이션 + 작은 효과. 대시는 반대쪽으로 빠르게 달린다 */
   const act = (name) => {
     if (name === 'hop' || !name) { s.jump = 1; if (!name) return }
@@ -564,7 +581,7 @@ function walker(get, { vertical = false } = {}) {
     tick: (dt) => {
       const g = get()
       s.t += dt
-      if (s.talk > 0 && (s.talk -= dt) <= 0) el.classList.remove('talk')
+      if (s.talk > 0 && (s.talk -= dt) <= 0) { el.classList.remove('talk'); s.strong = false }
       let moving = false
       if (s.boost > 0) s.boost -= dt
       const speed = (g.speed ?? 30) * (document.body.classList.contains('field') ? 2 : 1) * (s.boost > 0 ? 5 : 1)
@@ -602,10 +619,10 @@ function react(event) {
   if (!hero) return
   hero.refresh()
   hero.hop()
-  if (event === 'hatch') hero.talk('태어났다!')
-  else if (event === 'evolve') hero.talk('진화했다!')
-  else if (event === 'graduate') hero.talk('졸업! 새 알이 왔어요')
-  else hero.talk('냠!')
+  if (event === 'hatch') hero.talk('태어났다!', 3, true)
+  else if (event === 'evolve') hero.talk('진화했다!', 3, true)
+  else if (event === 'graduate') hero.talk('졸업! 새 알이 왔어요', 3, true)
+  else hero.talk('냠!') // 약한 말 — 답변이 떠 있으면 덮어쓰지 않는다
 }
 
 // 전체 화면 — 무대가 창 전체가 되고, 도감에 남긴(본) 친구들이 같이 나온다
