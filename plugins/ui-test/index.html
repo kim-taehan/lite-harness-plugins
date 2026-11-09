@@ -102,21 +102,57 @@ details.how ul{margin:2px 0 0;padding-left:18px}
 .sec-t+.hist{border-top:0}
 .hist{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;padding:8px 12px;border-top:1px solid var(--line)}
 .empty{padding:12px;font-size:12px;color:var(--sub)}
-.scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding:28px 12px;overflow-y:auto;z-index:5}
-.dialog{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.28)}
-.dlg-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
-.dlg-head h2{margin:0;font-size:14px}
-.dlg-body{padding:14px;display:flex;flex-direction:column;gap:16px}
-.dlg-foot{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--line);background:var(--raise);border-radius:0 0 14px 14px}
-.sec{display:flex;flex-direction:column;gap:8px}
-.sec>.t{font-size:11.5px;font-weight:700;color:var(--sub);letter-spacing:.05em}
-.kv{display:grid;grid-template-columns:84px minmax(0,1fr);gap:6px 10px;margin:0;font-size:12.5px}
-.kv dt{color:var(--sub)}.kv dd{margin:0;overflow-wrap:anywhere}
-.field{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.field small{display:block;color:var(--sub);font-size:11.5px}
-select{font:inherit;font-size:13px;height:30px;padding:0 8px;border:1px solid var(--line2);border-radius:8px;background:var(--card);color:var(--text)}
-hr.div{border:0;border-top:1px solid var(--line);margin:0}
-.toast{font-size:12px;color:var(--ok);margin-right:auto;font-weight:500}
+/* [환경] 팝업 — 규칙은 .interface-design/system.md. 토큰은 .scrim 안에만 둔다(패널 나머지와 섞이지 않게) */
+.scrim{--sheet:#fff;--well:#f5f6f9;--rule:rgba(20,28,46,.10);--rule-strong:rgba(20,28,46,.18);--ink:#141a29;--ink-2:#566077;--ink-3:#8a93a6;--probe:#2d4fd6;--probe-wash:#eef1fd;--pass:#167a3f;--pass-wash:#e4f5ea;--lift:0 0 0 1px rgba(20,28,46,.06),0 2px 4px -1px rgba(20,28,46,.06),0 24px 48px -12px rgba(20,28,46,.28);position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto;z-index:5;color:var(--ink)}
+@media (prefers-color-scheme:dark){.scrim{--sheet:#161b26;--well:#1b2130;--rule:rgba(255,255,255,.08);--rule-strong:rgba(255,255,255,.16);--ink:#e9ecf4;--ink-2:#a2abc0;--ink-3:#6e788f;--probe:#8fa4ff;--probe-wash:#1f2745;--pass:#63d28f;--pass-wash:#15301f;--lift:0 0 0 1px rgba(255,255,255,.08),0 24px 48px -12px rgba(0,0,0,.7)}}
+.dialog{width:100%;max-width:468px;background:var(--sheet);border-radius:20px;box-shadow:var(--lift);overflow:hidden}
+.dlg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 4px 22px}
+.dlg-head h2{margin:0;font-size:19px;line-height:1.25;font-weight:700;letter-spacing:-.018em}
+.dlg-head p{margin:2px 0 0;color:var(--ink-2);font-size:12.5px}
+.dlg-close{flex:none;width:32px;height:32px;margin:-4px -6px 0 0;padding:0;justify-content:center;border:0;border-radius:10px;background:none;color:var(--ink-3);transition:background-color .15s,color .15s}
+.dlg-close:hover{background:var(--well);color:var(--ink)}
+.dlg-body{padding:14px 20px 20px;display:grid;gap:22px}
+.addr{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:12px;background:var(--well);box-shadow:inset 0 0 0 1px var(--rule)}
+.addr .dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--pass);box-shadow:0 0 0 3px var(--pass-wash)}
+.addr .dot.off{background:var(--ink-3);box-shadow:0 0 0 3px var(--rule)}
+.addr .url{flex:1;min-width:0;font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addr .via{flex:none;color:var(--ink-3);font-size:12px}
+.addr button{flex:none;height:30px;padding:0 12px;border:0;border-radius:8px;background:var(--sheet);color:var(--probe);font-weight:600;box-shadow:0 0 0 1px var(--rule-strong);transition:transform .12s cubic-bezier(.23,1,.32,1),box-shadow .15s}
+.addr button:hover{background:var(--sheet);box-shadow:0 0 0 1px var(--probe)}
+.addr button:active{transform:scale(.97)}
+.where{margin:8px 2px 0;color:var(--ink-3);font-size:12px}
+.where code{font-size:11.5px;color:var(--ink-2);background:none;border:0;padding:0}
+.eyebrow{margin:0 0 10px 2px;font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--ink-3)}
+.pgroup+.pgroup{margin-top:18px}
+.pq{margin:0 2px 8px}
+.pq b{display:block;font-size:14px;font-weight:650;letter-spacing:-.005em}
+.pq span{display:block;color:var(--ink-2);font-size:12.5px;text-wrap:pretty}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{position:relative;display:grid;gap:10px;height:auto;padding:12px;text-align:left;border:0;border-radius:12px;background:var(--well);color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule);font-weight:400;white-space:normal;transition:transform .12s cubic-bezier(.23,1,.32,1),box-shadow .15s,background-color .15s}
+.tile:hover{background:var(--well);box-shadow:inset 0 0 0 1px var(--rule-strong)}
+.tile:active{transform:scale(.985)}
+.tile[aria-checked=true]{background:var(--probe-wash);box-shadow:inset 0 0 0 1.5px var(--probe),0 0 0 3px var(--probe-wash)}
+.tile:focus-visible{outline:2px solid var(--probe);outline-offset:3px}
+.tile .pic{display:grid;place-items:center;height:58px;border-radius:8px;background:var(--sheet);box-shadow:inset 0 0 0 1px var(--rule);color:var(--ink-3)}
+.tile[aria-checked=true] .pic{color:var(--probe)}
+.tile .lab{display:flex;align-items:center;justify-content:space-between;gap:6px;font-weight:650;font-size:13.5px}
+.tile .desc{display:block;margin-top:1px;font-weight:400;font-size:12px;color:var(--ink-2);text-wrap:pretty}
+.tile .tick{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--probe);color:var(--sheet);opacity:0;transform:scale(.8);transition:opacity .15s,transform .15s cubic-bezier(.23,1,.32,1)}
+.tile[aria-checked=true] .tick{opacity:1;transform:none}
+.tag{display:inline-block;margin-left:4px;padding:0 6px;border-radius:99px;font-size:10.5px;font-weight:600;letter-spacing:.02em;background:var(--sheet);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--rule);vertical-align:1px}
+.pfile{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--rule)}
+.pfile .ico{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--well);color:var(--ink-2)}
+.pfile .meta{flex:1;min-width:0}
+.pfile .meta b{display:block;font:500 12.5px ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pfile .meta span{display:block;color:var(--ink-3);font-size:12px}
+.pfile .quiet{height:30px;padding:0 11px;border:0;background:none;color:var(--ink-2);font-weight:600;transition:background-color .15s,color .15s,transform .12s cubic-bezier(.23,1,.32,1)}
+.pfile .quiet:hover{background:var(--well);color:var(--ink)}
+.pfile .quiet:active{transform:scale(.97)}
+.dlg-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:46px;padding:0 22px;background:var(--well);box-shadow:inset 0 1px 0 var(--rule);color:var(--ink-3);font-size:12px}
+.dlg-foot .saved{display:inline-flex;align-items:center;gap:6px;color:var(--pass);font-weight:600}
+.dlg-foot .saved.bad{color:var(--bad)}
+.dlg-foot .saved i{display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--pass-wash)}
+@media (max-width:470px){.tiles{grid-template-columns:1fr}.tile{grid-template-columns:76px 1fr;align-items:center}.tile .pic{height:52px}.addr .via{display:none}.pfile{flex-wrap:wrap}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -626,35 +662,111 @@ async function openSettings() {
   }
 }
 async function openEnv() {
-  state.env = { headed: state.headed, output: state.output, saved: '' }
+  state.env = { saved: '', failed: false, focus: '' }
   render()
 }
+
+/** 선택 타일의 도판 — 고르기 전에 무엇인지 보이게 그린 작은 그림 */
+const PICS = {
+  hidden: '<svg width="64" height="40" viewBox="0 0 64 40" fill="none" aria-hidden="true"><rect x="7" y="4" width="50" height="32" rx="5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 3.2" opacity=".55"/><path d="M13 31 51 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  shown: '<svg width="64" height="40" viewBox="0 0 64 40" fill="none" aria-hidden="true"><rect x="7" y="4" width="50" height="32" rx="5" stroke="currentColor" stroke-width="1.6"/><path d="M7 12h50" stroke="currentColor" stroke-width="1.6"/><circle cx="12.5" cy="8" r="1.1" fill="currentColor"/><circle cx="17" cy="8" r="1.1" fill="currentColor"/><path d="M14 20h22M14 26h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".6"/></svg>',
+  report: '<svg width="64" height="40" viewBox="0 0 64 40" fill="none" aria-hidden="true"><rect x="9" y="5" width="46" height="30" rx="4" stroke="currentColor" stroke-width="1.6"/><path d="M9 13h46M9 21h46M9 28h46M28 13v22" stroke="currentColor" stroke-width="1.3" opacity=".6"/></svg>',
+  guide: '<svg width="64" height="40" viewBox="0 0 64 40" fill="none" aria-hidden="true"><rect x="5" y="6" width="22" height="28" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M9 14h14M9 20h14M9 26h9" stroke="currentColor" stroke-width="1.3" opacity=".6" stroke-linecap="round"/><path d="M31 20h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="m37 16.5 3.5 3.5-3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="43" y="8" width="17" height="11" rx="2.5" stroke="currentColor" stroke-width="1.5"/><rect x="43" y="23" width="17" height="11" rx="2.5" stroke="currentColor" stroke-width="1.5"/></svg>',
+}
+const svgSpan = (cls, markup) => { const node = el('span', { class: cls }); node.innerHTML = markup; return node }
+
+/** 기본값 하나를 바로 저장한다 — 눌러서 고르면 끝(저장 단추 없음). 실패하면 되돌린다 */
+async function savePref(key, value) {
+  if (!state.env || state[key] === value) return
+  const before = state[key]
+  state[key] = value
+  state.env.saved = ''
+  state.env.focus = key
+  render()
+  try {
+    const prefs = await tool('prefs', { set: { [key]: value } })
+    state.headed = prefs.headed === true
+    state.output = prefs.output === 'both' ? 'both' : 'report'
+    if (!state.env) return
+    state.env.failed = false
+    state.env.saved = '저장했습니다'
+  } catch (error) {
+    state[key] = before
+    if (!state.env) return
+    state.env.failed = true
+    state.env.saved = errorText(error)
+  }
+  if (state.env && document.activeElement?.dataset?.pref === key) state.env.focus = key // 방향키로 옮긴 뒤 다시 그려도 포커스를 그 타일에 둔다
+  render()
+  const mark = state.env?.saved
+  setTimeout(() => { if (state.env && state.env.saved === mark && !state.env.failed) { state.env.saved = ''; render() } }, 1800)
+}
+
+/** 선택 타일 묶음 — 라디오 그룹(방향키로 옮기면 바로 저장) */
+function tileGroup(key, label, options) {
+  const current = state[key]
+  const index = options.findIndex((option) => option.value === current)
+  return el(
+    'div',
+    {
+      class: 'tiles',
+      role: 'radiogroup',
+      'aria-label': label,
+      onkeydown: (event) => {
+        const step = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0
+        if (!step) return
+        event.preventDefault()
+        void savePref(key, options[(index + step + options.length) % options.length].value)
+      },
+    },
+    options.map((option) =>
+      el(
+        'button',
+        { type: 'button', class: 'tile', role: 'radio', 'aria-checked': String(option.value === current), tabindex: option.value === current ? '0' : '-1', 'data-pref': key, onclick: () => savePref(key, option.value) },
+        svgSpan('pic', PICS[option.pic]),
+        el('span', { class: 'lab' }, el('span', {}, option.title, option.tag ? el('span', { class: 'tag' }, option.tag) : '', el('span', { class: 'desc' }, option.desc)), svgSpan('tick', '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>')),
+      ),
+    ),
+  )
+}
+
 function envDialog(data) {
   const close = () => ((state.env = undefined), render())
+  const env = state.env
   const dialog = el(
     'div',
     { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dlg-title' },
-    el('div', { class: 'dlg-head' }, el('h2', { id: 'dlg-title' }, '환경'), iconBtn('x', '', close, { class: 'ghost', 'aria-label': '닫기' })),
+    el('div', { class: 'dlg-head' }, el('div', {}, el('h2', { id: 'dlg-title' }, '환경'), el('p', {}, '이 프로젝트의 UI 테스트 설정')), iconBtn('x', '', close, { class: 'dlg-close', 'aria-label': '닫기' })),
     el(
       'div',
       { class: 'dlg-body' },
-      el('div', { class: 'sec' }, el('div', { class: 't' }, '연결'), el('dl', { class: 'kv' }, el('dt', {}, '대상 주소'), el('dd', {}, data.baseUrl || '(설정 안 됨)'), el('dt', {}, '브라우저'), el('dd', {}, data.browser), el('dt', {}, '읽는 곳'), el('dd', {}, el('code', {}, data.testDir)), el('dt', {}, '결과서 폴더'), el('dd', {}, el('code', {}, data.reportDir))), el('div', { class: 'acts', style: 'justify-content:flex-start' }, btn('설정 열기', openSettings), el('span', { class: 'sub' }, '대상 주소 · 브라우저 · 계정 · 폴더를 바꿉니다'))),
-      el('hr', { class: 'div' }),
-      el('div', { class: 'sec' }, el('div', { class: 't' }, '기본값'), el('div', { class: 'field' }, el('label', { for: 'headed' }, '브라우저 창', el('small', {}, '[다시 수행 ▾] 에서 이번만 바꿀 수 있습니다.')), el('select', { id: 'headed', onchange: (event) => (state.env.headed = event.target.value === 'headed') }, el('option', { value: 'headed', selected: state.env.headed }, '보이게'), el('option', { value: 'headless', selected: !state.env.headed }, '화면 없이'))), el('div', { class: 'field' }, el('label', { for: 'output' }, '수행 뒤 산출물', el('small', {}, '가이드는 화면 흐름 순서로 풀어 쓴 문서(실패 포함). 상세의 [가이드] 로 그때그때도 만듭니다.')), el('select', { id: 'output', onchange: (event) => (state.env.output = event.target.value) }, el('option', { value: 'report', selected: state.env.output !== 'both' }, '결과서만'), el('option', { value: 'both', selected: state.env.output === 'both' }, '결과서 + 가이드')))),
-      el('hr', { class: 'div' }),
-      el('div', { class: 'sec' }, el('div', { class: 't' }, '프로젝트 프롬프트'), el('dl', { class: 'kv' }, el('dt', {}, '파일'), el('dd', {}, el('code', {}, promptPath()))), el('div', { class: 'acts', style: 'justify-content:flex-start' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch(() => ((state.env.saved = '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'), render()))), btn('다시 만들기', () => (close(), ask(rebuildPrompt())))), el('div', { class: 'sub' }, '내용은 파일에서 직접 고칩니다. 실제와 다른 줄은 수행 뒤에 AI 가 물어봅니다.')),
+      el(
+        'section',
+        { 'aria-label': '연결' },
+        el('div', { class: 'addr' }, el('span', { class: `dot${data.baseUrl ? '' : ' off'}`, title: data.baseUrl ? '대상 주소가 설정돼 있습니다' : '대상 주소가 설정돼 있지 않습니다' }), el('span', { class: 'url' }, data.baseUrl || '(대상 주소 설정 안 됨)'), el('span', { class: 'via' }, data.browser), btn('설정 열기 ↗', openSettings)),
+        el('p', { class: 'where' }, '시나리오 · 결과서는 ', el('code', {}, data.testDir), ' 안(', el('code', {}, '_reports'), ')에 저장됩니다.'),
+      ),
+      el(
+        'section',
+        { 'aria-label': '수행 기본값' },
+        el('p', { class: 'eyebrow' }, '수행 기본값 · 누르면 바로 저장'),
+        el('div', { class: 'pgroup' }, el('div', { class: 'pq' }, el('b', {}, '브라우저 창'), el('span', {}, '수행할 때 창을 띄울지 정합니다. [수행 ▾]에서 이번만 바꿀 수도 있어요.')), tileGroup('headed', '브라우저 창', [{ value: false, title: '화면 없이', tag: '기본', desc: '빠르고 방해 없이 돕니다', pic: 'hidden' }, { value: true, title: '보이게', desc: '직접 눈으로 보면서', pic: 'shown' }])),
+        el('div', { class: 'pgroup' }, el('div', { class: 'pq' }, el('b', {}, '수행 뒤 산출물'), el('span', {}, '가이드는 화면 흐름 순서로 풀어 쓴 문서(실패 포함)예요. 상세의 [가이드]로 그때그때도 만들 수 있어요.')), tileGroup('output', '수행 뒤 산출물', [{ value: 'report', title: '결과서만', desc: '합격 · 실패를 표로 모아서', pic: 'report' }, { value: 'both', title: '결과서 + 가이드', desc: '화면 흐름대로 풀어서도', pic: 'guide' }])),
+      ),
+      el(
+        'section',
+        { 'aria-label': '프로젝트 프롬프트' },
+        el('p', { class: 'eyebrow' }, '프로젝트 프롬프트'),
+        el(
+          'div',
+          { class: 'pfile' },
+          svgSpan('ico', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'),
+          el('div', { class: 'meta' }, el('b', {}, promptPath()), el('span', {}, 'AI가 참고하는 이 프로젝트의 테스트 방법')),
+          el('div', { style: 'display:flex;gap:2px' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch(() => ((env.failed = true), (env.saved = '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'), render())), { class: 'quiet' }), btn('다시 만들기', () => (close(), ask(rebuildPrompt())), { class: 'quiet' })),
+        ),
+      ),
     ),
-    el('div', { class: 'dlg-foot' }, el('span', { class: 'toast', role: 'status' }, state.env.saved), btn('닫기', close), btn('저장', async () => {
-      try {
-        const prefs = await tool('prefs', { set: { headed: state.env.headed, output: state.env.output } })
-        state.headed = prefs.headed === true
-        state.output = prefs.output === 'both' ? 'both' : 'report'
-        state.env.saved = '저장했습니다'
-      } catch (error) {
-        state.env.saved = errorText(error)
-      }
-      render()
-    }, { class: 'primary' })),
+    el('div', { class: 'dlg-foot' }, el('span', {}, '설정은 이 프로젝트에만 적용돼요'), env.saved ? el('span', { class: `saved${env.failed ? ' bad' : ''}`, role: 'status' }, env.failed ? '' : svgSpan('', '<i><svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></i>'), env.saved) : ''),
   )
   return el('div', { class: 'scrim', onclick: (event) => event.target === event.currentTarget && close() }, dialog)
 }
@@ -669,6 +781,10 @@ function render() {
   const scroll = scrollY
   app.replaceChildren(main, ...(state.env && data ? [envDialog(data)] : []))
   scrollTo(0, scroll)
+  if (state.env?.focus) {
+    app.querySelector(`[data-pref="${state.env.focus}"][aria-checked="true"]`)?.focus()
+    state.env.focus = ''
+  }
 }
 
 addEventListener('click', (event) => {
