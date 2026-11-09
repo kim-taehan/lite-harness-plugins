@@ -61,15 +61,19 @@ export default (host) =>
         this.watch(directory, FIRST_WATCH_MS)
         return { started: true }
       })
-      // 기본값(환경 팝업) — 프로젝트별 저장 칸에 둔다. 서비스에는 영구 저장소가 없어 host.call('storage.*') 를 쓴다. 지금은 headed(브라우저 창 보이게) 하나
+      // 기본값(환경 팝업) — 프로젝트별 저장 칸에 둔다. 서비스에는 영구 저장소가 없어 host.call('storage.*') 를 쓴다. headed(브라우저 창 보이게) · output(수행 뒤 산출물: report | both)
       this.expose('prefs', async (params, { directory }) => {
         const current = record(await host.call('storage.get', { key: PREFS_KEY }, { directory }))
         const set = record(record(params).set)
-        if (typeof set.headed !== 'boolean') return current
-        const next = { ...current, headed: set.headed }
+        const next = { ...current }
+        if (typeof set.headed === 'boolean') next.headed = set.headed
+        if (set.output === 'report' || set.output === 'both') next.output = set.output
+        if (next.headed === current.headed && next.output === current.output) return current
         await host.call('storage.set', { key: PREFS_KEY, value: next }, { directory })
         return next
       })
+      // 가이드형 결과물 — 서버가 수행 기록으로 guide.html 을 쓰고 경로를 돌려준다
+      this.expose('guide', (params, call) => this.tool('guide', record(params), call))
       // 앱 기능 — 패널은 앱 통로를 직접 쓰지 않고 서비스를 거친다
       this.expose('openFile', (params, { directory }) => host.call('project.openFile', { path: record(params).path }, { directory }))
       this.expose('ask', (params, { directory }) => host.call('chat.compose', { text: record(params).text, send: true }, { directory }))

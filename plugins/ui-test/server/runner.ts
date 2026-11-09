@@ -13,7 +13,9 @@ import type { Config } from './config.ts'
 import { scrub, sourceFile } from './config.ts'
 import { driverFor, type Driver, type Launch } from './driver.ts'
 import { compareRuns, History } from './history.ts'
+import { renderGuide } from './guide.ts'
 import { renderReport } from './report.ts'
+import type { ReportInput } from './report.ts'
 import { parseScenario, parseSuite, sourceFingerprint, specHeader } from './scenario.ts'
 import { stamp } from './steps.ts'
 import type { CaseResult, RunRecord, Scenario, StepResult, Suite } from './types.ts'
@@ -330,24 +332,35 @@ export class Workspace {
     }
   }
 
-  /** 지난 수행 하나의 결과서를 다시 쓴다 (스크린샷이 남아 있을 때) — run 이 쓰고, 이력에서 다시 만들 때도 */
-  async writeReport(run: RunRecord, info: SuiteInfo, shotsDir: string): Promise<void> {
-    const scenarios = new Map(info.scenarios.map(({ scenario }) => [scenario.id, scenario]))
-    const html = renderReport({
+  /** 결과서 · 가이드가 같이 쓰는 입력 — 수행 기록 · 시나리오 원문 · 남아 있는 스크린샷 */
+  private reportInput(run: RunRecord, info: SuiteInfo, shotsDir: string): ReportInput {
+    return {
       run,
       project: path.basename(this.config.project),
       suiteName: info.suite.name,
       user: os.userInfo().username,
-      scenarios,
+      scenarios: new Map(info.scenarios.map(({ scenario }) => [scenario.id, scenario])),
       files: info.scenarios.filter(({ scenario }) => run.cases.some((item) => item.id === scenario.id)).map(({ file, specFile }) => ({ scenario: this.rel(file), spec: this.rel(specFile) })),
       image: (shot) => {
         const file = path.join(shotsDir, path.basename(shot))
         return existsSync(file) ? readFileSync(file) : undefined
       },
       secrets: [this.config.password],
-    })
+    }
+  }
+
+  /** 지난 수행 하나의 결과서를 다시 쓴다 (스크린샷이 남아 있을 때) — run 이 쓰고, 이력에서 다시 만들 때도 */
+  async writeReport(run: RunRecord, info: SuiteInfo, shotsDir: string): Promise<void> {
     await fs.mkdir(path.dirname(run.report), { recursive: true })
-    await fs.writeFile(run.report, html)
+    await fs.writeFile(run.report, renderReport(this.reportInput(run, info, shotsDir)))
+  }
+
+  /** 가이드형 결과물(guide.html)을 그 수행의 결과서 옆에 쓴다 — 스크린샷은 이력(데이터 폴더)에 남아 있는 것만 들어간다. 파일 경로를 돌려준다 */
+  async writeGuide(run: RunRecord, info: SuiteInfo): Promise<string> {
+    const file = path.join(path.dirname(run.report), 'guide.html')
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    await fs.writeFile(file, renderGuide(this.reportInput(run, info, this.history.shotsDir(run.suite, run.id))))
+    return file
   }
 
   /** 결과서 폴더가 프로젝트 안이고 .gitignore 에 없으면, 처음 한 번만 제안 글 — 플러그인은 .gitignore 를 고치지 않는다 */

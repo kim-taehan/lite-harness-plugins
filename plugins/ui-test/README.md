@@ -16,6 +16,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 - **데이터 표**: 시나리오의 `## 데이터` 마크다운 표 → 행마다 새 창으로 한 번씩, 생성 코드는 `data.<열>` 로 읽는다. 결과 · 결과서 · 지난 수행 비교가 행마다(`04-나이 2행`)
 - **규칙 덮임**(어림값): suite.md `## 규칙`(`- [검증|업무] 규칙 — 다루는 시나리오`) → `list` · 패널에 "검증 규칙 5/7 · 업무 규칙 2/4" 와 안 다룬 규칙. 코드 커버리지가 아니다
 - **패널**: 두 화면 — 목록(묶음 카드 · 결과 비율 막대 · 시나리오 줄: 코드 없음 · 코드 낡음 · 코드 바뀜 · 마지막 결과) → 시나리오 상세(지난 수행 · 단계 · 실패 · 묶음 최근 수행 · [결과서]). 머리의 [환경] 은 팝업(연결 값 · 기본값 · `_prompt.md` 열기). 스크린샷은 패널에 싣지 않고 결과서에만 둔다. [보강] · [AI 에게 맡기기] · 안 다룬 규칙 누르기 — 모두 `chat.compose { text, send: true }`(새 대화에 요청을 바로 보냄, `chat` 권한). 고르기 · 고치기는 대화에서 스킬이(여러 개 고르기 카드)
+- **가이드**: 결과서(`index.html`, 합격 · 실패를 표로 모음)와 별개로, 같은 수행을 화면 흐름 순서로 풀어 쓴 한 파일 HTML(`guide.html`, 결과서 옆). 단계마다 스크린샷, 실패한 단계도 빼지 않고 붉게 원인(갈래 · 오류)과 같이 적고, 맨 위에 "확인이 필요한 곳"을 모은다. 결과서와 같은 스크린샷 예산 · 비밀 값 거르기. `server/guide.ts`. 만드는 길 셋 — AI 가 `guide` 도구, 패널 상세의 [가이드], 환경 팝업의 산출물 기본값 "결과서 + 가이드"(수행이 끝나면 패널이 자동으로). 스크린샷은 이력(데이터 폴더)에 남은 것만 들어간다
 - **긴 수행**: 엔진의 MCP 도구 호출 기한은 `experimental.mcp_timeout` 300초(`src/services/opencode/engineConfig.ts` `MCP_CALL_TIMEOUT_MS`) — plugin.json 의 `timeoutMs` 30분은 앱 → 서버 구간일 뿐 엔진이 5분에 끊는다. 그래서 `run` 은 시작하고 최대 120초(`RUN_WAIT_MS`)만 기다려, 안 끝났으면 수행 id 를 돌려주고 AI 는 `report { suite, run }` 으로 다시 기다린다(한 번에 120초). 수행 중의 진행은 서비스가 서버의 `progress` 를 1초마다 읽어 패널로 밀어 보낸다(`service.progress`)
 - **중단됨**: 대화가 `run` · `report` 호출을 멈추면(턴 멈춤 — MCP 요청 취소) 수행도 멈추고, 앱이 서버를 내리면(표준입력 닫힘 · SIGTERM) 브라우저를 닫고 돈 데까지 결과서 · 이력을 "중단됨(까닭)" 으로 남긴 뒤 끝난다. 남은 케이스는 멈춤
 - **결과서 크기**: 앱 파일 미리보기의 HTML 한도는 20MB(`HTML_PREVIEW_LIMIT`). 스크린샷은 화면 배율 0.75(1280×800 배치 → 960×600) · JPEG 60, 결과서에 넣는 사진 합은 13MB(`REPORT_IMAGE_BUDGET`, base64 로 약 17MB) — 넘치면 실패 순간을 먼저 남기고 단계 끝 사진을 빼며 결과서에 몇 장 뺐는지 적는다. 확장이 바깥 브라우저로 여는 통로는 앱에 없어 패널은 전처럼 프로젝트 안이면 미리보기, 밖이면 경로
@@ -36,14 +37,15 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 ## 구성
 
 - `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 — 결과서는 그 안 `_reports`), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
-- `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` · `prefs`(패널 기본값 — 프로젝트별 저장 칸 `storage.*`) 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
+- `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` · `prefs`(패널 기본값 headed · output — 프로젝트별 저장 칸 `storage.*`) · `guide`(서버 도구 중계) 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
 - `build.mjs` — 서비스를 `service.mjs` 한 파일로, 서버를 `server/ui-test.mjs` 로 묶는다(`--dir` 지원)
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run <묶음> [--failed] [--headed]`, 실패가 있으면 종료 코드 1
-- `server/tools.ts` — 도구 `list` · `run { suite, scenarios?: string[] | "failed", headed? }` · `report { suite, run? }` · `fingerprint { files }` (AI · 패널), `progress` · `stop` · `shot` (패널), `check` (설정 폼)
+- `server/tools.ts` — 도구 `list` · `run { suite, scenarios?: string[] | "failed", headed? }` · `report { suite, run? }` · `guide { suite, run? }`(가이드형 결과물 `guide.html` — 결과서 옆, 아래 "가이드") · `fingerprint { files }` (AI · 패널), `progress` · `stop` · `shot` (패널), `check` (설정 폼)
 - `server/failure.ts` — 실패 갈래 · 길잡이
 - `server/runner.ts` — 묶음 읽기 · 시나리오 고르기 · 드라이버로 돌리기 · 결과서 · 이력 · 진행 · 멈추기. 한 번에 수행 하나
 - `server/driver.ts` — 드라이버 인터페이스(`check()` · `run(cases)` · `stop()`)와 `web` 하나. client · mobile 은 드라이버를 더한다
 - `server/steps.ts` — 생성 코드가 쓰는 단계 API(`step` · `page` · `expect` · `data` · `account` · `baseUrl`), 단계마다 스크린샷, page 호출(셀렉터 · 기다림)과 expect 를 적어 테스트 방법 재료로 돌려준다(입력 값은 적지 않는다)
+- `server/guide.ts` — 가이드형 결과물 `guide.html` (결과서와 같은 입력)
 - `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 케이스마다 단계 표 · 오류 · 테스트 방법
 - `server/history.ts` — 이력 · 지난 수행과 비교(새로 실패 · 고쳐짐 · 그대로 실패)
 - `server/scenario.ts` — 시나리오 · suite.md 읽기, 지문

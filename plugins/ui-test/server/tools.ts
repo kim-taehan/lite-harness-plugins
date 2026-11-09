@@ -268,6 +268,28 @@ export function createTools(deps: ToolDeps): Tool[] {
     },
   }
 
+  const guide: Tool = {
+    name: 'guide',
+    description:
+      'Write the user-guide form of a suite run as one HTML file (guide.html next to the report): the screen walked through step by step in the order of use, each step with its screenshot, failed steps in red with the cause (nothing is left out). Use it when the user wants the final result as a guide document instead of / besides the report table, or the panel setting "결과서 + 가이드" asks for it. Does not run anything; uses the last run (or a given run id) and the screenshots still kept for it. Returns the file path.',
+    inputSchema: { type: 'object', properties: { suite: SUITE_ARG, run: { type: 'string', description: 'Run id (YYYYMMDD-HHmmss) from run/report. Omit for the last run.' } }, required: ['suite'] },
+    async run(args) {
+      if (typeof args['suite'] !== 'string') return { text: 'suite 가 필요합니다', isError: true }
+      const wanted = typeof args['run'] === 'string' ? args['run'] : undefined
+      if (!wanted && workspace.runningId() && workspace.current().suite === args['suite']) return { text: '수행 중입니다 — 끝난 뒤(report 로 끝을 확인) 다시 불러 주세요', isError: true }
+      try {
+        const runs = await workspace.history.runs(args['suite'])
+        if (runs.length === 0) return { text: `${args['suite']}: 아직 수행 기록이 없습니다 — 먼저 수행해 주세요`, isError: true }
+        const picked = wanted ? runs.find((item) => item.id === wanted) : runs[0]
+        if (!picked) return { text: `수행 기록이 없습니다: ${String(wanted)} (있는 것: ${runs.map((item) => item.id).join(', ')})`, isError: true }
+        const file = await workspace.writeGuide(picked, await workspace.suite(args['suite']))
+        return { text: scrub(`가이드: ${workspace.rel(file)}\n수행 ${picked.id} · ${counts(picked)} · 결과서 ${workspace.rel(picked.report)}`, secrets) }
+      } catch (error) {
+        return { text: scrub(error instanceof Error ? error.message : String(error), secrets), isError: true }
+      }
+    },
+  }
+
   const fingerprint: Tool = {
     name: 'fingerprint',
     description:
@@ -336,7 +358,7 @@ export function createTools(deps: ToolDeps): Tool[] {
     },
   }
 
-  return [list, run, report, fingerprint, progress, stop, shot, check]
+  return [list, run, report, guide, fingerprint, progress, stop, shot, check]
 }
 
 export const TOOL_NAMES = ['list', 'run', 'report', 'fingerprint', 'progress', 'stop', 'shot', 'check']

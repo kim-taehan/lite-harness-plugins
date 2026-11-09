@@ -165,6 +165,25 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 수행 (�
     return md
   }
 
+  it('guide — 수행 뒤 결과서 옆에 guide.html 을 쓴다 · 수행 기록이 없거나 묶음이 없으면 알린다', async () => {
+    await scenario()
+    const space = workspace()
+    const noRuns = await tool(tools(space), 'guide').run({ suite: 'join' })
+    expect(noRuns).toMatchObject({ isError: true })
+    expect(noRuns.text).toContain('아직 수행 기록이 없습니다')
+    await tool(tools(space), 'run').run({ suite: 'join', headed: false })
+    const out = await tool(tools(space), 'guide').run({ suite: 'join' })
+    expect(out.isError).toBeUndefined()
+    const file = /가이드: (\S+)/.exec(out.text)![1]!
+    expect(file).toMatch(/ui-tests\/_reports\/join\/\d{8}-\d{6}\/guide\.html$/)
+    const html = await fs.readFile(path.join(root, file), 'utf8')
+    expect(html).toContain('가입 — 화면 사용 가이드')
+    expect(html).toContain('1행 — 69 · ok')
+    expect(await fs.readFile(path.join(root, file.replace('guide.html', 'index.html')), 'utf8')).toContain('수행 결과서')
+    expect(await tool(tools(space), 'guide').run({ suite: 'join', run: '20000101-000000' })).toMatchObject({ isError: true })
+    expect(await tool(tools(space), 'guide').run({ suite: 'nope' })).toMatchObject({ isError: true })
+  })
+
   it('코드 낡음 — 시나리오를 고치면 list 에 표시, run 결과가 경고 · 코드 바뀜 — sources 파일을 고치면 표시', async () => {
     const md = await scenario()
     const space = workspace()

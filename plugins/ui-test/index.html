@@ -143,9 +143,11 @@ const state = {
   open: new Set(), // 펼친 묶음 — 기본은 접힘
   picking: undefined, // { suite, chosen: Set }
   headed: true, // 기본값(환경 팝업에서 저장) — 메뉴에서 이번만 바꿀 수 있다
+  output: 'report', // 수행 뒤 산출물 기본값(환경 팝업): report(결과서만) | both(결과서 + 가이드)
   env: undefined, // 환경 팝업 { headed, saved }
   progress: undefined,
   message: '',
+  messageFile: '', // 메시지 옆 [열기] 로 열 파일(가이드)
 }
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -219,12 +221,33 @@ async function openReport(report) {
   await tool('openFile', { path: report }).catch((error) => ((state.message = errorText(error)), render()))
 }
 
+/** 가이드형 결과물 만들기 — 서버가 guide.html 을 쓰고 경로를 돌려준다. openNow 면 바로 연다, 아니면 메시지 옆 [열기] */
+async function makeGuide(suite, run, openNow) {
+  try {
+    const text = await tool('guide', { suite, ...(run && { run }) })
+    const file = /가이드:\s*(\S+)/.exec(text)?.[1]
+    if (!file) throw new Error(text)
+    if (openNow) return await openReport(file)
+    state.message = '가이드를 만들었습니다'
+    state.messageFile = file
+  } catch (error) {
+    state.message = errorText(error)
+    state.messageFile = ''
+  }
+  render()
+}
+const messageBox = () => (state.message ? el('div', { class: 'msg' }, state.message, state.messageFile ? [' ', btn('열기', () => openReport(state.messageFile), { class: 'link' })] : '') : '')
+
 /** 진행을 받아 그린다 — 서비스가 밀어 보내거나(service.progress) 패널을 열 때 한 번 읽는다. 끝났으면 묶음 · 이력을 다시 읽는다 */
 function applyProgress(progress) {
   const wasRunning = state.progress?.running
   state.progress = progress
   render()
-  if (wasRunning && !progress?.running) void load()
+  if (wasRunning && !progress?.running) {
+    void load()
+    // 산출물 기본값이 "결과서 + 가이드" 면 수행이 끝난 그 수행의 가이드도 만든다
+    if (state.output === 'both' && progress?.suite && progress?.runId && !progress?.error) void makeGuide(progress.suite, progress.runId, false)
+  }
 }
 async function refreshProgress() {
   try {
@@ -246,6 +269,7 @@ async function rerun(suite, scenarios) {
   state.menu = ''
   state.picking = undefined
   state.message = ''
+  state.messageFile = ''
   const args = { suite, headed: state.headed, ...(scenarios && { scenarios }) }
   // 서비스가 수행을 시작하고 진행을 밀어 보낸다 — 여기서는 시작이 막혔을 때만 알린다
   tool('run', args).then(
@@ -261,6 +285,7 @@ async function stop() {
 /** 대화로 넘기기 — 새 대화를 열어 요청 글을 바로 보낸다 (chat 권한) */
 async function ask(text) {
   state.message = ''
+  state.messageFile = ''
   try {
     await tool('ask', { text })
   } catch (error) {
@@ -446,7 +471,7 @@ function listView(data) {
     el('div', { class: 'top' }, el('h1', {}, 'UI 테스트', el('span', { class: 'pill' }, '베타')), el('div', { class: 'acts' }, iconBtn('gear', '환경', openEnv, { 'aria-haspopup': 'dialog' }), iconBtn('refresh', '', load, { class: 'ghost', 'aria-label': '새로 고침' }))),
     el('div', { class: 'info' }, el('span', { class: 'chip' }, el('code', {}, data.testDir)), el('span', { class: 'chip' }, data.baseUrl || '대상 주소 없음'), el('span', { class: 'chip' }, data.browser)),
   ]
-  if (state.message) out.push(el('div', { class: 'msg' }, state.message))
+  if (state.message) out.push(messageBox())
   const running = runningView()
   if (running) out.push(running)
   if (!data.suites.length) out.push(el('div', { class: 'msg' }, '아직 묶음이 없습니다. 대화에서 "가입설계 화면 테스트 구성해 줘" 처럼 화면을 가리켜 요청하세요.'))
@@ -466,7 +491,7 @@ function detailView(data) {
     el('div', { class: 'top' }, el('button', { type: 'button', class: 'back', onclick: () => ((state.view = { name: 'list' }), render(), scrollTo(0, 0)) }, icon('back'), '목록'), el('div', { class: 'acts' }, btn('보강', () => ask(enrichPrompt(suite, item)), { disabled: running, title: '새 대화에서 보강 제안을 받고 고릅니다' }), iconBtn('play', '다시 수행', () => rerun(suite.id, [item.id]), { class: 'primary', disabled: running || !item.hasCode, title: item.hasCode ? '이 시나리오만 다시 돌립니다' : '코드가 없어 돌릴 수 없습니다' }))),
     el('div', {}, el('h2', { class: 'title' }, item.name), el('div', { class: 'sub' }, [suite.name, item.kind, item.rows && `데이터 ${item.rows}행`, item.checks && `확인 ${item.checks}`].filter(Boolean).join(' · '))),
   ]
-  if (state.message) out.push(el('div', { class: 'msg' }, state.message))
+  if (state.message) out.push(messageBox())
   const tags = [!item.hasCode && '코드 없음', item.stale && '코드 낡음 — 다음 수행 전에 AI 가 코드를 다시 만듭니다', item.changed?.length && `코드 바뀜 — ${item.changed.map((change) => change.path).join(', ')}`].filter(Boolean)
   if (tags.length) out.push(el('div', { class: 'msg warn' }, tags.join('\n')))
 
@@ -478,7 +503,7 @@ function detailView(data) {
         'div',
         { class: 'summary' },
         el('div', { class: 'big' }, el('span', { class: `st ${lastTone}` }, lastText), el('span', { class: 'sub' }, last ? `${when(last.startedAt)} · ${cmpLine(last.compare)}` : '아직 수행하지 않았습니다')),
-        last ? iconBtn('doc', '결과서', () => openReport(last.report)) : '',
+        last ? el('div', { class: 'acts' }, iconBtn('doc', '가이드', () => makeGuide(suite.id, last.id, true), { disabled: running, title: '화면 흐름 순서로 풀어 쓴 가이드 문서(실패 포함)를 만들어 엽니다' }), iconBtn('doc', '결과서', () => openReport(last.report))) : '',
       ),
       fail ? el('div', { class: 'fail-box' }, el('div', {}, el('span', { class: 'k' }, fail.kind || '실패'), fail.row ? ` · ${fail.row}` : '', fail.step ? ` · ${fail.step}` : ''), fail.error ? el('div', { class: 'err', style: 'margin:0' }, fail.error) : '', el('div', {}, btn('AI 에게 맡기기', () => ask(fixPrompt(suite, item)), { class: 'primary small', disabled: running, title: '새 대화에서 실패 원인을 가르고, 낡은 테스트면 고칩니다' }))) : '',
     ),
@@ -519,7 +544,7 @@ async function openSettings() {
   }
 }
 async function openEnv() {
-  state.env = { headed: state.headed, saved: '' }
+  state.env = { headed: state.headed, output: state.output, saved: '' }
   render()
 }
 function envDialog(data) {
@@ -533,14 +558,15 @@ function envDialog(data) {
       { class: 'dlg-body' },
       el('div', { class: 'sec' }, el('div', { class: 't' }, '연결'), el('dl', { class: 'kv' }, el('dt', {}, '대상 주소'), el('dd', {}, data.baseUrl || '(설정 안 됨)'), el('dt', {}, '브라우저'), el('dd', {}, data.browser), el('dt', {}, '읽는 곳'), el('dd', {}, el('code', {}, data.testDir)), el('dt', {}, '결과서 폴더'), el('dd', {}, el('code', {}, data.reportDir))), el('div', { class: 'acts', style: 'justify-content:flex-start' }, btn('설정 열기', openSettings), el('span', { class: 'sub' }, '대상 주소 · 브라우저 · 계정 · 폴더를 바꿉니다'))),
       el('hr', { class: 'div' }),
-      el('div', { class: 'sec' }, el('div', { class: 't' }, '기본값'), el('div', { class: 'field' }, el('label', { for: 'headed' }, '브라우저 창', el('small', {}, '[다시 수행 ▾] 에서 이번만 바꿀 수 있습니다.')), el('select', { id: 'headed', onchange: (event) => (state.env.headed = event.target.value === 'headed') }, el('option', { value: 'headed', selected: state.env.headed }, '보이게'), el('option', { value: 'headless', selected: !state.env.headed }, '화면 없이')))),
+      el('div', { class: 'sec' }, el('div', { class: 't' }, '기본값'), el('div', { class: 'field' }, el('label', { for: 'headed' }, '브라우저 창', el('small', {}, '[다시 수행 ▾] 에서 이번만 바꿀 수 있습니다.')), el('select', { id: 'headed', onchange: (event) => (state.env.headed = event.target.value === 'headed') }, el('option', { value: 'headed', selected: state.env.headed }, '보이게'), el('option', { value: 'headless', selected: !state.env.headed }, '화면 없이'))), el('div', { class: 'field' }, el('label', { for: 'output' }, '수행 뒤 산출물', el('small', {}, '가이드는 화면 흐름 순서로 풀어 쓴 문서(실패 포함). 상세의 [가이드] 로 그때그때도 만듭니다.')), el('select', { id: 'output', onchange: (event) => (state.env.output = event.target.value) }, el('option', { value: 'report', selected: state.env.output !== 'both' }, '결과서만'), el('option', { value: 'both', selected: state.env.output === 'both' }, '결과서 + 가이드')))),
       el('hr', { class: 'div' }),
       el('div', { class: 'sec' }, el('div', { class: 't' }, '프로젝트 프롬프트'), el('dl', { class: 'kv' }, el('dt', {}, '파일'), el('dd', {}, el('code', {}, promptPath()))), el('div', { class: 'acts', style: 'justify-content:flex-start' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch(() => ((state.env.saved = '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'), render()))), btn('다시 만들기', () => (close(), ask(rebuildPrompt())))), el('div', { class: 'sub' }, '내용은 파일에서 직접 고칩니다. 실제와 다른 줄은 수행 뒤에 AI 가 물어봅니다.')),
     ),
     el('div', { class: 'dlg-foot' }, el('span', { class: 'toast', role: 'status' }, state.env.saved), btn('닫기', close), btn('저장', async () => {
       try {
-        const prefs = await tool('prefs', { set: { headed: state.env.headed } })
+        const prefs = await tool('prefs', { set: { headed: state.env.headed, output: state.env.output } })
         state.headed = prefs.headed !== false
+        state.output = prefs.output === 'both' ? 'both' : 'report'
         state.env.saved = '저장했습니다'
       } catch (error) {
         state.env.saved = errorText(error)
@@ -578,7 +604,11 @@ addEventListener('keydown', (event) => {
 
 void (async () => {
   try { await call('events.subscribe', { events: ['service.progress', 'service.runError'] }) } catch { /* 권한 없음 */ }
-  try { state.headed = (await tool('prefs')).headed !== false } catch { /* 저장된 값 없음 — 보이게 */ }
+  try {
+    const prefs = await tool('prefs')
+    state.headed = prefs.headed !== false
+    state.output = prefs.output === 'both' ? 'both' : 'report'
+  } catch { /* 저장된 값 없음 — 보이게 · 결과서만 */ }
   await load()
   await refreshProgress()
 })()

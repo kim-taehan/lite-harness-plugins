@@ -70,7 +70,7 @@ describe('service', () => {
 
   it('패널이 부를 메서드를 올린다', () => {
     const { fake } = start({})
-    expect(fake.names().sort()).toEqual(['ask', 'list', 'openFile', 'prefs', 'progress', 'run', 'shot', 'stop'])
+    expect(fake.names().sort()).toEqual(['ask', 'guide', 'list', 'openFile', 'prefs', 'progress', 'run', 'shot', 'stop'])
   })
 
   it('list · shot · stop 은 서버 도구의 글을 그대로 돌려준다 (list 는 json 으로)', async () => {
@@ -152,6 +152,21 @@ describe('service', () => {
     expect(await fake.call('prefs', { set: { headed: false } }, { directory: DIR })).toEqual({ headed: false })
     expect(await fake.call('prefs', undefined, { directory: DIR })).toEqual({ headed: false })
     expect(fake.calls.filter((c) => c.method === 'storage.set')).toEqual([{ method: 'storage.set', params: { key: 'prefs', value: { headed: false } }, directory: DIR }])
+  })
+
+  it('prefs — 산출물(output)은 report | both 만, 바뀐 것이 없으면 쓰지 않는다', async () => {
+    const { fake } = start({})
+    expect(await fake.call('prefs', { set: { output: 'both' } }, { directory: DIR })).toEqual({ output: 'both' })
+    expect(await fake.call('prefs', { set: { output: 'pdf' } }, { directory: DIR })).toEqual({ output: 'both' })
+    expect(await fake.call('prefs', { set: { headed: false, output: 'report' } }, { directory: DIR })).toEqual({ output: 'report', headed: false })
+    expect(await fake.call('prefs', { set: { output: 'report' } }, { directory: DIR })).toEqual({ output: 'report', headed: false })
+    expect(fake.calls.filter((c) => c.method === 'storage.set')).toHaveLength(2)
+  })
+
+  it('guide — 서버의 guide 도구 결과를 그대로 돌려준다', async () => {
+    const { fake, calls } = start({ guide: () => ({ text: '가이드: ui-tests/_reports/s/r1/guide.html' }) })
+    expect(await fake.call('guide', { suite: 's', run: 'r1' }, { directory: DIR })).toBe('가이드: ui-tests/_reports/s/r1/guide.html')
+    expect(calls).toEqual([{ tool: 'guide', args: { suite: 's', run: 'r1' } }])
   })
 
   it('prefs — 모르는 값이나 틀린 형태는 저장하지 않는다', async () => {

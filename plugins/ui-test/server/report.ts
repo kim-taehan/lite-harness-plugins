@@ -45,7 +45,7 @@ export interface ReportInput {
   imageBudget?: number
 }
 
-const esc = (text: string): string => text.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!)
+export const esc = (text: string): string => text.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!)
 export const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)}초`
 const pad = (value: number): string => String(value).padStart(2, '0')
 export const when = (ms: number): string => {

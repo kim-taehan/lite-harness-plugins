@@ -11,7 +11,7 @@ Answer only in the user's language (Korean for a Korean request). File names, co
 
 ## First: the tools must be there
 
-In this conversation the plugin's tools are named **`litecode_ui-test_list`**, **`litecode_ui-test_run`**, **`litecode_ui-test_report`** and **`litecode_ui-test_fingerprint`** (below: `list`, `run`, `report`, `fingerprint`).
+In this conversation the plugin's tools are named **`litecode_ui-test_list`**, **`litecode_ui-test_run`**, **`litecode_ui-test_report`**, **`litecode_ui-test_guide`** and **`litecode_ui-test_fingerprint`** (below: `list`, `run`, `report`, `guide`, `fingerprint`).
 
 **If these tools are not available to you, stop immediately** and tell the user exactly this, then do nothing else:
 "UI 테스트 도구가 이 대화에 붙지 않았습니다 — 설정 › 기능 › 플러그인에서 UI 테스트가 이 프로젝트에 켜져 있는지 확인해 주세요."
@@ -62,7 +62,8 @@ Write these with your normal file tools. Never write passwords anywhere — the 
 5. **Generate code**: one `<same stem>.spec.mjs` per scenario, following `references/step-api.md` — one `step()` per numbered scenario line, title copied exactly ("1. 로그인한다"), header comment with source file and the **fingerprint `list` shows for that scenario** (call `list` again after saving the md).
 6. **Run**: `run { suite }` (visible browser). The user watches the window; the panel shows progress.
    - `run` waits up to 2 minutes. If the suite is not done it answers "아직 수행 중 … 수행 id …" — then call `report { suite, run: "<id>" }` until it answers "수행 끝" (each call waits up to 2 minutes). Don't start another run meanwhile.
-7. **Summarize** from the tool result: counts, comparison line, each failure with the failed step, error and its 갈래, and the report path. Offer next steps in one short line: 결과서 열기 (give the path; the panel's UI 테스트 tab has [결과서]) · 실패만 다시 · 고치기 · 보강.
+7. **Summarize** from the tool result: counts, comparison line, each failure with the failed step, error and its 갈래, and the report path. Offer next steps in one short line: 결과서 열기 (give the path; the panel's UI 테스트 tab has [결과서]) · 가이드 만들기 · 실패만 다시 · 고치기 · 보강.
+   - **The final result comes in two forms**: the 결과서 (table of pass/fail, always written) and the **가이드** — the same run walked through in the order of use, step by step with its screenshot, failed steps in red with the cause, nothing left out. Don't write the guide yourself: call `guide { suite, run }` (run id from `run`/`report`; omit for the last run) and give the returned path. Offer it in one line after the summary ("가이드로도 만들까요?") or when the user asks for a guide / user manual form of the result. If the panel's 환경 setting is "결과서 + 가이드" the panel creates it after each run itself — then don't call `guide` again unless asked.
    - "확인(DB):" steps come back as "대화에서만 확인": check each with the DB tool now if one is enabled and report the result; if not, ask the user to check.
    - If the result says the report folder is not in `.gitignore`, ask the user whether to add it. Edit `.gitignore` only if they say yes.
 8. **Write `## 테스트 방법`** for every case that passed and has none yet (or whose way of testing changed in this round) — from the per-step "쓴 것" (selectors/waits/checks) and durations in the run result. Format in formats.md. No passwords; mask personal-looking data.
