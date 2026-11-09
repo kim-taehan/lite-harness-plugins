@@ -246,15 +246,26 @@ async function makeGuide(suite, run, openNow) {
     const file = /가이드:\s*(\S+)/.exec(text)?.[1]
     if (!file) throw new Error(text)
     if (openNow) return await openReport(file)
-    state.message = '가이드를 만들었습니다'
-    state.messageFile = file
+    flash('가이드를 만들었습니다', file)
   } catch (error) {
     state.message = errorText(error)
     state.messageFile = ''
   }
   render()
 }
-const messageBox = () => (state.message ? el('div', { class: 'msg' }, state.message, state.messageFile ? [' ', btn('열기', () => openReport(state.messageFile), { class: 'link' })] : '') : '')
+/** 알림 — 닫을 수 있다. 성공 안내(flash)는 몇 초 뒤 저절로 사라지고, 오류는 닫을 때까지 남는다 */
+let flashTimer = 0
+function flash(text, file = '') {
+  state.message = text
+  state.messageFile = file
+  clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => { if (state.message === text) clearMessage() }, 8000) // 그 사이 다른 메시지(오류)로 바뀌었으면 지우지 않는다
+}
+const clearMessage = () => (clearTimeout(flashTimer), (state.message = ''), (state.messageFile = ''), render())
+const messageBox = () =>
+  state.message
+    ? el('div', { class: 'msg', style: 'display:flex;gap:8px;align-items:flex-start' }, el('span', { style: 'flex:1;min-width:0' }, state.message, state.messageFile ? [' ', btn('열기', () => openReport(state.messageFile), { class: 'link' })] : ''), btn('✕', clearMessage, { class: 'ghost small', 'aria-label': '알림 닫기', style: 'padding:0 6px' }))
+    : ''
 
 /** 진행을 받아 그린다 — 서비스가 밀어 보내거나(service.progress) 패널을 열 때 한 번 읽는다. 끝났으면 묶음 · 이력을 다시 읽는다 */
 function applyProgress(progress) {
@@ -306,9 +317,8 @@ async function deleteNow() {
   if (!target) return
   state.confirmDel = undefined
   try {
-    const text = await tool('delete', { suite: target.suite, ...(target.id && { scenario: target.id }) })
-    state.message = text
-    state.messageFile = ''
+    await tool('delete', { suite: target.suite, ...(target.id && { scenario: target.id }) })
+    flash(`${target.id ? '시나리오를' : '묶음을'} 삭제했습니다 — 결과서 · 수행 이력은 남습니다`)
     if (!target.id) state.open.delete(target.suite)
     state.view = { name: 'list' }
   } catch (error) {
