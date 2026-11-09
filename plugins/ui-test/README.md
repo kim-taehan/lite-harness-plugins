@@ -32,25 +32,26 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 ```
 
 수행 이력(비교 기준 · 스크린샷)은 이 PC 의 플러그인 데이터 폴더에 프로젝트(실제 경로)마다 따로, 묶음마다 최근 20 개. 넘친 수행의 결과서 폴더도 지운다.
-파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다(`.gitignore` 도 고치지 않는다 — 결과서 폴더(`<테스트 폴더>/_reports`)가 `.gitignore` 에 없으면 처음 한 번 AI 가 넣을지 묻는다).
+파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다 — 패널의 [삭제] 가 부르는 `delete` 만 예외로 시나리오 · 묶음 파일을 지우고 suite.md 를 고친다(`.gitignore` 도 고치지 않는다 — 결과서 폴더(`<테스트 폴더>/_reports`)가 `.gitignore` 에 없으면 처음 한 번 AI 가 넣을지 묻는다).
 
 ## 구성
 
 - `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 — 결과서는 그 안 `_reports`), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
-- `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` · `prefs`(패널 기본값 headed · output — 프로젝트별 저장 칸 `storage.*`) · `guide`(서버 도구 중계) 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
+- `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot` · `delete`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` · `prefs`(패널 기본값 headed · output — 프로젝트별 저장 칸 `storage.*`) · `guide`(서버 도구 중계) 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
 - `build.mjs` — 서비스를 `service.mjs` 한 파일로, 서버를 `server/ui-test.mjs` 로 묶는다(`--dir` 지원)
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run <묶음> [--failed] [--headed]`, 실패가 있으면 종료 코드 1
-- `server/tools.ts` — 도구 `list` · `run { suite, scenarios?: string[] | "failed", headed? }` · `report { suite, run? }` · `guide { suite, run? }`(가이드형 결과물 `guide.html` — 결과서 옆, 아래 "가이드") · `fingerprint { files }` (AI · 패널), `progress` · `stop` · `shot` (패널), `check` (설정 폼)
+- `server/tools.ts` — 도구 `list` · `run { suite, scenarios?: string[] | "failed", headed? }` · `report { suite, run? }` · `delete { suite, scenario? }`(패널 전용 — 확인을 받은 뒤 삭제, AI 에는 노출하지 않음) · `guide { suite, run? }`(가이드형 결과물 `guide.html` — 결과서 옆, 아래 "가이드") · `fingerprint { files }` (AI · 패널), `progress` · `stop` · `shot` (패널), `check` (설정 폼)
 - `server/failure.ts` — 실패 갈래 · 길잡이
 - `server/runner.ts` — 묶음 읽기 · 시나리오 고르기 · 드라이버로 돌리기 · 결과서 · 이력 · 진행 · 멈추기. 한 번에 수행 하나
 - `server/driver.ts` — 드라이버 인터페이스(`check()` · `run(cases)` · `stop()`)와 `web` 하나. client · mobile 은 드라이버를 더한다
 - `server/steps.ts` — 생성 코드가 쓰는 단계 API(`step` · `page` · `expect` · `data` · `account` · `baseUrl`), 단계마다 스크린샷, page 호출(셀렉터 · 기다림)과 expect 를 적어 테스트 방법 재료로 돌려준다(입력 값은 적지 않는다)
+- `server/remove.ts` — 삭제: 시나리오 하나(md · 생성 코드 · suite.md 의 순서 · 규칙) 또는 묶음 전체. 이 플러그인 파일(suite.md · 시나리오 .md · .spec.mjs)만 지우고 폴더에 다른 파일이 있으면 폴더를 남긴다. 결과서 · 이력은 지우지 않는다. 수행 중인 묶음은 거절
 - `server/guide.ts` — 가이드형 결과물 `guide.html` (결과서와 같은 입력)
 - `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 케이스마다 단계 표 · 오류 · 테스트 방법
 - `server/history.ts` — 이력 · 지난 수행과 비교(새로 실패 · 고쳐짐 · 그대로 실패)
 - `server/scenario.ts` — 시나리오 · suite.md 읽기, 지문
 - `skills/ui-test/` — (서비스가 올린다 — manifest `skills` 선언은 없다) `_prompt.md`(프로젝트 환경 · 소스 찾는 법 · 로그인 · 셀렉터 관례 — 없으면 한 번 조사해 쓰고, 실제와 다른 줄은 수행 뒤 물어보고 고친다)를 먼저 읽고 따르는 흐름(소스 읽기 → 초안 → 여러 개 고르기 → 저장 → 코드 → 수행 → 요약 → 테스트 방법. 실패를 고친 뒤 시나리오 md 의 `## 시행착오`(증상 → 원인 → 해결, 단계 번호 · 단계당 3줄 · 지문에 영향 없음)에 교훈을 남겨 다시 수행 · 코드 재생성 때 같은 시도를 반복하지 않는다. 시나리오마다 번호로 수정 요청(합치기 · 보강 · 방향 변경 · 쪼개기 · 삭제)을 받는다 — 저장된 것은 바꾸기 전 보여 주고 묻는다), `references/formats.md` · `references/step-api.md` · `references/prompt-format.md`
-- `index.html` — 패널: 목록 → 시나리오 상세 두 화면 · [다시 수행 ▾](전체 · 실패만 · 시나리오 고르기 · 보면서/화면 없이) · 지금 수행의 진행 · [멈추기] · 시나리오 상세는 원문(단계 · `## 데이터` 표 · 테스트 방법)을 보이고 [변경 요청](새 대화의 입력창만 채워 연다 — `ask` 의 `send: false`) · [보강] · [수행](그 시나리오만) 을 둔다. 시나리오를 눌러도 바로 수행하지 않는다. [환경] 팝업(기본값 `prefs` · [설정 열기] 는 앱 통로 `settings.open` — 설정 값은 읽기만 되고 쓰기 통로가 없어 값은 앱의 설정 폼에서 고친다). 패널이 받는 단계 기록은 서버가 기억하는 마지막 수행(`progress`)뿐이라 상세의 단계는 그 시나리오를 다시 수행하면 채워진다. 앱과는 `service.call` 한 통로로만 말하고 진행은 `service.progress` 소식으로 받는다
+- `index.html` — 패널: 목록 → 시나리오 상세 두 화면 · [다시 수행 ▾](전체 · 실패만 · 시나리오 고르기 · 보면서/화면 없이) · 지금 수행의 진행 · [멈추기] · 시나리오 상세는 원문(단계 · `## 데이터` 표 · 테스트 방법)을 보이고 [변경 요청](새 대화의 입력창만 채워 연다 — `ask` 의 `send: false`) · [보강] · [수행](그 시나리오만) 을 둔다. 시나리오를 눌러도 바로 수행하지 않는다. 상세의 [삭제](시나리오) · 목록 카드의 휴지통(묶음)은 확인 상자를 거쳐 서비스 `delete` 로 지운다 — 파일 권한이 있는 서버가 지운다(`projectWrite` 는 `.litecode/*.md` 만 되므로 서비스는 지울 수 없다). [환경] 팝업(기본값 `prefs` · [설정 열기] 는 앱 통로 `settings.open` — 설정 값은 읽기만 되고 쓰기 통로가 없어 값은 앱의 설정 폼에서 고친다). 패널이 받는 단계 기록은 서버가 기억하는 마지막 수행(`progress`)뿐이라 상세의 단계는 그 시나리오를 다시 수행하면 채워진다. 앱과는 `service.call` 한 통로로만 말하고 진행은 `service.progress` 소식으로 받는다
 
 비밀번호는 env 로만 서버에 가고, 결과서 · 도구 결과 · 오류 글에서 한 번 더 지운다(password 칸 스크린샷은 브라우저가 가린 그대로). "확인(DB):" 단계는 실행기가 돌리지 않는다 — 결과서에 "대화에서만 확인", AI 가 DB 조회 도구가 있으면 대화에서 확인한다.
 

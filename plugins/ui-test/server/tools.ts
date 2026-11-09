@@ -294,6 +294,22 @@ export function createTools(deps: ToolDeps): Tool[] {
     },
   }
 
+  const remove: Tool = {
+    name: 'delete',
+    description: 'Panel only (after the user confirmed): delete one scenario (its md and generated code, and its line in suite.md) or, without `scenario`, the whole suite. Reports and run history are kept.',
+    inputSchema: { type: 'object', properties: { suite: SUITE_ARG, scenario: { type: 'string', description: 'Scenario id (file name without .md). Omit to delete the whole suite.' } }, required: ['suite'] },
+    async run(args) {
+      if (typeof args['suite'] !== 'string') return { text: 'suite 가 필요합니다', isError: true }
+      try {
+        const done = typeof args['scenario'] === 'string' && args['scenario'] ? await workspace.removeScenario(args['suite'], args['scenario']) : await workspace.removeSuite(args['suite'])
+        const target = typeof args['scenario'] === 'string' && args['scenario'] ? `시나리오 ${args['scenario']}` : `묶음 ${args['suite']}`
+        return { text: `${target} 삭제 — ${done.files.join(', ')}${done.leftover.length ? ` (폴더에 남은 파일: ${done.leftover.join(', ')})` : ''}. 결과서 · 이력은 남깁니다` }
+      } catch (error) {
+        return { text: error instanceof Error ? error.message : String(error), isError: true }
+      }
+    },
+  }
+
   const fingerprint: Tool = {
     name: 'fingerprint',
     description:
@@ -362,7 +378,7 @@ export function createTools(deps: ToolDeps): Tool[] {
     },
   }
 
-  return [list, run, report, guide, fingerprint, progress, stop, shot, check]
+  return [list, run, report, guide, fingerprint, progress, stop, shot, remove, check]
 }
 
 export const TOOL_NAMES = ['list', 'run', 'report', 'fingerprint', 'progress', 'stop', 'shot', 'check']

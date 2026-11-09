@@ -50,7 +50,7 @@ describe('service', () => {
     const { fake } = start({})
     const [server, ...rest] = fake.mcpServers()
     expect(rest).toEqual([])
-    expect(server).toMatchObject({ command: 'server/ui-test.mjs', idleMs: 1_800_000, timeoutMs: 1_800_000, panelTools: ['progress', 'stop', 'shot'] })
+    expect(server).toMatchObject({ command: 'server/ui-test.mjs', idleMs: 1_800_000, timeoutMs: 1_800_000, panelTools: ['progress', 'stop', 'shot', 'delete'] })
     expect(server?.env).toMatchObject({ UI_TEST_BASE_URL: '${storage:baseUrl}', UI_TEST_PASSWORD: '${secret:password}', UI_TEST_DATA_DIR: '${dataDir}' })
     expect(JSON.stringify(server?.args ?? [])).not.toContain('secret')
   })
@@ -70,7 +70,7 @@ describe('service', () => {
 
   it('패널이 부를 메서드를 올린다', () => {
     const { fake } = start({})
-    expect(fake.names().sort()).toEqual(['ask', 'guide', 'list', 'openFile', 'prefs', 'progress', 'run', 'shot', 'stop'])
+    expect(fake.names().sort()).toEqual(['ask', 'delete', 'guide', 'list', 'openFile', 'prefs', 'progress', 'run', 'shot', 'stop'])
   })
 
   it('list · shot · stop 은 서버 도구의 글을 그대로 돌려준다 (list 는 json 으로)', async () => {

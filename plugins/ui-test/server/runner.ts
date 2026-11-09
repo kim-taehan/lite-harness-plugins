@@ -14,6 +14,8 @@ import { scrub, sourceFile } from './config.ts'
 import { driverFor, type Driver, type Launch } from './driver.ts'
 import { compareRuns, History } from './history.ts'
 import { renderGuide } from './guide.ts'
+import { removeScenario, removeSuite } from './remove.ts'
+import type { Removed } from './remove.ts'
 import { renderReport } from './report.ts'
 import type { ReportInput } from './report.ts'
 import { parseScenario, parseSuite, sourceFingerprint, specHeader } from './scenario.ts'
@@ -330,6 +332,21 @@ export class Workspace {
     } finally {
       this.driver = undefined
     }
+  }
+
+  /** 삭제 — 수행 중인 묶음은 거절. 결과서 · 이력은 남긴다 */
+  async removeScenario(suite: string, scenario: string): Promise<Removed> {
+    this.refuseWhileRunning(suite)
+    return removeScenario(this.config.testDir, suite, scenario)
+  }
+
+  async removeSuite(suite: string): Promise<Removed> {
+    this.refuseWhileRunning(suite)
+    return removeSuite(this.config.testDir, suite)
+  }
+
+  private refuseWhileRunning(suite: string): void {
+    if (this.runningId() && this.current().suite === suite) throw new Error('이 묶음이 수행 중입니다 — 끝난 뒤(또는 멈춘 뒤) 지워 주세요')
   }
 
   /** 결과서 · 가이드가 같이 쓰는 입력 — 수행 기록 · 시나리오 원문 · 남아 있는 스크린샷 */

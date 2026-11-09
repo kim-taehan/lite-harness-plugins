@@ -92,6 +92,8 @@ The user can ask for changes **per scenario by number or title**, in the draft l
 - **방향 변경** ("5 번은 이런이런 방향으로 하면 어떨까?"): the user proposes an approach — a question, not an order. Say in one or two lines whether it fits the code (if it doesn't, say why and what you'd do instead), then show the changed scenario as the proposal.
 - **쪼개기 · 삭제 · 순서 · 제목** — as asked. Dropping a scenario from a draft needs no confirmation.
 
+Deleting a scenario or a suite is done by the panel's **[삭제]** (the plugin removes the files and fixes suite.md itself, after a confirmation) — you don't delete through that path; when the user asks you in chat to delete or merge scenarios, use the rules below (list the files, get the OK first).
+
 The panel's **[변경 요청]** opens a new conversation with the scenario (suite, id, file) already filled in and a last line `변경 내용:` — the text the user adds after it is the request. Read that scenario file first, then handle it as below. Never run anything because of a change request; after the change is applied and the code regenerated, ask whether to run it.
 
 Rules:

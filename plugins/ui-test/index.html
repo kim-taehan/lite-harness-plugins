@@ -21,6 +21,11 @@ button.primary:hover{filter:brightness(1.07)}
 button.ghost{border-color:transparent;background:transparent;color:var(--sub)}
 button.ghost:hover{background:var(--raise);color:var(--text)}
 button.link{border:0;background:none;color:var(--accent);padding:0;height:auto;font-size:12px}
+button.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line2))}
+button.danger:hover{background:var(--bad-bg)}
+button.solid-danger{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:600}
+.confirm{border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));background:var(--bad-bg);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:12.5px}
+.confirm b{font-size:13px}
 button.small{height:26px;padding:0 9px;font-size:12px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .top h1{margin:0;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
@@ -159,6 +164,7 @@ const state = {
   progress: undefined,
   message: '',
   messageFile: '', // 메시지 옆 [열기] 로 열 파일(가이드)
+  confirmDel: undefined, // 삭제 확인 중 { suite, id? } — id 가 없으면 묶음 전체
 }
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -190,6 +196,7 @@ const ICONS = {
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   play: '<path d="M7 5v14l12-7z"/>',
   doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
 }
 function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
@@ -293,6 +300,26 @@ async function stop() {
   await tool('stop').catch(() => undefined)
 }
 
+/** 삭제 — 확인을 받은 뒤 서버의 delete(패널 전용 도구). 결과서 · 이력은 남는다 */
+async function deleteNow() {
+  const target = state.confirmDel
+  if (!target) return
+  state.confirmDel = undefined
+  try {
+    const text = await tool('delete', { suite: target.suite, ...(target.id && { scenario: target.id }) })
+    state.message = text
+    state.messageFile = ''
+    if (!target.id) state.open.delete(target.suite)
+    state.view = { name: 'list' }
+  } catch (error) {
+    state.message = errorText(error)
+    state.messageFile = ''
+  }
+  await load()
+}
+const confirmBox = (title, body, onOk) =>
+  el('div', { class: 'confirm', role: 'alertdialog' }, el('div', {}, el('b', {}, title), el('br'), body), el('div', { class: 'acts' }, btn('취소', () => ((state.confirmDel = undefined), render())), btn('삭제', onOk, { class: 'solid-danger' })))
+
 /** 대화로 넘기기 — 새 대화를 열어 요청 글을 바로 보낸다 (chat 권한) */
 async function ask(text, send = true) {
   state.message = ''
@@ -360,7 +387,7 @@ function scenarioRow(suite, item) {
   const [text, tone] = LAST_TAG[item.lastStatus] || ['수행 전', 'wait']
   return el(
     'button',
-    { type: 'button', class: 'row', onclick: () => ((state.view = { name: 'detail', suite: suite.id, id: item.id }), (state.menu = ''), render(), scrollTo(0, 0)) },
+    { type: 'button', class: 'row', onclick: () => ((state.view = { name: 'detail', suite: suite.id, id: item.id }), (state.confirmDel = undefined), (state.menu = ''), render(), scrollTo(0, 0)) },
     el('span', { class: `dot ${dotTone(item.lastStatus)}` }),
     el('span', {}, el('span', { class: 'name' }, item.name), item.kind ? el('span', { class: 'kind' }, item.kind) : ''),
     el(
@@ -425,8 +452,9 @@ function suiteCard(suite) {
         ),
       ),
       coverageView(suite),
-      runMenu(suite, running),
+      el('div', { class: 'acts' }, iconBtn('trash', '', () => ((state.confirmDel = { suite: suite.id }), render()), { class: 'ghost', 'aria-label': `${suite.name} 묶음 삭제`, title: '묶음 삭제', disabled: running }), runMenu(suite, running)),
     ),
+    state.confirmDel?.suite === suite.id && !state.confirmDel.id ? el('div', { style: 'padding:0 12px 12px' }, confirmBox(`"${suite.name}" 묶음을 삭제할까요?`, `시나리오 ${suite.scenarios.length}개와 테스트 코드, suite.md 가 지워집니다. 결과서 · 수행 이력은 남습니다.`, deleteNow)) : '',
     suite.scenarios.length ? resultBar(suite) : '',
     expanded ? picking : '',
     expanded ? suite.scenarios.map((item) => scenarioRow(suite, item)) : '',
@@ -530,7 +558,7 @@ function detailView(data) {
   const [lastText, lastTone] = LAST_TAG[item.lastStatus] || ['수행 전', 'wait']
   const fail = item.lastFailure
   const out = [
-    el('div', { class: 'top' }, el('button', { type: 'button', class: 'back', onclick: () => ((state.view = { name: 'list' }), render(), scrollTo(0, 0)) }, icon('back'), '목록'), el('div', { class: 'acts' }, btn('변경 요청', () => ask(changePrompt(suite, item), false), { disabled: running, title: '새 대화의 입력창에 이 시나리오를 채워 엽니다 — 바꿀 내용을 이어 쓰고 보내면 AI 가 바꾸기 전에 보여 주고 묻습니다' }), btn('보강', () => ask(enrichPrompt(suite, item)), { disabled: running, title: '새 대화에서 보강 제안을 받고 고릅니다' }), iconBtn('play', '수행', () => rerun(suite.id, [item.id]), { class: 'primary', disabled: running || !item.hasCode, title: item.hasCode ? `이 시나리오만 돌립니다 (${state.headed ? '보면서' : '화면 없이'})` : '코드가 없어 돌릴 수 없습니다 — 대화에서 코드를 만들게 하세요' }))),
+    el('div', { class: 'top' }, el('button', { type: 'button', class: 'back', onclick: () => ((state.view = { name: 'list' }), (state.confirmDel = undefined), render(), scrollTo(0, 0)) }, icon('back'), '목록'), el('div', { class: 'acts' }, iconBtn('trash', '삭제', () => ((state.confirmDel = { suite: suite.id, id: item.id }), render()), { class: 'danger', disabled: running, title: '이 시나리오 삭제' }), btn('변경 요청', () => ask(changePrompt(suite, item), false), { disabled: running, title: '새 대화의 입력창에 이 시나리오를 채워 엽니다 — 바꿀 내용을 이어 쓰고 보내면 AI 가 바꾸기 전에 보여 주고 묻습니다' }), btn('보강', () => ask(enrichPrompt(suite, item)), { disabled: running, title: '새 대화에서 보강 제안을 받고 고릅니다' }), iconBtn('play', '수행', () => rerun(suite.id, [item.id]), { class: 'primary', disabled: running || !item.hasCode, title: item.hasCode ? `이 시나리오만 돌립니다 (${state.headed ? '보면서' : '화면 없이'})` : '코드가 없어 돌릴 수 없습니다 — 대화에서 코드를 만들게 하세요' }))),
     el('div', {}, el('h2', { class: 'title' }, item.name), el('div', { class: 'sub' }, [suite.name, item.kind, item.rows && `데이터 ${item.rows}행`, item.checks && `확인 ${item.checks}`].filter(Boolean).join(' · '))),
   ]
   if (state.message) out.push(messageBox())
@@ -551,6 +579,7 @@ function detailView(data) {
     ),
   )
 
+  if (state.confirmDel?.suite === suite.id && state.confirmDel.id === item.id) out.splice(2, 0, confirmBox('이 시나리오를 삭제할까요?', '시나리오 파일과 테스트 코드가 지워지고 묶음의 시나리오 순서 · 규칙에서도 빠집니다. 결과서 · 수행 이력은 남습니다.', deleteNow))
   out.push(scenarioCard(item))
   const stepsCard = el('div', { class: 'card' }, el('div', { class: 'sec-t' }, el('span', {}, '단계별 수행'), el('span', { class: 'faint', style: 'font-weight:400;letter-spacing:0' }, '스크린샷은 결과서에서')))
   if (!live) stepsCard.append(el('div', { class: 'empty' }, '이 패널이 가진 단계 기록은 서버가 기억하는 마지막 수행뿐입니다. 이 시나리오를 다시 수행하면 여기에 단계가 나옵니다. 지난 수행은 결과서에서 봅니다.'))

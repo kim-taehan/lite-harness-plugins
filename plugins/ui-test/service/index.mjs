@@ -34,7 +34,7 @@ export default (host) =>
         },
         idleMs: 1_800_000,
         timeoutMs: 1_800_000,
-        panelTools: ['progress', 'stop', 'shot'],
+        panelTools: ['progress', 'stop', 'shot', 'delete'],
       })
       // 스킬 — SKILL.md 와 references/ 가 통째로 올라간다(zip 의 skills/ui-test). 서비스가 켜진 프로젝트의 대화에서만 보인다
       host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })
@@ -72,6 +72,8 @@ export default (host) =>
         await host.call('storage.set', { key: PREFS_KEY, value: next }, { directory })
         return next
       })
+      // 삭제 — 시나리오 하나(scenario) 또는 묶음 전체. 패널이 확인을 받은 뒤 부르는 패널 전용 도구(AI 에는 노출하지 않는다)
+      this.expose('delete', (params, call) => this.tool('delete', record(params), call))
       // 가이드형 결과물 — 서버가 수행 기록으로 guide.html 을 쓰고 경로를 돌려준다
       this.expose('guide', (params, call) => this.tool('guide', record(params), call))
       // 앱 기능 — 패널은 앱 통로를 직접 쓰지 않고 서비스를 거친다
