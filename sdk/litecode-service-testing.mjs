@@ -194,6 +194,7 @@ function isAppOnlyServiceEvent(event) {
     return SERVICE_EVENTS[event].project === 'app';
 }
 /** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 앱의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
+ *  llm.ask { prompt } → { text } 는 앱의 기본 모델에 한 번 묻는다(llm 권한 필요, 위 LLM_ASK_* 제한 — 횟수·동시 수 넘으면 llm-limit).
  *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
  *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · panel.open · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
  *  호출 표에 메서드가 늘면 여기에 넣을지 빼놓을지 정해야 한다 — tests/unit/arch/pluginServiceApi.test.ts */
@@ -232,6 +233,7 @@ const SERVICE_CALL_METHODS = [
     'panel.fullscreen',
     'panel.open',
     'settings.open',
+    'llm.ask',
 ];
 /** 호출이 통과하면 그 프로젝트의 창이 해야 끝나는 것 — 메인이 화면 동작(ExtensionUiAction)을 보내고 창의 답을 기다린다. 답이 없으면(창이 없다) no-window.
  *  new 대화 · 대화 열기 · 파일 열기는 null, chat.current · project.openTabs 는 화면이 준 값을 돌려준다 */
@@ -243,6 +245,18 @@ function isServiceCallMethod(value) {
 const PANEL_PUSH_MAX_BYTES = 64 * 1024;
 /** 근거: 화면 갱신이 1초에 몇 번이면 충분하다 — 넘으면 말없이 버린다(마지막 값이 필요하면 서비스가 모아 보낸다) */
 const PANEL_PUSH_MAX_PER_SECOND = 20;
+// llm.ask (#1678) — 앱의 기본 모델에 한 번 묻고 답 글을 받는다. 남용 제한의 숫자
+/** 근거: 한두 쪽 글을 요약·분류하기에 넉넉한 양(수천 토큰)이고, 큰 자료는 플러그인이 쪼개 묻게 한다 */
+const LLM_ASK_MAX_PROMPT_BYTES = 32 * 1024;
+/** 근거: 한 번 묻고 받는 답은 요약·분류·짧은 글 수준이다 — 질문 상한과 같게 두면 한 번에 나오는 글이 화면·저장에 부담이 되지 않는다 */
+const LLM_ASK_MAX_ANSWER_BYTES = 32 * 1024;
+/** 근거: 대화 제목(15초)보다 긴 답을 받지만, 한 번 묻기가 대화 턴처럼 오래 붙잡지 않게 1분에서 멈춘다 */
+const LLM_ASK_TIMEOUT_MS = 60_000;
+/** 근거: 사용자가 쓰는 대화와 같은 모델·게이트웨이를 나눠 쓰므로, 플러그인 하나가 1분에 열 번(6초에 한 번 꼴)이면 일반 쓰임에는 충분하고 반복문 폭주는 막힌다 */
+const LLM_ASK_MAX_PER_WINDOW = 10;
+const LLM_ASK_WINDOW_MS = 60_000;
+/** 근거: 한 번이 최대 1분 가므로 횟수 제한만으로는 임시 세션이 열 개까지 겹친다 — 둘이면 "하나 돌리며 다음 준비"에 충분하고, 사용자 대화 턴이 엔진·게이트웨이에서 밀리지 않는다 */
+const LLM_ASK_MAX_CONCURRENT = 2;
 
 // --- shared/extensions/serviceHostCore.ts
 /** 이 서비스가 받기로 한 소식의 받는 곳 — 호스트가 deliver 로 넣는다. 핸들러가 던져도(비동기 포함) 서비스 밖으로 새지 않는다 */

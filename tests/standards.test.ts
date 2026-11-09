@@ -8,7 +8,7 @@ import { transformSync } from 'esbuild'
 import { describe, expect, it } from 'vitest'
 
 const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'service', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
-const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'lsp', 'service']
+const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'llm', 'lsp', 'service']
 // 선언과 권한이 짝인 필드 — desktop shared/extensions.ts 의 PLUGIN_DECLARATIONS 중 permission 이 있는 것 (<필드>-mismatch)
 const PAIRED = ['tools', 'mcp', 'lsp', 'service']
 // 서비스 선언의 허용 목록 — 정본은 desktop shared/extensions/serviceApi.ts, 사본은 sdk/litecode-service.d.ts (23번). 유니온은 사본에서 읽는다

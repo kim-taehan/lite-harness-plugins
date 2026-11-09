@@ -70,7 +70,7 @@
 | `service.inject` | 읽을 앱 서비스 키 — `projects` · `usage` 뿐(읽기용) |
 | `service.events` | 받을 앱 소식 — 아래 [4번](#4-앱-소식-받기)의 이름만, 필요한 권한이 같이 있어야 합니다 |
 | `scope` | 서비스 플러그인은 생략하면 프로젝트별입니다. 새 플러그인은 표준 20번에 따라 꼭 적습니다. 프로젝트 정보가 없는 소식(`usage.changed`)을 받으려면 `"app"` |
-| `permissions` | `service` + 서비스가 `host.call` 로 부르는 기능의 권한(패널과 같은 표 — `usage` · `chat` · `project` 등) + 받는 소식의 권한 |
+| `permissions` | `service` + 서비스가 `host.call` 로 부르는 기능의 권한(패널과 같은 표 — `usage` · `chat` · `project` 등, AI 에게 묻기는 `llm`) + 받는 소식의 권한 |
 | `litecode` | 선택. 이 기능이 들어간 앱 최소 버전 |
 | 쓰지 못하는 것 | `type: "locale"` · `"grammar"` 와 `service` 는 같이 못 씁니다 |
 
@@ -155,6 +155,53 @@ this.expose('fullscreen', (params, { directory }) => host.call('panel.fullscreen
 - `chat.compose` · `chat.open` · `project.openFile` · `panel.fullscreen` · `settings.open` 은 **그 프로젝트 창이 해 줍니다**. 창이 없거나 그 플러그인 탭이 보이는 탭이 아니면 조용히 성공하지 않고 `no-window` 로 거절됩니다.
 - 바깥 요청은 `host.fetch`(`host.call('network.fetch')` 를 `Response` 로 감쌈)로만 합니다 — `network` 권한과 사용자가 허용한 주소만 됩니다.
 - **서비스에서 못 부르는 것:** `secrets.get`(`method-unknown`), `panel.args`, `events.subscribe`(대신 `ctx.on`), `service.call` · `service.list`(자기 자신).
+
+### 5-1. AI 에게 한 번 묻기 — llm.ask
+
+서비스가 앱의 기본 모델에 **글 하나를 묻고 답 글을 받는** 호출입니다(요약 · 분류 · 짧은 글 만들기). 대화 턴을 만들지 않고, AI 는 도구를 쓰지 못하고 글로만 답합니다. **베타**입니다.
+
+`plugins/<id>/service/index.mjs` (예)
+
+```js
+// 실패 코드를 사용자가 읽을 말로 — 서비스가 돌려주고 패널이 그대로 보여 준다
+const ASK_MESSAGES = {
+  'llm-off': 'AI 사용이 꺼져 있어요 — 설정 › 플러그인에서 이 플러그인의 "AI 에게 묻기" 를 켜 주세요',
+  'no-model': '앱에 기본 모델이 정해져 있지 않아요',
+  'llm-limit': '잠시 뒤에 다시 해 주세요 — 한 번에 2개, 1분에 10번까지예요',
+  'llm-timeout': 'AI 가 60초 안에 답하지 않았어요',
+  'llm-failed': 'AI 가 답하지 못했어요',
+  'prompt-too-long': '묻는 글이 너무 길어요(32KB까지) — 줄여서 다시 해 주세요',
+  'answer-too-long': '답이 너무 길어요(32KB 넘음) — 더 짧게 답하게 해 주세요',
+  'permission-missing': '이 플러그인에 "llm" 권한이 없어요 — 다시 설치해 권한을 허락해 주세요',
+  'no-project': '프로젝트 폴더를 알 수 없어요',
+}
+
+this.expose('summarize', async (params, { directory }) => {
+  try {
+    const { text } = await host.call('llm.ask', { prompt: `다음 글을 세 줄로 요약해 줘:\n${params.text}` }, { directory })
+    return { ok: true, text }
+  } catch (error) {
+    return { ok: false, message: ASK_MESSAGES[error.code] ?? 'AI 에게 묻지 못했어요' }
+  }
+})
+```
+
+- **권한:** manifest `permissions` 에 `llm` 을 적습니다(없으면 `permission-missing`). 설치 동의 창에 권한 설명이 보입니다. 서비스 전용이라 **패널(iframe)은 부르지 못합니다** — 패널은 `service.call` 로 서비스에 맡깁니다.
+- **directory:** 그 프로젝트 폴더를 `{ directory }`(세 번째 인자)로 넘깁니다. 없으면 `no-project` 입니다. 앱 전체(`scope: "app"`) 서비스도 같습니다 — 등록된 프로젝트 폴더를 `directory` 로 주면 씁니다. `expose` 메서드는 부른 패널의 `{ directory }` 를 두 번째 인자로 받으니 그대로 넘기면 됩니다.
+- **모델:** 앱의 기본 모델이고 고를 수 없습니다.
+- **막아 둔 것과 실패 코드** — 위 예처럼 코드마다 사용자에게 보일 말을 정해 둡니다:
+
+| 코드 | 언제 |
+|---|---|
+| `no-model` | 앱에 기본 모델이 없음 |
+| `llm-off` | 사용자가 설정 › 플러그인 카드의 "AI 에게 묻기" 를 끔(기본은 켜짐) |
+| `llm-limit` | 플러그인마다 1분에 10번 초과, 또는 동시 3개째(동시에는 2개까지) |
+| `prompt-too-long` · `answer-too-long` | 묻는 글 · 답이 32KB 초과 |
+| `llm-timeout` | 60초 안에 답이 없음 |
+| `llm-failed` | AI 가 답하지 못함 |
+
+- **주의:** 실패 · 시간 초과도 횟수에 셉니다 — 실패하면 바로 다시 부르는 반복문을 만들지 않습니다. 32KB 는 크기 상한일 뿐 **AI 사용 비용의 상한이 아닙니다**. 큰 자료는 쪼개서 묻습니다. 사용자의 대화와 같은 모델 · 게이트웨이를 나눠 쓰므로 꼭 필요할 때만 부릅니다.
+- **시험:** 가짜 host 에서는 `createFakeHost({ calls: { 'llm.ask': () => ({ text: '…' }) } })` 로 흉내 냅니다. 실패 코드를 처리하는 쪽은 `calls` 에서 `Object.assign(new Error('x'), { code: 'llm-off' })` 를 던지게 해 봅니다(아래 [앱 없이 시험하기](#10-앱-없이-시험하기)).
 
 ## 6. 패널과 말하기 — service.call · panel.emit
 
