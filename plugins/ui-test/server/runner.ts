@@ -255,7 +255,7 @@ export class Workspace {
     const driver = driverFor(info.suite.target, { channel: this.config.channel }, this.launch)
     const startedAt = Date.now()
     const runId = stamp(new Date(startedAt))
-    const headed = args.headed ?? true
+    const headed = args.headed ?? false
     const stale = picked.filter((item) => item.stale).map((item) => item.scenario.id)
     this.driver = driver
     this.stopRequested = false

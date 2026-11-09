@@ -61,7 +61,7 @@ export default (host) =>
         this.watch(directory, FIRST_WATCH_MS)
         return { started: true }
       })
-      // 기본값(환경 팝업) — 프로젝트별 저장 칸에 둔다. 서비스에는 영구 저장소가 없어 host.call('storage.*') 를 쓴다. headed(브라우저 창 보이게) · output(수행 뒤 산출물: report | both)
+      // 기본값(환경 팝업) — 프로젝트별 저장 칸에 둔다. 서비스에는 영구 저장소가 없어 host.call('storage.*') 를 쓴다. headed(브라우저 창 보이게 — 기본 false = 화면 없이) · output(수행 뒤 산출물: report | both)
       this.expose('prefs', async (params, { directory }) => {
         const current = record(await host.call('storage.get', { key: PREFS_KEY }, { directory }))
         const set = record(record(params).set)

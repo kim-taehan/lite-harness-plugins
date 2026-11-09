@@ -60,7 +60,7 @@ Write these with your normal file tools. Never write passwords anywhere — the 
    - **sources**: call `fingerprint { files: [<the screen and server files you read — project-relative, or absolute for files in a back-end code folder>] }` and put the returned `sources: [...]` line into each scenario's front matter (the files that scenario depends on).
    - **rules**: list the screen's validation and business rules you found in suite.md `## 규칙`, each with the scenarios that cover it.
 5. **Generate code**: one `<same stem>.spec.mjs` per scenario, following `references/step-api.md` — one `step()` per numbered scenario line, title copied exactly ("1. 로그인한다"), header comment with source file and the **fingerprint `list` shows for that scenario** (call `list` again after saving the md).
-6. **Run**: `run { suite }` (visible browser). The user watches the window; the panel shows progress.
+6. **Run**: `run { suite }` — the browser runs hidden by default (화면 없이); the panel shows progress. Only when the user wants to watch the window ("보면서 돌려 줘") pass `headed: true`.
    - `run` waits up to 2 minutes. If the suite is not done it answers "아직 수행 중 … 수행 id …" — then call `report { suite, run: "<id>" }` until it answers "수행 끝" (each call waits up to 2 minutes). Don't start another run meanwhile.
 7. **Summarize** from the tool result: counts, comparison line, each failure with the failed step, error and its 갈래, and the report path. Offer next steps in one short line: 결과서 열기 (give the path; the panel's UI 테스트 tab has [결과서]) · 가이드 만들기 · 실패만 다시 · 고치기 · 보강.
    - **The final result comes in two forms**: the 결과서 (table of pass/fail, always written) and the **가이드** — the same run walked through in the order of use, step by step with its screenshot, failed steps in red with the cause, nothing left out. Don't write the guide yourself: call `guide { suite, run }` (run id from `run`/`report`; omit for the last run) and give the returned path. Offer it in one line after the summary ("가이드로도 만들까요?") or when the user asks for a guide / user manual form of the result. If the panel's 환경 setting is "결과서 + 가이드" the panel creates it after each run itself — then don't call `guide` again unless asked.
@@ -118,7 +118,7 @@ suite.md `## 규칙` lists the screen's validation (`[검증]`) and business (`[
 
 ## Re-running a saved suite
 
-"어제 가입설계 테스트 다시 돌려 줘" → `list`, find the suite (ask if several match), then `run { suite }`. "실패만" → `scenarios: "failed"`. Specific cases → `scenarios: ["01", "03"]`. "화면 없이" → `headed: false`.
+"어제 가입설계 테스트 다시 돌려 줘" → `list`, find the suite (ask if several match), then `run { suite }`. "실패만" → `scenarios: "failed"`. Specific cases → `scenarios: ["01", "03"]`. "보면서" → `headed: true` (the default is 화면 없이).
 If `list` shows 코드 낡음 for any case you are about to run, regenerate it first.
 Before you regenerate or fix any spec, **read the scenario's `## 테스트 방법` and `## 시행착오` first** and keep the code consistent with it — same selectors, waits and data — unless they are what fails. If a fix changes how the case is tested, update 테스트 방법 after it passes.
 Always report the comparison with the previous run (새로 실패 · 고쳐짐 · 그대로 실패 — data-table scenarios compare per row, "04-나이 2행") — it is the point of a re-run. For older results use `report { suite }` (or `run: "<id>"`).

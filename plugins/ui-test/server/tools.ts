@@ -228,7 +228,7 @@ export function createTools(deps: ToolDeps): Tool[] {
       properties: {
         suite: SUITE_ARG,
         scenarios: { description: 'Which scenarios: omit for all, "failed" for the ones that failed last time, or a list of scenario ids / numbers ("01") / titles.', anyOf: [{ type: 'string', enum: ['failed'] }, { type: 'array', items: { type: 'string' } }] },
-        headed: { type: 'boolean', description: 'Show the browser window (default true). false = 화면 없이.' },
+        headed: { type: 'boolean', description: 'Show the browser window (default false = 화면 없이, the browser runs hidden). true = 보면서.' },
       },
       required: ['suite'],
     },

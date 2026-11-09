@@ -142,7 +142,7 @@ const state = {
   menu: '', // 열린 [다시 수행 ▾] 의 묶음
   open: new Set(), // 펼친 묶음 — 기본은 접힘
   picking: undefined, // { suite, chosen: Set }
-  headed: true, // 기본값(환경 팝업에서 저장) — 메뉴에서 이번만 바꿀 수 있다
+  headed: false, // 기본값(환경 팝업에서 저장) — 기본은 화면 없이. 메뉴에서 이번만 바꿀 수 있다
   output: 'report', // 수행 뒤 산출물 기본값(환경 팝업): report(결과서만) | both(결과서 + 가이드)
   env: undefined, // 환경 팝업 { headed, saved }
   progress: undefined,
@@ -565,7 +565,7 @@ function envDialog(data) {
     el('div', { class: 'dlg-foot' }, el('span', { class: 'toast', role: 'status' }, state.env.saved), btn('닫기', close), btn('저장', async () => {
       try {
         const prefs = await tool('prefs', { set: { headed: state.env.headed, output: state.env.output } })
-        state.headed = prefs.headed !== false
+        state.headed = prefs.headed === true
         state.output = prefs.output === 'both' ? 'both' : 'report'
         state.env.saved = '저장했습니다'
       } catch (error) {
@@ -606,9 +606,9 @@ void (async () => {
   try { await call('events.subscribe', { events: ['service.progress', 'service.runError'] }) } catch { /* 권한 없음 */ }
   try {
     const prefs = await tool('prefs')
-    state.headed = prefs.headed !== false
+    state.headed = prefs.headed === true
     state.output = prefs.output === 'both' ? 'both' : 'report'
-  } catch { /* 저장된 값 없음 — 보이게 · 결과서만 */ }
+  } catch { /* 저장된 값 없음 — 화면 없이 · 결과서만 */ }
   await load()
   await refreshProgress()
 })()
