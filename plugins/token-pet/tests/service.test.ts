@@ -13,12 +13,14 @@ type Persona = {
   react: (species: string | null, stage: number, nature: string | null, avoid?: string, rnd?: () => number) => { text: string; action: string }
   voice: (species: string | null, stage: number, nature: string | null) => { voice: string; actions: string[]; rules: string[] }
 }
-type State = { v: 1; baseline: { tokens: number; cacheRead: number } | null; feed: number; species: string | null; nature: string | null; seen: string[]; graduated: { id: string }[]; startedAt: number; bg?: string }
+type State = { v: 1; baseline: { tokens: number; cacheRead: number } | null; feed: number; species: string | null; nature: string | null; seen: string[]; graduated: { id: string; nature?: string | null }[]; mate: string | null; names: Record<string, string>; news: string[]; startedAt: number; bg?: string }
 type Game = {
   HATCH: number
   BASE: number[]
   fresh: () => State
   ends: (id: string) => number[]
+  SPECIES: string[]
+  pickSpecies: (rnd?: () => number, graduated?: { id: string }[]) => string
   stageOf: (s: State) => { stage: number; from: number; to: number }
   feed: (s: State, amount: number, rnd?: () => number) => string | null
   applyUsage: (s: State, total: { tokens: number; cacheRead: number }, rnd?: () => number) => string | null
@@ -89,6 +91,27 @@ describe('game.js', () => {
     expect(state.feed).toBe(0)
   })
 
+  it('부화는 모든 종이 같은 확률이다', () => {
+    const n = G.SPECIES.length
+    const got = G.SPECIES.map((_, i) => G.pickSpecies(() => (i + 0.5) / n))
+    expect(got).toEqual(G.SPECIES)
+  })
+
+  it('아직 졸업 못 한 종이 남아 있으면 그 안에서만 나오고, 다 졸업하면 전체에서 나온다', () => {
+    const [first, ...rest] = G.SPECIES as [string, ...string[]]
+    const last = rest.at(-1)!
+    // 하나만 남았으면 무슨 수가 나와도 그 종
+    for (const r of [0, 0.4, 0.99]) expect(G.pickSpecies(() => r, rest.slice(0, -1).concat(first).map((id) => ({ id })))).toBe(last)
+    // 졸업한 종은 나오지 않는다
+    for (let i = 0; i < 20; i++) expect(G.pickSpecies(() => i / 20, [{ id: first }])).not.toBe(first)
+    // 다 졸업하면 전체에서 — 첫 수(0)는 첫 종
+    expect(G.pickSpecies(() => 0, G.SPECIES.map((id) => ({ id })))).toBe(first)
+  })
+
+  it('필요한 먹이는 모든 종이 같다', () => {
+    for (const id of G.SPECIES) expect(G.ends(id)).toEqual(G.BASE)
+  })
+
   it('부화 · 진화 · 졸업 순서로 일어난다', () => {
     const rnd = () => 0 // 첫 종(번개 다람쥐) · 첫 성격
     const state = G.fresh()
@@ -109,7 +132,7 @@ describe('game.js', () => {
 describe('service', () => {
   it('usage.changed 만 구독하고 패널이 부를 메서드와 AI 도구 둘을 올린다', async () => {
     const { fake } = await start()
-    expect(fake.names().sort()).toEqual(['fullscreen', 'setBg', 'state', 'talk'])
+    expect(fake.names().sort()).toEqual(['fullscreen', 'seenDex', 'setBg', 'setMate', 'setName', 'state', 'talk'])
     expect(fake.tools().map((t) => t.name).sort()).toEqual(['token-pet_persona', 'token-pet_say'])
   })
 
@@ -183,6 +206,49 @@ describe('service', () => {
     expect(info.voice).toContain('매에~')
     const turtle = await start({ saved: { ...G.fresh(), species: 'turtle', nature: '느긋한', feed: G.HATCH + 5, baseline: total(0) } })
     expect(JSON.parse(await turtle.fake.callTool('token-pet_persona', {}, { directory: '/work/a' })).voice).toContain('충청도')
+  })
+
+  it('처음 졸업한 종은 도감에 "새로 만남" 으로 남고, 상세를 열어 보면(seenDex) 지워진다', async () => {
+    const saved = { ...G.fresh(), species: 'sheep', nature: '차분한', feed: G.HATCH + G.BASE[2]! - 1, baseline: total(0) }
+    const { fake, snapshot, eat, store } = await start({ saved, usage: total(0) })
+    await eat(1)
+    const { state } = await snapshot()
+    expect(state.graduated.map((g) => g.id)).toEqual(['sheep'])
+    expect(state.news).toEqual(['sheep'])
+    await fake.call('seenDex', { id: 'sheep' })
+    expect((store.get('state') as State).news).toEqual([])
+  })
+
+  it('setMate — 졸업한 친구만 무대에 부르고(한 마리, 교체), null 이면 집으로', async () => {
+    const saved = { ...G.fresh(), graduated: [{ id: 'sheep', nature: '느긋한' }, { id: 'turtle', nature: '차분한' }] }
+    const { fake, store } = await start({ saved })
+    await expect(fake.call('setMate', { id: 'squirrel' })).rejects.toThrow()
+    await fake.call('setMate', { id: 'sheep' })
+    await fake.call('setMate', { id: 'turtle' })
+    expect((store.get('state') as State).mate).toBe('turtle')
+    await fake.call('setMate', { id: null })
+    expect((store.get('state') as State).mate).toBeNull()
+  })
+
+  it('setName — 종마다 하나, 졸업한 종만, 글자 수 제한, 빈 글이면 지운다', async () => {
+    const saved = { ...G.fresh(), graduated: [{ id: 'sheep', nature: '느긋한' }] }
+    const { fake, store } = await start({ saved })
+    await fake.call('setName', { id: 'sheep', name: '  몽실  ' })
+    expect((store.get('state') as State).names).toEqual({ sheep: '몽실' })
+    await expect(fake.call('setName', { id: 'sheep', name: '열한글자짜리이름입니다요요' })).rejects.toThrow()
+    await expect(fake.call('setName', { id: 'turtle', name: '거북' })).rejects.toThrow()
+    await fake.call('setName', { id: 'sheep', name: '   ' })
+    expect((store.get('state') as State).names).toEqual({})
+  })
+
+  it('불러온 친구가 무대에 있으면 persona · say 는 그 친구(3단계 · 지은 이름 · 마지막 졸업 성격)로 한다', async () => {
+    const saved = { ...G.fresh(), species: 'squirrel', nature: '급한', feed: G.HATCH + 5, baseline: total(0), graduated: [{ id: 'turtle', nature: '느긋한' }], mate: 'turtle', names: { turtle: '둥실' } }
+    const { fake, snapshot } = await start({ saved })
+    const info = JSON.parse(await fake.callTool('token-pet_persona', {}, { directory: '/work/a' }))
+    expect(info).toMatchObject({ name: '둥실', species: 'turtle', stage: 3, nature: '느긋한', raising: '찌릿다람' })
+    expect(info.voice).toContain('충청도')
+    await fake.callTool('token-pet_say', { text: '천천히 해유' }, { directory: '/work/a' })
+    expect((await snapshot()).said).toMatchObject({ by: { species: 'turtle', stage: 2, name: '둥실' } })
   })
 
   it('알이면 이름이 빛알, 단계 0', async () => {

@@ -17,10 +17,10 @@ AI 에 쓴 토큰만큼 자라는 도트 몬스터. 누르거나 말을 걸면 �
 | 파일 · 폴더 | 하는 일 |
 |---|---|
 | `plugin.json` | manifest — 패널, `service`(`service.mjs`, 소식 `usage.changed`) |
-| `service/index.mjs` | 서비스 원본 — 사용량 소식을 받아 먹이를 주고 저장(storage `state`)하고 패널에 밀어 보낸다(`service.update`). 패널이 부르는 `state` · `setBg` · `talk` · `fullscreen`, AI 도구 `persona` · `say` |
-| `game.js` | 게임 규칙(기준 · 부화 · 진화 · 졸업). 서비스(묶음에 들어간다)와 패널(`<script src>`)이 같이 쓴다 |
+| `service/index.mjs` | 서비스 원본 — 사용량 소식을 받아 먹이를 주고 저장(storage `state`)하고 패널에 밀어 보낸다(`service.update`). 패널이 부르는 `state` · `setBg` · `setMate`(무대에 불러온 친구) · `setName`(이름 짓기) · `seenDex`("새로 만남" 지움) · `talk` · `fullscreen`, AI 도구 `persona`(무대에 선 친구 기준) · `say` |
+| `game.js` | 게임 규칙(기준 · 부화(모든 종 같은 확률, 안 졸업한 종 우선) · 진화 · 졸업, 모든 종 같은 필요량). 서비스(묶음에 들어간다)와 패널(`<script src>`)이 같이 쓴다 |
 | `persona.js` | 종 · 단계 · 성격별 대사와 말투 규칙. 서비스와 패널이 같이 쓴다 |
-| `index.html` | 패널 — 빛톨 그림 · 성장 · 도감 · 배경 · 전체 화면. 상태는 서비스가 주고 패널은 저장하지 않는다 사용자에게 한 답변(`say`)은 보호되는 말풍선(글 길이에 따라 10~40초, 그동안 "냠!" · 혼잣말 · 건드림 대사가 덮어쓰지 못함)으로 보이고 마지막 답변은 `#said` 줄에도 남는다 |
+| `index.html` | 패널 — 무대(키우는 빛톨 또는 불러온 친구) · 성장 · 도감 화면/상세(이름 짓기 · 불러오기) · 배경 · 전체 화면. 상태는 서비스가 주고 패널은 저장하지 않는다 사용자에게 한 답변(`say`)은 보호되는 말풍선(글 길이에 따라 10~40초, 그동안 "냠!" · 혼잣말 · 건드림 대사가 덮어쓰지 못함)으로 보이고 마지막 답변은 `#said` 줄에도 남는다 |
 | `build.mjs` | `service/index.mjs` 를 `game.js` · `persona.js` 째 `service.mjs` 한 파일로 묶는다 |
 | `skills/token-pet/` | "빛톨아" 같은 말에 AI 가 `token-pet_persona` 를 불러 그 말투로만 답하게 하는 스킬. 서비스가 `host.skills.register({ name, path })` 로 올린다(manifest `skills` 선언 없음) |
 | `tests/service.test.ts` | SDK 가짜 host 로 서비스 · 게임 규칙 · 페르소나를 본다 |
