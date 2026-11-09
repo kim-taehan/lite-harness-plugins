@@ -9,6 +9,8 @@
 const WATCH_MS = 1000
 /** 수행을 시작하고 첫 진행을 읽기까지 — 서버가 수행 상태를 만들 시간 */
 const FIRST_WATCH_MS = 400
+/** 패널 기본값을 담는 저장 칸 키 */
+const PREFS_KEY = 'prefs'
 
 export default (host) =>
   class UiTest extends host.Service {
@@ -59,6 +61,15 @@ export default (host) =>
         this.tool('run', record(params), call).catch((error) => this.emit('runError', { message: error instanceof Error ? error.message : String(error) }, directory))
         this.watch(directory, FIRST_WATCH_MS)
         return { started: true }
+      })
+      // 기본값(환경 팝업) — 프로젝트별 저장 칸에 둔다. 서비스에는 영구 저장소가 없어 host.call('storage.*') 를 쓴다. 지금은 headed(브라우저 창 보이게) 하나
+      this.expose('prefs', async (params, { directory }) => {
+        const current = record(await host.call('storage.get', { key: PREFS_KEY }, { directory }))
+        const set = record(record(params).set)
+        if (typeof set.headed !== 'boolean') return current
+        const next = { ...current, headed: set.headed }
+        await host.call('storage.set', { key: PREFS_KEY, value: next }, { directory })
+        return next
       })
       // 앱 기능 — 패널은 앱 통로를 직접 쓰지 않고 서비스를 거친다
       this.expose('openFile', (params, { directory }) => host.call('project.openFile', { path: record(params).path }, { directory }))

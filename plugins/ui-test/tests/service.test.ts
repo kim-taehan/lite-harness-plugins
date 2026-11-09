@@ -21,6 +21,7 @@ afterEach(() => vi.useRealTimers())
 /** 서버 도구를 흉내 낸다 — tools[이름](args) 가 { text } 또는 { text, isError } 를 돌려준다 */
 function start(tools: Record<string, (args: Record<string, unknown>) => { text: string; isError?: boolean } | Promise<{ text: string; isError?: boolean }>>) {
   const calls: McpCall[] = []
+  const store = new Map<string, unknown>()
   const fake = createFakeHost({
     id: 'ui-test',
     scope: 'project',
@@ -31,6 +32,8 @@ function start(tools: Record<string, (args: Record<string, unknown>) => { text: 
         const handler = tools[tool]
         return handler ? handler(args) : { text: `모르는 도구: ${tool}`, isError: true }
       },
+      'storage.get': (params) => store.get((params as { key: string }).key) ?? null,
+      'storage.set': (params) => void store.set((params as { key: string }).key, (params as { value: unknown }).value),
       'project.openFile': () => true,
       'chat.compose': () => true,
     },
@@ -67,7 +70,7 @@ describe('service', () => {
 
   it('패널이 부를 메서드를 올린다', () => {
     const { fake } = start({})
-    expect(fake.names().sort()).toEqual(['ask', 'list', 'openFile', 'progress', 'run', 'shot', 'stop'])
+    expect(fake.names().sort()).toEqual(['ask', 'list', 'openFile', 'prefs', 'progress', 'run', 'shot', 'stop'])
   })
 
   it('list · shot · stop 은 서버 도구의 글을 그대로 돌려준다 (list 는 json 으로)', async () => {
@@ -141,6 +144,21 @@ describe('service', () => {
       { method: 'project.openFile', params: { path: 'ui-tests/_reports/a/index.html' }, directory: DIR },
       { method: 'chat.compose', params: { text: '보강해 줘', send: true }, directory: DIR },
     ])
+  })
+
+  it('prefs — 기본값(headed)을 그 프로젝트의 저장 칸에 두고 읽는다', async () => {
+    const { fake } = start({})
+    expect(await fake.call('prefs', undefined, { directory: DIR })).toEqual({})
+    expect(await fake.call('prefs', { set: { headed: false } }, { directory: DIR })).toEqual({ headed: false })
+    expect(await fake.call('prefs', undefined, { directory: DIR })).toEqual({ headed: false })
+    expect(fake.calls.filter((c) => c.method === 'storage.set')).toEqual([{ method: 'storage.set', params: { key: 'prefs', value: { headed: false } }, directory: DIR }])
+  })
+
+  it('prefs — 모르는 값이나 틀린 형태는 저장하지 않는다', async () => {
+    const { fake } = start({})
+    await fake.call('prefs', { set: { headed: false } }, { directory: DIR })
+    expect(await fake.call('prefs', { set: { headed: 'no', other: 1 } }, { directory: DIR })).toEqual({ headed: false })
+    expect(fake.calls.filter((c) => c.method === 'storage.set')).toHaveLength(1)
   })
 
   it('서비스를 내리면 감시가 걷힌다', async () => {

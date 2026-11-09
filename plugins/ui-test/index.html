@@ -4,65 +4,109 @@
 <meta charset="utf-8">
 <title>UI 테스트</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--text:#1c1f26;--sub:#5f6470;--faint:#80868f;--line:#e3e5ea;--soft:#eef0f4;--ok:#23774a;--ok-bg:#e9f6ee;--bad:#a12a2f;--bad-bg:#fdecec;--btn:#1c1f26;--btn-text:#fff;--accent:#3566d6;--accent-bg:#e4edfd;--db:#6b4cc6;--db-bg:#efeafb;--warn:#8a5200;--warn-bg:#fff6e8}
-@media (prefers-color-scheme:dark){:root{--bg:#16181d;--card:#1f2228;--text:#e8eaf0;--sub:#b0b6c1;--faint:#8a909c;--line:#2e323a;--soft:#2a2e36;--ok:#6fd39b;--ok-bg:#1d3327;--bad:#ff8a8f;--bad-bg:#3a2224;--btn:#e8eaf0;--btn-text:#16181d;--accent:#7ea4f4;--accent-bg:rgba(107,151,242,.18);--db:#b29cf3;--db-bg:rgba(178,156,243,.16);--warn:#f0a53a;--warn-bg:rgba(240,165,58,.14);color-scheme:dark}}
+:root{--bg:#f3f4f7;--card:#fff;--raise:#f6f7f9;--text:#171b22;--sub:#5f6672;--faint:#8a919d;--line:#e4e7ec;--line2:#d3d8e0;--ok:#17803d;--ok-bg:#e5f5eb;--bad:#c0332b;--bad-bg:#fdecea;--accent:#2f4fd8;--accent-bg:#eaeefc;--on-accent:#fff;--idle-bg:#eef0f4;--warn:#8a5200;--warn-bg:#fff6e8;--scrim:rgba(18,22,30,.5)}
+@media (prefers-color-scheme:dark){:root{--bg:#14161a;--card:#1b1f26;--raise:#20252d;--text:#e7eaf0;--sub:#b0b6c1;--faint:#8a909c;--line:#2a303a;--line2:#363e4b;--ok:#5fd08a;--ok-bg:#16301f;--bad:#f2928b;--bad-bg:#3a1e1c;--accent:#8ea2ff;--accent-bg:#222a48;--on-accent:#14161a;--idle-bg:#242a34;--warn:#f0a53a;--warn-bg:rgba(240,165,58,.14);--scrim:rgba(0,0,0,.62);color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
-main{display:flex;flex-direction:column;gap:10px;padding:12px;min-height:100%}
-.head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
-.card.on{border-color:var(--accent)}
-h2{margin:0;font-size:13.5px}
-.sub{font-size:11.5px;color:var(--faint);overflow-wrap:anywhere}
-.line{font-size:12px;color:var(--sub)}
-.st{font-size:11px;padding:1px 8px;border-radius:99px;font-weight:600;white-space:nowrap;display:inline-block}
-.ok{background:var(--ok-bg);color:var(--ok)}.bad{background:var(--bad-bg);color:var(--bad)}.run{background:var(--accent-bg);color:var(--accent)}.wait{border:1px solid var(--line);color:var(--faint);font-weight:400}.db{background:var(--db-bg);color:var(--db)}
-.hist{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;padding:4px 0;border-top:1px solid var(--line)}
-a,.link{color:var(--accent);cursor:pointer;background:none;border:0;padding:0;font:inherit;font-size:12px;height:auto}
-button{font:inherit;font-size:12.5px;cursor:pointer;height:30px;padding:0 11px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);white-space:nowrap}
-button.primary{background:var(--btn);border-color:var(--btn);color:var(--btn-text);font-weight:600}
+main{display:flex;flex-direction:column;gap:12px;padding:12px;min-height:100%}
+svg.i{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--raise);border:1px solid var(--line);border-radius:5px;padding:0 5px}
+button{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;height:30px;padding:0 11px;border-radius:8px;border:1px solid var(--line2);background:var(--card);color:var(--text);white-space:nowrap}
+button:hover{background:var(--raise)}
 button:disabled{opacity:.5;cursor:default}
-.menuwrap{position:relative}
-.menu{position:absolute;right:0;top:34px;width:200px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.14);padding:4px;display:flex;flex-direction:column;z-index:2}
-.menu button{height:32px;border:0;background:transparent;text-align:left;padding:0 10px;border-radius:7px}
-.menu button:hover{background:var(--soft)}
-.menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
-.case{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
-.case>header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;font-size:13px;font-weight:600;background:var(--soft)}
-.step{display:grid;grid-template-columns:18px minmax(0,1fr) 64px;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--line);font-size:12.5px}
-.thumb{width:64px;height:40px;border-radius:5px;background:var(--soft);border:1px solid var(--line);object-fit:cover;display:block}
-.thumb.fail{border-color:var(--bad)}
-.err{font-size:11.5px;color:var(--bad);overflow-wrap:anywhere}
-.bar{height:6px;border-radius:99px;background:var(--soft);overflow:hidden}
-.bar>div{height:100%;background:var(--accent)}
-.pick{display:flex;flex-direction:column;gap:2px;padding:6px 0}
-.pick label{display:flex;gap:8px;align-items:center;font-size:12.5px}
-.msg{padding:8px 10px;border-radius:8px;font-size:12.5px;overflow-wrap:anywhere;white-space:pre-wrap}
-.msg.bad{background:var(--bad-bg);color:var(--bad)}
-.note{margin:0;font-size:11.5px;color:var(--faint)}
-.scn{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:12.5px}
-.scn .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+button.primary:hover{filter:brightness(1.07)}
+button.ghost{border-color:transparent;background:transparent;color:var(--sub)}
+button.ghost:hover{background:var(--raise);color:var(--text)}
+button.link{border:0;background:none;color:var(--accent);padding:0;height:auto;font-size:12px}
+button.small{height:26px;padding:0 9px;font-size:12px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.top h1{margin:0;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.pill{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:99px;color:var(--accent);background:var(--accent-bg)}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.back{padding:0 8px 0 2px;border-color:transparent;background:none;color:var(--sub)}
+.info{display:flex;gap:6px;flex-wrap:wrap;color:var(--sub);font-size:12px}
+.chip{background:var(--raise);border:1px solid var(--line);border-radius:99px;padding:1px 9px;overflow-wrap:anywhere}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}
+.card.on{border-color:var(--accent)}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 12px 10px}
+.card-head h2{margin:0;font-size:14px}
+.sub{font-size:12px;color:var(--sub);overflow-wrap:anywhere}
+.faint{color:var(--faint)}
+.sec-t{padding:9px 12px;font-size:11.5px;font-weight:700;color:var(--sub);letter-spacing:.04em;background:var(--raise);border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.card>.sec-t:first-child{border-top:0}
+.bar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:var(--idle-bg);margin:0 12px 10px}
+.bar>i{display:block;height:100%}.bar .p{background:var(--ok)}.bar .f{background:var(--bad)}.bar .r{background:var(--accent)}
+.row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;height:auto;text-align:left;border:0;border-top:1px solid var(--line);border-radius:0;padding:10px 12px;font-weight:400;background:var(--card)}
+.row:hover{background:var(--raise)}
+.row .name{font-weight:500;overflow-wrap:anywhere}
+.row .right{display:flex;align-items:center;gap:6px;color:var(--faint);flex-wrap:wrap;justify-content:flex-end}
+.kind{margin-left:6px;font-size:11px;color:var(--sub);background:var(--raise);border:1px solid var(--line);padding:0 6px;border-radius:5px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}.dot.run{background:var(--accent)}
+.st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.ok{background:var(--ok-bg);color:var(--ok)}.bad{background:var(--bad-bg);color:var(--bad)}.run{background:var(--accent-bg);color:var(--accent)}.wait{background:var(--idle-bg);color:var(--sub)}
 .tag{font-size:10.5px;padding:0 7px;border-radius:99px;border:1px solid var(--line);color:var(--faint);white-space:nowrap}
 .tag.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-bg)}
-.tag.bad{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
-button.small{height:26px;padding:0 9px;font-size:12px}
-.cov{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--sub)}
-.cov span.row{display:flex;gap:6px;align-items:center;justify-content:flex-end}
-.cov .bar{width:90px;height:6px}
-.rules{font-size:11.5px;color:var(--faint);padding-top:6px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
-.rowhead{padding:5px 12px;border-top:1px solid var(--line);font-size:12px;font-weight:600;display:flex;justify-content:space-between;gap:8px}
-code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);border-radius:5px;padding:0 5px}
+.line{font-size:12px;color:var(--sub);padding:0 12px 10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rules{font-size:11.5px;color:var(--faint);padding:8px 12px 10px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.cov{font-size:11.5px;color:var(--sub);display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.menuwrap{position:relative}
+.menu{position:absolute;right:0;top:34px;width:210px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;display:flex;flex-direction:column;z-index:2}
+.menu button{height:32px;border:0;background:transparent;text-align:left;padding:0 10px;border-radius:7px}
+.menu button:hover{background:var(--raise)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 0;width:100%}
+.pick{display:flex;flex-direction:column;gap:4px;padding:8px 12px;border-top:1px solid var(--line)}
+.pick label{display:flex;gap:8px;align-items:center}
+.pick .foot{display:flex;justify-content:space-between;gap:8px;padding-top:4px}
+.msg{padding:9px 11px;border-radius:9px;font-size:12.5px;overflow-wrap:anywhere;white-space:pre-wrap;background:var(--card);border:1px solid var(--line)}
+.msg.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.msg.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.note{margin:0;font-size:11.5px;color:var(--faint)}
+.title{font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0;line-height:1.3;overflow-wrap:anywhere}
+.summary{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;flex-wrap:wrap}
+.summary .big{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.fail-box{margin:0 12px 12px;background:var(--bad-bg);border-radius:9px;padding:9px 11px;font-size:12px;display:flex;flex-direction:column;gap:6px}
+.fail-box .k{color:var(--bad);font-weight:600}
+.steps{padding:6px 0}
+.step{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;padding:8px 12px;font-size:12.5px}
+.step::before{content:"";position:absolute;left:22px;top:0;bottom:0;width:1px;background:var(--line2)}
+.step:first-child::before{top:20px}.step:last-child::before{bottom:calc(100% - 20px)}.step:only-child::before{display:none}
+.node{position:relative;z-index:1;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--ok-bg);color:var(--ok)}
+.node.bad{background:var(--bad);color:#fff}.node.db{background:var(--accent-bg);color:var(--accent)}.node.nr{background:var(--idle-bg);color:var(--faint)}.node.run{background:var(--accent-bg);color:var(--accent)}
+.err{margin-top:5px;font-size:11.5px;color:var(--bad);overflow-wrap:anywhere}
+.rowhead{padding:7px 12px;border-top:1px solid var(--line);font-size:12px;font-weight:600;display:flex;justify-content:space-between;gap:8px}
+.sec-t+.hist{border-top:0}
+.hist{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;padding:8px 12px;border-top:1px solid var(--line)}
+.empty{padding:12px;font-size:12px;color:var(--sub)}
+.scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding:28px 12px;overflow-y:auto;z-index:5}
+.dialog{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.28)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.dlg-head h2{margin:0;font-size:14px}
+.dlg-body{padding:14px;display:flex;flex-direction:column;gap:16px}
+.dlg-foot{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--line);background:var(--raise);border-radius:0 0 14px 14px}
+.sec{display:flex;flex-direction:column;gap:8px}
+.sec>.t{font-size:11.5px;font-weight:700;color:var(--sub);letter-spacing:.05em}
+.kv{display:grid;grid-template-columns:84px minmax(0,1fr);gap:6px 10px;margin:0;font-size:12.5px}
+.kv dt{color:var(--sub)}.kv dd{margin:0;overflow-wrap:anywhere}
+.field{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.field small{display:block;color:var(--sub);font-size:11.5px}
+select{font:inherit;font-size:13px;height:30px;padding:0 8px;border:1px solid var(--line2);border-radius:8px;background:var(--card);color:var(--text)}
+hr.div{border:0;border-top:1px solid var(--line);margin:0}
+.toast{font-size:12px;color:var(--ok);margin-right:auto;font-weight:500}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<div id="app"><main><div class="card line">불러오는 중…</div></main></div>
+<div id="app"><main><div class="msg">불러오는 중…</div></main></div>
 <script>
-// UI 테스트 패널 (#1248, 시안 MrZMThmkHeChQyTtZCVDYJ ② · ④ · ⑤) — 묶음 목록 · 규칙 덮임(어림값) · 시나리오 줄(코드 낡음 · 코드 바뀜 · [보강] · [AI 에게 맡기기]) ·
-// 최근 이력(결과서 열기) · [다시 수행 ▾] · 지금 수행의 진행과 [멈추기].
-// 서비스(service.mjs)에 service.call 로만 묻는다: list(json) · run · progress · stop · shot · openFile · ask. 서비스가 이 프로젝트의 MCP 서버를 부른다 — 묶음 · 이력도 이 프로젝트 것만.
-// 수행 중의 진행은 서비스가 밀어 보낸다(service.progress 소식) — 폴링하지 않는다.
-// [보강] · [AI 에게 맡기기] · 안 다룬 규칙은 ask(새 대화에 요청 글을 바로 보낸다)로 — 고르기 · 고치기는 대화에서 스킬이 한다
+// UI 테스트 패널 — 두 화면: 목록(묶음 · 시나리오 줄) → 시나리오 상세(지난 수행 · 단계 · 실패 · 보강 · 다시 수행). 머리의 [환경] 은 팝업(연결 · 기본값 · 프로젝트 프롬프트).
+// 서비스(service.mjs)에 service.call 로만 묻는다: list(json) · run · progress · stop · openFile · ask · prefs. 서비스가 이 프로젝트의 MCP 서버를 부른다 — 묶음 · 이력도 이 프로젝트 것만.
+// 수행 중의 진행은 서비스가 밀어 보낸다(service.progress 소식) — 폴링하지 않는다. 스크린샷은 패널에 싣지 않는다 — 결과서에만 있다.
+// [보강] · [AI 에게 맡기기] · 안 다룬 규칙 · [프롬프트 다시 만들기] 는 ask(새 대화에 요청 글을 바로 보낸다)로 — 고르기 · 고치기는 대화에서 스킬이 한다.
 // 앱과는 통로로만 말한다: parent.postMessage({ litecode: 1, id, method, params })
 
 let seq = 0
@@ -90,20 +134,20 @@ const errorText = (error) => ERRORS[error?.message] || error?.message || String(
 const state = {
   data: undefined, // list json
   error: '',
-  menu: '', // 열린 메뉴의 묶음
+  view: { name: 'list' }, // { name: 'list' } | { name: 'detail', suite, id }
+  menu: '', // 열린 [다시 수행 ▾] 의 묶음
   picking: undefined, // { suite, chosen: Set }
-  headed: true,
+  headed: true, // 기본값(환경 팝업에서 저장) — 메뉴에서 이번만 바꿀 수 있다
+  env: undefined, // 환경 팝업 { headed, saved }
   progress: undefined,
-  thumbs: new Map(), // key → data URL | 'loading'
   message: '',
 }
 
 const pad = (n) => String(n).padStart(2, '0')
 const when = (ms) => {
   const d = new Date(ms)
-  const today = new Date()
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  return d.toDateString() === today.toDateString() ? `오늘 ${time}` : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`
+  return d.toDateString() === new Date().toDateString() ? `오늘 ${time}` : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`
 }
 const sec = (ms) => `${((ms || 0) / 1000).toFixed(1)}초`
 const cmpLine = (c) => (c ? `새로 실패 ${c.newFail.length} · 고쳐짐 ${c.fixed.length} · 그대로 실패 ${c.stillFail.length}` : '처음 수행')
@@ -119,20 +163,44 @@ function el(tag, attrs = {}, ...children) {
   return node
 }
 const btn = (label, onclick, attrs = {}) => el('button', { type: 'button', onclick, ...attrs }, label)
-const counts = (passed, failed) => [el('span', { class: 'st ok' }, passed), ' ', failed ? el('span', { class: 'st bad' }, failed) : '']
+
+const ICONS = {
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/>',
+  chev: '<path d="m9 6 6 6-6 6"/>',
+  back: '<path d="m15 6-6 6 6 6"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  play: '<path d="M7 5v14l12-7z"/>',
+  doc: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>',
+}
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('class', 'i')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.innerHTML = ICONS[name]
+  return svg
+}
+const iconBtn = (name, label, onclick, attrs = {}) => el('button', { type: 'button', onclick, ...attrs }, icon(name), label)
 
 async function load() {
   try {
     state.data = JSON.parse(await tool('list', { json: true }))
     state.error = ''
+    const view = state.view
+    if (view.name === 'detail' && !findScenario(view.suite, view.id)) state.view = { name: 'list' }
   } catch (error) {
     state.error = errorText(error)
   }
   render()
 }
+function findScenario(suiteId, id) {
+  const suite = state.data?.suites.find((item) => item.id === suiteId)
+  const item = suite?.scenarios.find((scenario) => scenario.id === id)
+  return item ? { suite, item } : undefined
+}
 
-/** 결과서 열기 — 프로젝트 안이면 오른쪽 패널의 파일 미리보기(HTML 20MB 까지 — 결과서는 스크린샷 예산으로 그 안), 밖(공유 드라이브)이면 경로만 보인다.
- *  확장이 바깥 브라우저로 여는 통로는 앱에 없다(project.openFile 은 미리보기만) */
+/** 결과서 열기 — 프로젝트 안이면 오른쪽 패널의 파일 미리보기(HTML 20MB 까지), 밖(공유 드라이브)이면 경로만 보인다 */
 async function openReport(report) {
   if (report.startsWith('/') || /^[A-Za-z]:/.test(report)) {
     state.message = `결과서: ${report}`
@@ -145,7 +213,6 @@ async function openReport(report) {
 function applyProgress(progress) {
   const wasRunning = state.progress?.running
   state.progress = progress
-  for (const item of state.progress?.cases ?? []) for (const step of [...item.steps, ...(item.rows ?? []).flatMap((row) => row.steps)]) for (const name of [step.shot, step.failShot]) if (name) thumb(name)
   render()
   if (wasRunning && !progress?.running) void load()
 }
@@ -165,16 +232,6 @@ function onEvent(event, data) {
   }
 }
 
-function thumb(name) {
-  const key = `${state.progress.suite}/${state.progress.runId}/${name}`
-  if (state.thumbs.has(key)) return
-  state.thumbs.set(key, 'loading')
-  tool('shot', { suite: state.progress.suite, run: state.progress.runId, name }).then(
-    (url) => (state.thumbs.set(key, url), render()),
-    () => state.thumbs.delete(key),
-  )
-}
-
 async function rerun(suite, scenarios) {
   state.menu = ''
   state.picking = undefined
@@ -185,6 +242,10 @@ async function rerun(suite, scenarios) {
     () => undefined,
     (error) => ((state.message = errorText(error)), render()),
   )
+  render()
+}
+async function stop() {
+  await tool('stop').catch(() => undefined)
 }
 
 /** 대화로 넘기기 — 새 대화를 열어 요청 글을 바로 보낸다 (chat 권한) */
@@ -211,7 +272,6 @@ function fixPrompt(suite, item) {
     `ui-test 스킬로 원인을 가려 주세요. 낡은 테스트(셀렉터 · 기다림 · 코드 오류)면 시나리오(${item.file})의 ## 테스트 방법을 먼저 읽고 .spec.mjs 를 고쳐 그 시나리오만 다시 돌려 주세요. 앱 결함으로 보이면 코드를 고치지 말고 근거(단계 · 오류 · 결과서 스크린샷)와 함께 보고해 주세요. 시나리오 md 는 제 확인 없이 고치지 마세요.`,
   ].filter(Boolean).join('\n')
 }
-
 function enrichPrompt(suite, item) {
   return [
     `UI 테스트 묶음 "${suite.name}"(${suite.id}) 의 시나리오 ${item.id} "${item.name}"(${item.file}) 를 보강해 줘.`,
@@ -219,56 +279,52 @@ function enrichPrompt(suite, item) {
     'ui-test 스킬의 보강 순서대로 빠진 확인 · 데이터 변형 · 변형 시나리오 · 코드 바뀜 제안을 목록으로 보이고, 여러 개 고르기로 물어 본 뒤 고른 것만 반영해 줘.',
   ].filter(Boolean).join('\n')
 }
-
 function rulePrompt(suite, rule) {
   return `UI 테스트 묶음 "${suite.name}"(${suite.id}) 에서 아직 어느 시나리오도 다루지 않는 ${KIND_NAME[rule.kind]} 규칙 "${rule.text}" 를 다루도록 보강해 줘. ui-test 스킬의 보강 순서대로 제안(변형 시나리오 · 데이터 변형 등)을 목록으로 보이고 여러 개 고르기로 물어 본 뒤, 고른 것만 반영하고 suite.md ## 규칙 의 덮는 시나리오도 고쳐 줘.`
 }
+const promptPath = () => `${state.data.testDir.replace(/\/+$/, '')}/_prompt.md`
+const rebuildPrompt = () => `UI 테스트 프로젝트 프롬프트(${promptPath()})를 다시 만들어 줘. ui-test 스킬의 "Project prompt" 절대로 프로젝트를 처음부터 다시 조사해 파일을 새로 쓰고, 무엇이 바뀌었는지 보여 줘.`
+
+const LAST_TAG = { passed: ['성공', 'ok'], failed: ['실패', 'bad'], stopped: ['멈춤', 'wait'] }
+const dotTone = (status) => (status === 'passed' ? 'ok' : status === 'failed' ? 'bad' : '')
 
 function coverageView(suite) {
   const c = suite.coverage
-  if (!c) return undefined
-  const bar = (part) => el('span', { class: 'bar', 'aria-hidden': 'true' }, el('div', { style: `width:${part.total ? Math.round((part.covered / part.total) * 100) : 0}%` }))
-  return el(
-    'div',
-    { class: 'cov', 'aria-label': '규칙 덮임 (어림값)' },
-    c.validation.total ? el('span', { class: 'row' }, `검증 규칙 ${c.validation.covered} / ${c.validation.total}`, bar(c.validation)) : '',
-    c.business.total ? el('span', { class: 'row' }, `업무 규칙 ${c.business.covered} / ${c.business.total}`, bar(c.business)) : '',
-  )
+  if (!c || (!c.validation.total && !c.business.total)) return undefined
+  return el('div', { class: 'cov', 'aria-label': '규칙 덮임 (어림값)' }, c.validation.total ? el('span', {}, `검증 ${c.validation.covered}/${c.validation.total}`) : '', c.business.total ? el('span', {}, `업무 ${c.business.covered}/${c.business.total}`) : '')
 }
 
-const LAST_TAG = { passed: ['성공', 'ok'], failed: ['실패', 'bad'], stopped: ['멈춤', 'wait'] }
+/** 묶음의 시나리오별 마지막 결과 비율 막대 */
+function resultBar(suite) {
+  const total = suite.scenarios.length || 1
+  const part = (status) => suite.scenarios.filter((item) => item.lastStatus === status).length
+  const pct = (n) => `${(n / total) * 100}%`
+  return el('div', { class: 'bar', role: 'img', 'aria-label': `성공 ${part('passed')} · 실패 ${part('failed')} · 전체 ${suite.scenarios.length}` }, el('i', { class: 'p', style: `width:${pct(part('passed'))}` }), el('i', { class: 'f', style: `width:${pct(part('failed'))}` }))
+}
 
-function scenarioRow(suite, item, running) {
-  const [lastText, lastTone] = LAST_TAG[item.lastStatus] || []
+function scenarioRow(suite, item) {
+  const [text, tone] = LAST_TAG[item.lastStatus] || ['수행 전', 'wait']
   return el(
-    'div',
-    { class: 'scn' },
-    el('span', { style: 'min-width:0;overflow-wrap:anywhere' }, item.name, item.kind ? el('span', { class: 'sub' }, ` · ${item.kind}`) : ''),
+    'button',
+    { type: 'button', class: 'row', onclick: () => ((state.view = { name: 'detail', suite: suite.id, id: item.id }), (state.menu = ''), render(), scrollTo(0, 0)) },
+    el('span', { class: `dot ${dotTone(item.lastStatus)}` }),
+    el('span', {}, el('span', { class: 'name' }, item.name), item.kind ? el('span', { class: 'kind' }, item.kind) : ''),
     el(
       'span',
-      { class: 'acts' },
+      { class: 'right' },
       !item.hasCode ? el('span', { class: 'tag' }, '코드 없음') : '',
       item.stale ? el('span', { class: 'tag warn', title: '시나리오가 코드를 만든 뒤 바뀌었습니다 — 다음 수행 전에 AI 가 코드를 다시 만듭니다' }, '코드 낡음') : '',
       item.changed?.length ? el('span', { class: 'tag warn', title: item.changed.map((change) => change.path).join('\n') }, '코드 바뀜') : '',
-      item.rows ? el('span', { class: 'tag' }, `데이터 ${item.rows}행`) : '',
-      item.checks ? el('span', { class: 'tag' }, `확인 ${item.checks}`) : '',
-      lastText ? el('span', { class: `st ${lastTone}` }, lastText) : '',
-      item.lastStatus === 'failed' ? btn('AI 에게 맡기기', () => ask(fixPrompt(suite, item)), { class: 'small primary', disabled: running, title: '새 대화에서 실패 원인을 가르고, 낡은 테스트면 고칩니다' }) : '',
-      btn('보강', () => ask(enrichPrompt(suite, item)), { class: 'small', disabled: running, title: '새 대화에서 보강 제안을 받고 고릅니다' }),
+      el('span', { class: `st ${tone}` }, text),
+      icon('chev'),
     ),
   )
 }
 
-async function stop() {
-  await tool('stop').catch(() => undefined)
-}
-
-function suiteCard(suite) {
+function runMenu(suite, running) {
   const failedLast = suite.scenarios.filter((item) => item.lastStatus === 'failed').length
-  const last = suite.runs[0]
-  const running = state.progress?.running
-  const menuOpen = state.menu === suite.id
-  const menu = menuOpen
+  const open = state.menu === suite.id
+  const menu = open
     ? el(
         'div',
         { class: 'menu', role: 'menu' },
@@ -280,20 +336,18 @@ function suiteCard(suite) {
         btn(`${state.headed ? '○' : '●'} 화면 없이`, () => ((state.headed = false), render()), { role: 'menuitemradio', 'aria-checked': String(!state.headed) }),
       )
     : undefined
+  return el('div', { class: 'menuwrap' }, iconBtn('play', '다시 수행 ▾', () => ((state.menu = open ? '' : suite.id), render()), { class: 'primary', 'aria-haspopup': 'menu', 'aria-expanded': String(open), disabled: running }), menu)
+}
+
+function suiteCard(suite) {
+  const running = state.progress?.running
+  const last = suite.runs[0]
   const picking = state.picking?.suite === suite.id
     ? el(
         'div',
         { class: 'pick' },
-        suite.scenarios.map((item) =>
-          el(
-            'label',
-            {},
-            el('input', { type: 'checkbox', checked: state.picking.chosen.has(item.id), onchange: (event) => (event.target.checked ? state.picking.chosen.add(item.id) : state.picking.chosen.delete(item.id)) }),
-            `${item.name}`,
-            item.hasCode ? '' : el('span', { class: 'sub' }, ' · 코드 없음'),
-          ),
-        ),
-        el('div', { class: 'head' }, btn('취소', () => ((state.picking = undefined), render())), btn(`고른 것 수행 (${state.headed ? '보면서' : '화면 없이'})`, () => rerun(suite.id, [...state.picking.chosen]), { class: 'primary', disabled: running })),
+        suite.scenarios.map((item) => el('label', {}, el('input', { type: 'checkbox', checked: state.picking.chosen.has(item.id), onchange: (event) => (event.target.checked ? state.picking.chosen.add(item.id) : state.picking.chosen.delete(item.id)) }), item.name, item.hasCode ? '' : el('span', { class: 'sub' }, ' · 코드 없음'))),
+        el('div', { class: 'foot' }, btn('취소', () => ((state.picking = undefined), render())), btn(`고른 것 수행 (${state.headed ? '보면서' : '화면 없이'})`, () => rerun(suite.id, [...state.picking.chosen]), { class: 'primary', disabled: running })),
       )
     : undefined
   return el(
@@ -301,12 +355,14 @@ function suiteCard(suite) {
     { class: `card${state.progress?.suite === suite.id && running ? ' on' : ''}`, 'aria-label': suite.name },
     el(
       'div',
-      { class: 'head' },
-      el('div', { style: 'display:flex;flex-direction:column;gap:2px;min-width:0' }, el('h2', {}, suite.name), el('span', { class: 'sub' }, [suite.request && `"${suite.request}"`, suite.created && `${suite.created} 만듦`, `시나리오 ${suite.scenarios.length}`].filter(Boolean).join(' · '))),
+      { class: 'card-head' },
+      el('div', { style: 'min-width:0' }, el('h2', {}, suite.name), el('div', { class: 'sub' }, [suite.created && `${suite.created} 만듦`, `시나리오 ${suite.scenarios.length}`, last && `${when(last.startedAt)} 수행`].filter(Boolean).join(' · '))),
       coverageView(suite),
-      el('div', { class: 'menuwrap' }, btn('다시 수행 ▾', () => ((state.menu = menuOpen ? '' : suite.id), render()), { class: 'primary', 'aria-haspopup': 'menu', 'aria-expanded': String(menuOpen), disabled: running }), menu),
+      runMenu(suite, running),
     ),
-    el('div', {}, suite.scenarios.map((item) => scenarioRow(suite, item, running))),
+    suite.scenarios.length ? resultBar(suite) : '',
+    picking,
+    suite.scenarios.map((item) => scenarioRow(suite, item)),
     suite.coverage?.uncovered?.length
       ? el(
           'div',
@@ -316,65 +372,151 @@ function suiteCard(suite) {
           el('span', {}, '— 규칙 목록은 AI 가 코드에서 뽑은 어림값입니다(코드 커버리지 아님)'),
         )
       : '',
-    el('div', { class: 'line' }, last ? ['마지막: ', when(last.startedAt), ' · ', ...counts(last.passed, last.failed), ' · ', cmpLine(last.compare)] : '아직 수행 안 함'),
-    picking,
-    suite.runs.length
-      ? el(
-          'div',
-          {},
-          suite.runs.slice(0, 5).map((run) => el('div', { class: 'hist' }, el('span', {}, when(run.startedAt)), el('span', {}, ...counts(run.passed, run.failed), ' ', run.interrupted ? el('span', { class: 'st bad', title: run.interrupted }, '중단됨') : '', ' ', run.compare ? `새로 실패 ${run.compare.newFail.length}` : '처음 수행'), btn('결과서', () => openReport(run.report), { class: 'link' }))),
-          suite.runs.length > 5 ? el('span', { class: 'sub' }, `외 ${suite.runs.length - 5} (최근 20 개까지 남김)`) : '',
-        )
-      : '',
   )
 }
 
-const STEP_MARK = { passed: ['✓', 'var(--ok)'], failed: ['✕', 'var(--bad)'], db: ['◇', 'var(--db)'], 'not-run': ['–', 'var(--faint)'] }
+const STEP_NODE = { passed: ['✓', ''], failed: ['✕', 'bad'], db: ['◇', 'db'], 'not-run': ['–', 'nr'] }
 const CASE_TAG = { passed: ['성공', 'ok'], failed: ['실패', 'bad'], running: ['수행 중', 'run'], waiting: ['대기', 'wait'], stopped: ['멈춤', 'wait'], 'no-code': ['코드 없음', 'wait'] }
 
 function stepRows(steps, live) {
-  const p = state.progress
-  const img = (name, fail) => {
-    const url = name && state.thumbs.get(`${p.suite}/${p.runId}/${name}`)
-    return url && url !== 'loading' ? el('img', { class: `thumb${fail ? ' fail' : ''}`, src: url, alt: fail ? '실패 순간' : '스크린샷' }) : el('span', { class: 'thumb' })
-  }
-  return steps.map((step) => {
-    const [mark, color] = step.status === 'passed' && live && step === steps.at(-1) && !step.shot ? ['…', 'var(--accent)'] : STEP_MARK[step.status] || ['·', 'var(--faint)']
-    return el(
-      'div',
-      { class: 'step' },
-      el('span', { 'aria-hidden': 'true', style: `color:${color}` }, mark),
-      el('span', {}, step.title, step.status === 'db' ? el('span', { class: 'sub' }, ' · 대화에서만 확인') : '', step.error ? el('div', { class: 'err' }, step.error) : ''),
-      step.failShot ? img(step.failShot, true) : step.shot ? img(step.shot, false) : el('span', { class: 'thumb' }),
-    )
-  })
+  return el(
+    'div',
+    { class: 'steps' },
+    steps.map((step, index) => {
+      const working = live && step === steps.at(-1) && step.status === 'passed' && !step.shot
+      const [mark, tone] = working ? ['…', 'run'] : STEP_NODE[step.status] || ['·', 'nr']
+      return el(
+        'div',
+        { class: 'step' },
+        el('span', { class: `node ${tone}`, 'aria-hidden': 'true' }, mark),
+        el('div', { style: 'min-width:0' }, step.title, step.status === 'db' ? el('span', { class: 'sub' }, ' · 대화에서만 확인') : '', step.error ? el('div', { class: 'err' }, step.error) : ''),
+      )
+    }),
+  )
 }
 
-function progressView() {
+/** 이 수행(progress) 안의 한 시나리오 — 패널이 가진 단계 데이터는 서버가 기억하는 마지막 수행뿐이다 */
+function caseProgress(suiteId, id) {
   const p = state.progress
-  if (!p || !p.cases?.length) return undefined
+  return p?.suite === suiteId ? p.cases?.find((item) => item.id === id) : undefined
+}
+
+/** 지금 수행 중일 때 목록 위에 보이는 진행 */
+function runningView() {
+  const p = state.progress
+  if (!p?.running || !p.cases?.length) return undefined
   const done = p.cases.filter((item) => !['waiting', 'running'].includes(item.status)).length
   const current = p.cases.find((item) => item.status === 'running')
   return el(
     'div',
-    { style: 'display:flex;flex-direction:column;gap:8px' },
-    el('div', { class: 'head' }, el('b', {}, `${p.running ? '지금 수행' : '마지막 수행'} · ${p.suite} · ${when(p.startedAt)} 시작`), p.running ? btn('멈추기', stop) : p.report ? btn('결과서 열기', () => openReport(p.report), { class: 'primary' }) : ''),
-    el('div', { class: 'sub' }, `${p.browser || ''} · ${p.headed ? '보이게' : '화면 없이'}`),
-    p.running ? el('div', { class: 'bar', role: 'progressbar', 'aria-valuenow': done, 'aria-valuemin': 0, 'aria-valuemax': p.cases.length, 'aria-label': '수행 진행' }, el('div', { style: `width:${Math.round((done / p.cases.length) * 100)}%` })) : '',
-    p.running ? el('span', { class: 'line' }, `${done} / ${p.cases.length} 수행${current ? ` — ${current.title} · 단계 ${current.steps.length}` : ''}`) : '',
-    p.error ? el('div', { class: 'msg bad' }, p.error) : '',
-    p.stale?.length ? el('div', { class: 'msg', style: 'background:var(--warn-bg);color:var(--warn)' }, `코드 낡음 상태로 돌렸습니다: ${p.stale.join(', ')} — 대화에서 코드를 다시 만들게 하세요`) : '',
-    p.cases.map((item) => {
-      const [label, tone] = CASE_TAG[item.status] || [item.status, 'wait']
-      return el(
-        'section',
-        { class: 'case' },
-        el('header', {}, el('span', {}, item.title), el('span', { class: `st ${tone}` }, label, item.durationMs ? ` · ${sec(item.durationMs)}` : '')),
-        (item.rows ? item.rows.map((row) => [el('div', { class: 'rowhead' }, el('span', {}, `${row.row}행 — ${row.label}`), el('span', { class: `st ${(CASE_TAG[row.status] || [])[1] || 'wait'}` }, (CASE_TAG[row.status] || [row.status])[0])), stepRows(row.steps, p.running && item.status === 'running')]) : stepRows(item.steps, p.running && item.status === 'running')),
-        item.error && !item.steps.some((step) => step.error) ? el('div', { class: 'step', style: 'grid-template-columns:1fr' }, el('span', { class: 'err' }, item.error)) : '',
-      )
-    }),
+    { class: 'card on' },
+    el('div', { class: 'card-head' }, el('div', { style: 'min-width:0' }, el('h2', {}, `지금 수행 · ${p.suite}`), el('div', { class: 'sub' }, `${when(p.startedAt)} 시작 · ${p.browser || ''} · ${p.headed ? '보이게' : '화면 없이'}`)), btn('멈추기', stop)),
+    el('div', { class: 'bar', role: 'progressbar', 'aria-valuenow': done, 'aria-valuemin': 0, 'aria-valuemax': p.cases.length, 'aria-label': '수행 진행' }, el('i', { class: 'r', style: `width:${Math.round((done / p.cases.length) * 100)}%` })),
+    el('div', { class: 'line' }, `${done} / ${p.cases.length} 수행${current ? ` — ${current.title} · 단계 ${current.steps.length}` : ''}`),
+    p.error ? el('div', { class: 'msg bad', style: 'margin:0 12px 12px' }, p.error) : '',
+    p.stale?.length ? el('div', { class: 'msg warn', style: 'margin:0 12px 12px' }, `코드 낡음 상태로 돌렸습니다: ${p.stale.join(', ')} — 대화에서 코드를 다시 만들게 하세요`) : '',
   )
+}
+
+function listView(data) {
+  const out = [
+    el('div', { class: 'top' }, el('h1', {}, 'UI 테스트', el('span', { class: 'pill' }, '베타')), el('div', { class: 'acts' }, iconBtn('gear', '환경', openEnv, { 'aria-haspopup': 'dialog' }), iconBtn('refresh', '', load, { class: 'ghost', 'aria-label': '새로 고침' }))),
+    el('div', { class: 'info' }, el('span', { class: 'chip' }, el('code', {}, data.testDir)), el('span', { class: 'chip' }, data.baseUrl || '대상 주소 없음'), el('span', { class: 'chip' }, data.browser)),
+  ]
+  if (state.message) out.push(el('div', { class: 'msg' }, state.message))
+  const running = runningView()
+  if (running) out.push(running)
+  if (!data.suites.length) out.push(el('div', { class: 'msg' }, '아직 묶음이 없습니다. 대화에서 "가입설계 화면 테스트 구성해 줘" 처럼 화면을 가리켜 요청하세요.'))
+  out.push(...data.suites.map(suiteCard))
+  out.push(el('p', { class: 'note' }, 'AI 없이 돌리기: 묶음의 suite.md 에 적힌 명령으로 CI 에서도 같은 묶음을 돌립니다.'))
+  return out
+}
+
+function detailView(data) {
+  const { suite, item } = findScenario(state.view.suite, state.view.id)
+  const running = state.progress?.running
+  const live = caseProgress(suite.id, item.id)
+  const last = suite.runs[0]
+  const [lastText, lastTone] = LAST_TAG[item.lastStatus] || ['수행 전', 'wait']
+  const fail = item.lastFailure
+  const out = [
+    el('div', { class: 'top' }, el('button', { type: 'button', class: 'back', onclick: () => ((state.view = { name: 'list' }), render(), scrollTo(0, 0)) }, icon('back'), '목록'), el('div', { class: 'acts' }, btn('보강', () => ask(enrichPrompt(suite, item)), { disabled: running, title: '새 대화에서 보강 제안을 받고 고릅니다' }), iconBtn('play', '다시 수행', () => rerun(suite.id, [item.id]), { class: 'primary', disabled: running || !item.hasCode, title: item.hasCode ? '이 시나리오만 다시 돌립니다' : '코드가 없어 돌릴 수 없습니다' }))),
+    el('div', {}, el('h2', { class: 'title' }, item.name), el('div', { class: 'sub' }, [suite.name, item.kind, item.rows && `데이터 ${item.rows}행`, item.checks && `확인 ${item.checks}`].filter(Boolean).join(' · '))),
+  ]
+  if (state.message) out.push(el('div', { class: 'msg' }, state.message))
+  const tags = [!item.hasCode && '코드 없음', item.stale && '코드 낡음 — 다음 수행 전에 AI 가 코드를 다시 만듭니다', item.changed?.length && `코드 바뀜 — ${item.changed.map((change) => change.path).join(', ')}`].filter(Boolean)
+  if (tags.length) out.push(el('div', { class: 'msg warn' }, tags.join('\n')))
+
+  out.push(
+    el(
+      'div',
+      { class: 'card' },
+      el(
+        'div',
+        { class: 'summary' },
+        el('div', { class: 'big' }, el('span', { class: `st ${lastTone}` }, lastText), el('span', { class: 'sub' }, last ? `${when(last.startedAt)} · ${cmpLine(last.compare)}` : '아직 수행하지 않았습니다')),
+        last ? iconBtn('doc', '결과서', () => openReport(last.report)) : '',
+      ),
+      fail ? el('div', { class: 'fail-box' }, el('div', {}, el('span', { class: 'k' }, fail.kind || '실패'), fail.row ? ` · ${fail.row}` : '', fail.step ? ` · ${fail.step}` : ''), fail.error ? el('div', { class: 'err', style: 'margin:0' }, fail.error) : '', el('div', {}, btn('AI 에게 맡기기', () => ask(fixPrompt(suite, item)), { class: 'primary small', disabled: running, title: '새 대화에서 실패 원인을 가르고, 낡은 테스트면 고칩니다' }))) : '',
+    ),
+  )
+
+  const stepsCard = el('div', { class: 'card' }, el('div', { class: 'sec-t' }, el('span', {}, '단계별 수행'), el('span', { class: 'faint', style: 'font-weight:400;letter-spacing:0' }, '스크린샷은 결과서에서')))
+  if (!live) stepsCard.append(el('div', { class: 'empty' }, '이 패널이 가진 단계 기록은 서버가 기억하는 마지막 수행뿐입니다. 이 시나리오를 다시 수행하면 여기에 단계가 나옵니다. 지난 수행은 결과서에서 봅니다.'))
+  else {
+    const [label, tone] = CASE_TAG[live.status] || [live.status, 'wait']
+    stepsCard.append(el('div', { class: 'summary', style: 'padding:8px 12px' }, el('span', { class: `st ${tone}` }, label), el('span', { class: 'sub' }, live.durationMs ? sec(live.durationMs) : '')))
+    const isLive = state.progress.running && live.status === 'running'
+    if (live.rows) for (const row of live.rows) stepsCard.append(el('div', { class: 'rowhead' }, el('span', {}, `${row.row}행 — ${row.label}`), el('span', { class: `st ${(CASE_TAG[row.status] || [])[1] || 'wait'}` }, (CASE_TAG[row.status] || [row.status])[0])), stepRows(row.steps, isLive))
+    else stepsCard.append(stepRows(live.steps, isLive))
+    if (live.error && !live.steps.some((step) => step.error)) stepsCard.append(el('div', { class: 'err', style: 'padding:0 12px 10px' }, live.error))
+  }
+  out.push(stepsCard)
+
+  out.push(
+    el(
+      'div',
+      { class: 'card' },
+      el('div', { class: 'sec-t' }, el('span', {}, `${suite.name} 최근 수행`)),
+      suite.runs.length
+        ? suite.runs.slice(0, 5).map((run) => el('div', { class: 'hist' }, el('span', {}, when(run.startedAt)), el('span', {}, el('span', { class: 'st ok' }, run.passed), ' ', run.failed ? el('span', { class: 'st bad' }, run.failed) : '', run.interrupted ? el('span', { class: 'st bad', title: run.interrupted }, '중단됨') : ''), btn('결과서', () => openReport(run.report), { class: 'link' })))
+        : el('div', { class: 'empty' }, '아직 수행 기록이 없습니다.'),
+    ),
+  )
+  return out
+}
+
+async function openEnv() {
+  state.env = { headed: state.headed, saved: '' }
+  render()
+}
+function envDialog(data) {
+  const close = () => ((state.env = undefined), render())
+  const dialog = el(
+    'div',
+    { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dlg-title' },
+    el('div', { class: 'dlg-head' }, el('h2', { id: 'dlg-title' }, '환경'), iconBtn('x', '', close, { class: 'ghost', 'aria-label': '닫기' })),
+    el(
+      'div',
+      { class: 'dlg-body' },
+      el('div', { class: 'sec' }, el('div', { class: 't' }, '연결'), el('dl', { class: 'kv' }, el('dt', {}, '대상 주소'), el('dd', {}, data.baseUrl || '(설정 안 됨)'), el('dt', {}, '브라우저'), el('dd', {}, data.browser), el('dt', {}, '읽는 곳'), el('dd', {}, el('code', {}, data.testDir)), el('dt', {}, '결과서 폴더'), el('dd', {}, el('code', {}, data.reportDir))), el('div', { class: 'sub' }, '고치려면 설정 › 기능 › 플러그인 › UI 테스트 › [고치기]')),
+      el('hr', { class: 'div' }),
+      el('div', { class: 'sec' }, el('div', { class: 't' }, '기본값'), el('div', { class: 'field' }, el('label', { for: 'headed' }, '브라우저 창', el('small', {}, '[다시 수행 ▾] 에서 이번만 바꿀 수 있습니다.')), el('select', { id: 'headed', onchange: (event) => (state.env.headed = event.target.value === 'headed') }, el('option', { value: 'headed', selected: state.env.headed }, '보이게'), el('option', { value: 'headless', selected: !state.env.headed }, '화면 없이')))),
+      el('hr', { class: 'div' }),
+      el('div', { class: 'sec' }, el('div', { class: 't' }, '프로젝트 프롬프트'), el('dl', { class: 'kv' }, el('dt', {}, '파일'), el('dd', {}, el('code', {}, promptPath()))), el('div', { class: 'acts', style: 'justify-content:flex-start' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch(() => ((state.env.saved = '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'), render()))), btn('다시 만들기', () => (close(), ask(rebuildPrompt())))), el('div', { class: 'sub' }, '내용은 파일에서 직접 고칩니다. 실제와 다른 줄은 수행 뒤에 AI 가 물어봅니다.')),
+    ),
+    el('div', { class: 'dlg-foot' }, el('span', { class: 'toast', role: 'status' }, state.env.saved), btn('닫기', close), btn('저장', async () => {
+      try {
+        const prefs = await tool('prefs', { set: { headed: state.env.headed } })
+        state.headed = prefs.headed !== false
+        state.env.saved = '저장했습니다'
+      } catch (error) {
+        state.env.saved = errorText(error)
+      }
+      render()
+    }, { class: 'primary' })),
+  )
+  return el('div', { class: 'scrim', onclick: (event) => event.target === event.currentTarget && close() }, dialog)
 }
 
 function render() {
@@ -382,20 +524,11 @@ function render() {
   const data = state.data
   const main = el('main')
   if (state.error) main.append(el('div', { class: 'msg bad' }, state.error), btn('다시 읽기', load))
-  else if (!data) main.append(el('div', { class: 'card line' }, '불러오는 중…'))
-  else {
-    main.append(
-      el('div', { class: 'head' }, el('b', { style: 'font-size:13px' }, `테스트 묶음 ${data.suites.length}`), btn('새로 고침', load)),
-      el('p', { class: 'note' }, '읽는 곳: ', el('code', {}, data.testDir), ' · 결과서: ', el('code', {}, data.reportDir), ' · ', data.baseUrl || '대상 주소 없음', ' · ', data.browser, ' (베타)'),
-    )
-    if (state.message) main.append(el('div', { class: 'msg' }, state.message))
-    const progress = progressView()
-    if (progress) main.append(progress)
-    if (!data.suites.length) main.append(el('div', { class: 'card line' }, '아직 묶음이 없습니다. 대화에서 "가입설계 화면 테스트 구성해 줘" 처럼 화면을 가리켜 요청하세요.'))
-    main.append(...data.suites.map(suiteCard))
-    main.append(el('p', { class: 'note' }, 'AI 없이 돌리기: 묶음의 suite.md 에 적힌 명령으로 CI 에서도 같은 묶음을 돌립니다.'))
-  }
-  app.replaceChildren(main)
+  else if (!data) main.append(el('div', { class: 'msg' }, '불러오는 중…'))
+  else main.append(...(state.view.name === 'detail' ? detailView(data) : listView(data)))
+  const scroll = scrollY
+  app.replaceChildren(main, ...(state.env && data ? [envDialog(data)] : []))
+  scrollTo(0, scroll)
 }
 
 addEventListener('click', (event) => {
@@ -404,9 +537,16 @@ addEventListener('click', (event) => {
     render()
   }
 })
+addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && state.env) {
+    state.env = undefined
+    render()
+  }
+})
 
 void (async () => {
   try { await call('events.subscribe', { events: ['service.progress', 'service.runError'] }) } catch { /* 권한 없음 */ }
+  try { state.headed = (await tool('prefs')).headed !== false } catch { /* 저장된 값 없음 — 보이게 */ }
   await load()
   await refreshProgress()
 })()
