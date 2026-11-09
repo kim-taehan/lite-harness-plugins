@@ -1,6 +1,6 @@
 ---
 name: sql-tuning
-description: Tune a slow SQL query — given as SQL or as MyBatis mapper / JPA repository code — with the sql-tuning MCP tools (explain, table_info, captured_sql, compare, impact_check, top_queries, runtime_plan, query). Use when the user says a query, mapper or repository method is slow, asks to tune/optimize SQL, asks why a query does a full scan, or asks to check SQL or a mapper file against the team SQL standard. Database-specific notes are in references/ (Oracle, PostgreSQL).
+description: Tune a slow SQL query — given as SQL or as MyBatis mapper / JPA repository code — with the sql-tuning MCP tools (explain, table_info, captured_sql, compare, impact_check, top_queries, runtime_plan, query, report). Use when the user says a query, mapper or repository method is slow, asks to tune/optimize SQL, asks why a query does a full scan, or asks to check SQL or a mapper file against the team SQL standard. Database-specific notes are in references/ (Oracle, PostgreSQL).
 ---
 
 # SQL tuning
@@ -117,3 +117,15 @@ Answer in the user's language, with these sections:
 - **④ Other**: only the items that apply.
 - **Standard**: which file you used — `.litecode/sql-standard.md` (this project) or `references/sql-standard.md` (the skill's default) — or that none is installed. List the rule IDs the original code violates.
 - Close by stating that nothing was created or changed in the database.
+- Then add one line asking whether the user also wants a final report (for example "결과서도 만들까요?"). Do not call `report` before the user says yes.
+
+## Final report
+
+When the user wants the report, call `report` once (the tool of the sql-tuning server, like `explain`). It writes one local HTML file in the project folder and returns its path.
+
+- Fill it only with values you got from tool output: `compare` (every bind set you ran, with rows, checksum and ms exactly as printed), `explain` (plan lines, costs, the full plan texts), `impact_check` (the index impact). Pass the original and the rewritten SQL as they were tuned; the server builds the diff.
+- Put anything you estimated, not measured, in `estimates` with the reason. An index that does not exist cannot be measured, so `index.effect_verified` is normally `false`. Put what you could not check in `unknown`.
+- `verdict` is `ok` only when every compare set returned the same result. Otherwise use `hold` and fill `cause` honestly, including what you could not check. Never leave out a failed compare set.
+- Fill `standard` and `rules` only from the standard you actually read; if none is installed, omit both.
+- Use no personal data: do not put real names, emails or other values in `label`, and keep literals with personal data out of the SQL (use bind variables). Never put passwords or connection details anywhere. The server hides string bind values and connection details, but it cannot know what else is personal.
+- If the tool returns an error, fix the named fields from the tool results; do not invent values. Do not say the report exists until the tool result shows its path, then tell the user that path. If the result suggests adding the folder to `.gitignore`, ask the user; do not edit the file yourself.

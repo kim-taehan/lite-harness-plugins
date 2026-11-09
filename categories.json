@@ -7,7 +7,7 @@
   "rust-grammar": "unlisted",
   "service-example": "unlisted",
   "sonarqube": "unlisted",
-  "sql-tuning": "unlisted",
+  "sql-tuning": "dev-tool",
   "token-pet": "game",
   "ui-test": "dev-tool",
   "vi-pack": "unlisted",

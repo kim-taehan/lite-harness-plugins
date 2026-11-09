@@ -194,6 +194,61 @@ describe('단계 API', () => {
   })
 })
 
+describe('드라이버 — 기다리지 않고 걸어 둔 Promise', () => {
+  // 생성 코드가 `const r = page.waitForResponse(…)` 를 걸어 두고 단계가 실패하면, 창이 닫힐 때 그 Promise 가 reject 된다.
+  // 지켜 주지 않으면 unhandledRejection 으로 프로세스 전체가 죽는다(vitest 도 처리 안 된 오류로 실패시킨다).
+  const input = { id: '02-a', title: '에이', steps: ['1. 연다'] }
+  const options = (extra: Partial<Parameters<WebDriver['run']>[1]> = {}) => ({ headed: false, baseUrl: 'http://a', account: { name: 'default', user: 'u', password: 'p' }, secrets: [], stopped: () => false, save: async (name: string) => name, ...extra })
+
+  /** 가짜 브라우저 — page.waitForResponse 가 걸어 둔 Promise 를 context.close 때 reject 한다 */
+  function dangling(message: string): BrowserLike {
+    return {
+      newContext: async () => {
+        const pending: ((error: Error) => void)[] = []
+        return {
+          newPage: async () => ({ ...fakePage(true), waitForResponse: () => new Promise((_resolve, reject) => pending.push(reject)) }) as never,
+          close: async () => {
+            for (const reject of pending) reject(new Error(message))
+          },
+        }
+      },
+      close: async () => undefined,
+    }
+  }
+  const spec = (body: string) => async () => (new Function(`return ${body}`)() as never)
+
+  it('걸어 둔 기다리기가 창을 닫을 때 reject 돼도 수행이 끝까지 돌고, 실패한 케이스는 그대로 실패로 돌려준다', async () => {
+    const driver = new WebDriver('chrome', async () => dangling('page.waitForResponse: Target page, context or browser has been closed'), spec(`async ({ step, page }) => {
+      const access = page.waitForResponse('/api')
+      await step('1. 연다', async () => { throw new Error('안 열림') })
+      await access
+    }`))
+    const results = await driver.run([{ ...input, specFile: 'x' }, { ...input, id: '03-b', title: '비', specFile: 'x' }], options())
+    expect(results.map((item) => [item.id, item.status])).toEqual([['02-a', 'failed'], ['03-b', 'failed']])
+    expect(results[0]!.error ?? results[0]!.steps[0]?.error).toContain('안 열림')
+  })
+
+  it('단계는 다 성공했는데 따로 뜬 Promise 가 닫힘이 아닌 이유로 실패하면 그 케이스를 실패로 기록한다', async () => {
+    const driver = new WebDriver('chrome', async () => dangling('응답 형식이 틀립니다'), spec(`async ({ step, page }) => {
+      page.waitForResponse('/api')
+      await step('1. 연다', async () => undefined)
+    }`))
+    const [result] = await driver.run([{ ...input, specFile: 'x' }], options())
+    expect(result).toMatchObject({ status: 'failed', failKind: 'script' })
+    expect(result!.error).toContain('처리되지 않은 Promise 실패: 응답 형식이 틀립니다')
+    expect(result!.error).toContain('Promise.all')
+  })
+
+  it('닫힘 오류만 난 성공 케이스는 성공 그대로 두고, 다음 케이스도 돈다', async () => {
+    const driver = new WebDriver('chrome', async () => dangling('Target page, context or browser has been closed'), spec(`async ({ step, page }) => {
+      page.waitForResponse('/api')
+      await step('1. 연다', async () => undefined)
+    }`))
+    const results = await driver.run([{ ...input, specFile: 'x' }, { ...input, id: '03-b', title: '비', specFile: 'x' }], options())
+    expect(results.map((item) => item.status)).toEqual(['passed', 'passed'])
+  })
+})
+
 describe('드라이버', () => {
   it('web 만 있고, 다른 대상은 아직 없다고 말한다', () => {
     expect(driverFor('web', { channel: 'chrome' })).toBeInstanceOf(WebDriver)
