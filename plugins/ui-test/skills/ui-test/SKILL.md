@@ -19,6 +19,18 @@ In this conversation the plugin's tools are named **`litecode_ui-test_list`**, *
 - Never try to reach the plugin server another way (running its files, spawning processes, calling ports).
 - Never write or run tests by hand as a workaround.
 
+## Project prompt (`_prompt.md`)
+
+How this project is tested (front-end stack, back-end language/framework, where screen and server sources are and how to find them, login lines, selector conventions, what to skip) is written down once in `<test folder>/_prompt.md`, so you don't re-detect it or re-explore on every request. Format: `references/prompt-format.md` (read it before writing the file).
+
+- **Missing** (check right after the first `list`): survey the project once — front end, back end (in this project and in each back-end code folder), login form, a few real screens for selector conventions, DB tool — ask with the question tool only what the files can't answer, write the file, and say so in one line ("이 프로젝트의 UI 테스트 방식을 ui-tests/_prompt.md 에 적어 두었습니다"). Then continue with the request.
+- **Present**: read it and **follow it — don't redo what it already answers**. Check once that the folders/files it names still exist (one listing). A path gone is a mismatch (below).
+- **Mismatch**: if a line proves wrong while you work (a path or search pattern that finds nothing, a login selector that changed, a convention that doesn't hold), carry on with what you actually found and note the line. Don't stop for it and never edit the file silently.
+  At the end of the turn, after the summary, ask **once** with the question tool, `multiple: true`: "_prompt.md 의 이 줄들이 실제와 달라 보입니다 — 고칠까요?" — options are the lines as "옛 내용 → 새 내용". Apply only the picked ones and set `updated:` to today. No answer or none picked → leave the file as it is.
+  Only facts that change results count (paths, search patterns, selectors, login lines) — not wording.
+- The user asking "프롬프트 다시 만들어 줘" → survey everything again and rewrite it (show what changed).
+- Never put passwords in it.
+
 Read `references/formats.md` (scenario, suite.md, `## 데이터`, `## 규칙`, `sources:` and `## 테스트 방법` formats) and `references/step-api.md` (how to write the `.spec.mjs` files) with the file **read** tool before you write any file. They are in this skill's folder.
 
 ## Where things live
@@ -35,14 +47,14 @@ Write these with your normal file tools. Never write passwords anywhere — the 
 
 ## New suite: from a screen to results
 
-1. **Read the screen.** The front-end source is required: the HTML/JSP/JS/screen definition the user pointed at, plus the scripts it loads. Pull out validation rules (required, regex, length, ranges), messages, what happens after save, and selectors (label text, role, id, name, data-*). Optional, when available — use them, don't ask for them:
+1. **Read the screen**, using the places and search patterns in `_prompt.md`. The front-end source is required: the HTML/JSP/JS/screen definition the user pointed at, plus the scripts it loads. Pull out validation rules (required, regex, length, ranges), messages, what happens after save, and selectors (label text, role, id, name, data-*). Optional, when available — use them, don't ask for them:
    - the back-end code behind the screen (controller/service): business rules only the server enforces (age limits, product conditions, combinations, formulas), error codes and messages → precise "확인:" lines. Look in this project, and in each back-end code folder `list` shows (search there by the screen's URL/API path or form names). Reading outside the project may ask the user for permission once — that is expected;
    - a DB query MCP tool if one is enabled in this conversation (e.g. SQL 튜닝's `query`): find usable test data, and write "확인(DB):" lines. If no DB tool is available, write no "확인(DB):" lines and say so in one line: "DB 조회 도구가 없어 확인(DB) 줄은 만들지 않았습니다 — SQL 튜닝을 이 프로젝트에 켜면 같이 씁니다".
    - If the address is reachable and an in-app browser is available, you may look at the live page to confirm selectors.
    Say in one line what you read (files, DB lookups).
 2. **Draft 1..n scenarios in the chat — do not save yet.** Cover normal flow, missing required values, format errors, boundaries, business rules, permissions and error flows as the code justifies. Show a numbered list; for each: title · kind (정상 · 검증 · 업무 규칙 · 권한 · 예외) · numbered steps · "확인:" lines. A boundary family (age 69 · 70 · 71) can be one scenario with a `## 데이터` table.
 3. **Ask with the question tool**, one question, `multiple: true`: "어느 시나리오를 저장할까요?" — options are the scenario titles ("1. 정상 가입설계" …). Pre-select every option if the tool lets you set defaults; otherwise add "아무것도 고르지 않고 보내면 전부 저장합니다" to the question and treat an empty answer as all. Keep the free-text field: the user writes edits there ("4 번에 70세 경계값도 넣어 줘").
-   - If the answer has edits, apply them, show the changed scenarios again, and ask once more the same way.
+   - If the answer has change requests ("1, 3, 5 는 합쳐서 하나로" · "2 번은 시나리오 조금 더 보강해 줘" · "5 번은 이런 방향으로 진행하면 어떨까?"), handle them as in **Change requests** below, show the whole numbered list again (numbers are renumbered after a merge or split) and ask once more the same way.
    - Save only the picked ones.
 4. **Name the suite** from the request (short Korean, hyphens: `가입설계-화면`). If a suite for the same screen already exists in `list`, ask whether to add to it or make a new one — don't decide alone. Write `suite.md` (request text, created date, target, address, browser, scenario order, `## 규칙`, CI command — see formats.md) and one md per scenario, numbered `01-`, `02-` … in the chosen order.
    - **sources**: call `fingerprint { files: [<the screen and server files you read — project-relative, or absolute for files in a back-end code folder>] }` and put the returned `sources: [...]` line into each scenario's front matter (the files that scenario depends on).
@@ -71,6 +83,20 @@ Each failure carries a **갈래** (rough guess from the error): 셀렉터 못 �
 
 The panel's [AI 에게 맡기기] opens a new conversation with the failed case, step, error and 갈래 — handle it with this section.
 
+## Change requests (수정 요청)
+
+The user can ask for changes **per scenario by number or title**, in the draft list (step 3) and for saved scenarios later ("3 번 시나리오 이렇게 바꿔 줘", the panel's [AI 에게 맡기기]/[보강] message). One message may hold several requests — handle each against the numbers the user saw. Kinds:
+- **합치기** ("1, 3, 5 는 합쳐서 하나로"): one scenario whose steps are the merged flows in order — shared steps (login, opening the screen) once, each "확인:" line kept, a `## 데이터` table if the merged cases differ only by values. Say which steps were merged or dropped as duplicates.
+- **보강** ("2 번은 조금 더 보강해 줘"): add missing checks, boundaries, data rows or error paths for that scenario only, justified by the code you read (and `_prompt.md`). Show what was added.
+- **방향 변경** ("5 번은 이런이런 방향으로 하면 어떨까?"): the user proposes an approach — a question, not an order. Say in one or two lines whether it fits the code (if it doesn't, say why and what you'd do instead), then show the changed scenario as the proposal.
+- **쪼개기 · 삭제 · 순서 · 제목** — as asked. Dropping a scenario from a draft needs no confirmation.
+
+Rules:
+- **Draft** (not saved yet): apply the changes to the draft list, then show it again. Nothing is written until the user picks what to save.
+- **Saved scenarios**: show the before/after of the scenario first and ask once with the question tool ("이렇게 바꿀까요?") — never edit saved files first. After a yes: edit the md, update suite.md (`## 시나리오 순서`, `## 규칙` covers), refresh `sources:` with `fingerprint` if you read new code. A changed scenario is 코드 낡음 → regenerate its code before running (see Keeping it healthy).
+- **Merging or deleting saved scenarios removes files** (the md and its `.spec.mjs`): list the files and get the user's OK in the same question before deleting. Keep numbers of the other files as they are — renaming breaks the `source:` header of the code. New merged scenario takes the next free number.
+- Past reports stay as they are.
+
 ## Enrichment (보강)
 
 Triggered by "…시나리오 보강해 줘", the panel's [보강] on a scenario, a click on an uncovered rule in the panel, or a 코드 바뀜 mark. Propose, then let the user pick — never edit first.
@@ -98,7 +124,7 @@ Always report the comparison with the previous run (새로 실패 · 고쳐짐 �
 
 ## Rules for the code
 
-- Selectors, in this order: label text (`getByLabel`), role + accessible name (`getByRole('button', { name: '저장' })`), visible text for messages (`getByText`), then `#id`, `[name=…]`, `[data-*=…]`. No XPath, no nth-child, no generated class names.
+- Selectors — the conventions in `_prompt.md` win; otherwise in this order: label text (`getByLabel`), role + accessible name (`getByRole('button', { name: '저장' })`), visible text for messages (`getByText`), then `#id`, `[name=…]`, `[data-*=…]`. No XPath, no nth-child, no generated class names.
 - Waiting: wait for a signal, never sleep — a message to appear (`expect(...).toBeVisible()`), a URL (`page.waitForURL`), a response (`page.waitForResponse`), an element state. No `waitForTimeout`.
 - Accounts: `account.user` / `account.password` from settings. A scenario's `account:` names which account it means; only one account exists for now.
 - Each case (and each data row) starts from a fresh browser context — log in inside the case when it needs a login.
