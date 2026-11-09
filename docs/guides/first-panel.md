@@ -237,6 +237,7 @@ const snapshot = await serviceCall('state')                       // 서비스�
 | `secrets` | `secrets.get` · `set` · `delete` | 토큰 · 비밀번호를 OS 암호 저장소로 봉해 둡니다 |
 | `network` | `network.fetch` · `connection` · `setConnection` | 앱(메인)이 대신 요청합니다. 처음 가는 주소는 사용자에게 묻고, 기한 15초 · 응답 5MB |
 | `usage` | `usage.summary` | 토큰 사용량 숫자만 (대화 글 · 제목 없음) |
+| `llm` | `llm.ask` | **서비스 전용**(패널은 못 부름). 앱의 기본 모델에 한 번 묻고 답 글 `{ text }` 를 받습니다 — [서비스 플러그인 5-1](service-plugin.md#5-1-ai-에게-한-번-묻기--llmask) |
 | `mcp` · `tools` | `mcp.call` · `mcp.status` · `tools.run` | 플러그인이 싣고 온 MCP 서버 · 도구 — [MCP 플러그인](mcp-plugin.md) 가이드 |
 
 > 권한은 필요한 것만 적으세요. 설치 카드에 그대로 보이고, 업데이트에서 권한이 늘면 사용자가 다시 허락해야 합니다.
