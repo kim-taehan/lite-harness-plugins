@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -244,6 +245,38 @@ describe('실행기 — 묶음 · 이력 · 결과서 (가짜 브라우저)', ()
   }
 
   const workspace = (root: string, launch: Launch = async () => fakeBrowser()) => new Workspace(configFromEnv({ UI_TEST_BASE_URL: 'http://a', UI_TEST_PASSWORD: SECRET, UI_TEST_USER: 'tester', UI_TEST_DATA_DIR: path.join(dir, 'data') }, root), launch)
+
+  it('시나리오를 지우면 그 시나리오의 이력 · 결과서 내용이 빠지고, 묶음을 지우면 결과서 · 이력 · 스크린샷이 전부 사라진다', async () => {
+    const root = await project('p', 'ok')
+    const space = workspace(root)
+    const first = await space.run({ suite: 'login' })
+    const reportDir = path.dirname(first.run.report)
+    const shots = space.history.shotsDir('login', first.run.id)
+    expect(await fs.readFile(first.run.report, 'utf8')).toContain('에이')
+
+    await space.removeScenario('login', '01-a')
+    const runs = await space.history.runs('login')
+    expect(runs[0]!.cases.map((item) => item.id)).toEqual(['02-b'])
+    expect(await fs.readFile(first.run.report, 'utf8')).not.toContain('에이')
+
+    // 남은 결과가 없는 수행은 통째로 사라진다
+    await space.removeScenario('login', '02-b')
+    expect(await space.history.runs('login')).toEqual([])
+    expect(existsSync(reportDir)).toBe(false)
+    expect(existsSync(shots)).toBe(false)
+  })
+
+  it('묶음 삭제는 결과서 폴더 · 스크린샷 · 이력 파일까지 지운다', async () => {
+    const root = await project('p', 'ok')
+    const space = workspace(root)
+    const first = await space.run({ suite: 'login' })
+    const suiteReports = path.join(root, 'ui-tests', '_reports', 'login')
+    expect(existsSync(suiteReports)).toBe(true)
+    await space.removeSuite('login')
+    expect(existsSync(suiteReports)).toBe(false)
+    expect(existsSync(space.history.shotsDir('login', first.run.id))).toBe(false)
+    expect(await space.history.runs('login')).toEqual([])
+  })
 
   it('브라우저는 기본으로 화면 없이 — headed: true 일 때만 보이게', async () => {
     const root = await project('p', 'ok')

@@ -38,6 +38,11 @@ export function addRun(runs: RunRecord[], run: RunRecord, keep = KEEP_RUNS): { r
   return { runs: all.slice(0, keep), dropped: all.slice(keep) }
 }
 
+/** 결과서는 우리가 만든 폴더(<묶음>/<날짜-시각>/index.html)만 지운다 */
+async function removeReportFolder(run: RunRecord): Promise<void> {
+  if (path.basename(run.report) === 'index.html' && /^\d{8}-\d{6}$/.test(path.basename(path.dirname(run.report)))) await fs.rm(path.dirname(run.report), { recursive: true, force: true })
+}
+
 /** 프로젝트 · 묶음마다 파일 하나 — 데이터 폴더는 플러그인 하나가 여러 프로젝트에 같이 쓴다 */
 export class History {
   constructor(
@@ -75,10 +80,51 @@ export class History {
     await fs.rename(temp, this.file(run.suite))
     for (const old of dropped) {
       await fs.rm(this.shotsDir(old.suite, old.id), { recursive: true, force: true })
-      // 결과서는 우리가 만든 폴더(<묶음>/<날짜-시각>/index.html)만 지운다
-      if (path.basename(old.report) === 'index.html' && /^\d{8}-\d{6}$/.test(path.basename(path.dirname(old.report)))) await fs.rm(path.dirname(old.report), { recursive: true, force: true })
+      await removeReportFolder(old)
     }
     return dropped
+  }
+
+  /** 묶음을 지울 때 — 그 묶음의 수행 이력 파일과 스크린샷 전부 */
+  async purge(suite: string): Promise<void> {
+    await fs.rm(this.file(suite), { force: true })
+    await fs.rm(path.join(this.root, 'shots', encodeURIComponent(suite)), { recursive: true, force: true })
+  }
+
+  /** 시나리오 하나를 지울 때 — 모든 수행 기록에서 그 시나리오 결과(와 비교 줄)를 빼고 스크린샷을 지운다. 남는 결과가 없는 수행은 통째로 지운다.
+   *  고쳐 쓴 수행(결과서를 다시 만들 것)과 통째로 지운 수행을 돌려준다 */
+  async dropScenario(suite: string, scenarioId: string): Promise<{ changed: RunRecord[]; removed: RunRecord[] }> {
+    const runs = await this.runs(suite)
+    const kept: RunRecord[] = []
+    const changed: RunRecord[] = []
+    const removed: RunRecord[] = []
+    const own = (key: string) => key === scenarioId || key.startsWith(`${scenarioId}#`)
+    for (const run of runs) {
+      const gone = run.cases.find((item) => item.id === scenarioId)
+      if (!gone) {
+        kept.push(run)
+        continue
+      }
+      for (const step of [...gone.steps, ...(gone.rows ?? []).flatMap((row) => row.steps)]) {
+        for (const shot of [step.shot, step.failShot]) if (shot) await fs.rm(path.join(this.shotsDir(suite, run.id), path.basename(shot)), { force: true })
+      }
+      const cases = run.cases.filter((item) => item.id !== scenarioId)
+      if (cases.length === 0) {
+        removed.push(run)
+        await fs.rm(this.shotsDir(suite, run.id), { recursive: true, force: true })
+        await removeReportFolder(run)
+        continue
+      }
+      const next: RunRecord = { ...run, cases, ...(run.compare && { compare: { ...run.compare, newFail: run.compare.newFail.filter((key) => !own(key)), fixed: run.compare.fixed.filter((key) => !own(key)), stillFail: run.compare.stillFail.filter((key) => !own(key)) } }) }
+      kept.push(next)
+      changed.push(next)
+    }
+    if (kept.length !== runs.length || changed.length) {
+      const temp = `${this.file(suite)}.${process.pid}.tmp`
+      await fs.writeFile(temp, JSON.stringify(kept, null, 1))
+      await fs.rename(temp, this.file(suite))
+    }
+    return { changed, removed }
   }
 
   /** 처음 한 번만 참 — .gitignore 제안을 한 번만 하게 */

@@ -523,7 +523,7 @@ async function deleteNow() {
   state.confirmDel = undefined
   try {
     await tool('delete', { suite: target.suite, ...(target.id && { scenario: target.id }) })
-    flash(`${target.id ? '시나리오를' : '묶음을'} 삭제했습니다 — 결과서 · 수행 이력은 남습니다`)
+    flash(target.id ? '시나리오를 삭제했습니다 — 수행 이력 · 스크린샷도 함께 지웠습니다' : '묶음을 삭제했습니다 — 결과서 · 수행 이력도 함께 지웠습니다')
     if (!target.id) state.open.delete(target.suite)
     state.view = { name: 'list' }
   } catch (error) {
@@ -720,7 +720,7 @@ function suiteCard(suite) {
       ),
       live ? progressBlock(p) : summaryLine(suite),
     ),
-    state.confirmDel?.suite === suite.id && !state.confirmDel.id ? confirmBox(`"${suite.name}" 묶음을 삭제할까요?`, `시나리오 ${suite.scenarios.length}개와 테스트 코드, suite.md 가 지워집니다. 결과서 · 수행 이력은 남습니다.`, deleteNow) : '',
+    state.confirmDel?.suite === suite.id && !state.confirmDel.id ? confirmBox(`"${suite.name}" 묶음을 삭제할까요?`, `시나리오 ${suite.scenarios.length}개와 테스트 코드, suite.md, 결과서 · 가이드 · 스크린샷 · 수행 이력이 모두 지워집니다. 되돌릴 수 없습니다.`, deleteNow) : '',
     inner.length ? el('div', { class: 'exp' }, inner) : '',
   )
 }
@@ -830,7 +830,7 @@ function detailView(data) {
     el('div', { class: 'title' }, el('h2', {}, item.name), el('p', {}, [suite.name, item.kind, item.rows && `데이터 ${item.rows}행`, item.checks && `확인 ${item.checks}`].filter(Boolean).flatMap((part, index) => (index ? [el('i', {}, '·'), part] : [part])))),
   ]
   if (state.message) out.push(messageBox())
-  if (state.confirmDel?.suite === suite.id && state.confirmDel.id === item.id) out.push(confirmBox('이 시나리오를 삭제할까요?', '시나리오 파일과 테스트 코드가 지워지고 묶음의 시나리오 순서 · 규칙에서도 빠집니다. 결과서 · 수행 이력은 남습니다.', deleteNow, true))
+  if (state.confirmDel?.suite === suite.id && state.confirmDel.id === item.id) out.push(confirmBox('이 시나리오를 삭제할까요?', '시나리오 파일과 테스트 코드가 지워지고 묶음의 시나리오 순서 · 규칙에서도 빠집니다. 이 시나리오의 수행 이력 · 스크린샷도 지워지고 결과서는 남은 시나리오만으로 다시 만들어집니다. 되돌릴 수 없습니다.', deleteNow, true))
   const tags = [!item.hasCode && '코드 없음 — 처음 수행할 때 AI 가 코드를 만듭니다', item.stale && '코드 낡음 — 다음 수행 전에 AI 가 코드를 다시 만듭니다', item.changed?.length && `코드 바뀜 — ${item.changed.map((change) => change.path).join(', ')}`].filter(Boolean)
   if (tags.length) out.push(el('div', { class: 'warnbox' }, tags.map((tag, index) => [index ? el('br') : '', tag])))
 

@@ -45,7 +45,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 - `server/runner.ts` — 묶음 읽기 · 시나리오 고르기 · 드라이버로 돌리기 · 결과서 · 이력 · 진행 · 멈추기. 한 번에 수행 하나
 - `server/driver.ts` — 드라이버 인터페이스(`check()` · `run(cases)` · `stop()`)와 `web` 하나. client · mobile 은 드라이버를 더한다
 - `server/steps.ts` — 생성 코드가 쓰는 단계 API(`step` · `page` · `expect` · `data` · `account` · `baseUrl`), 단계마다 스크린샷, page 호출(셀렉터 · 기다림)과 expect 를 적어 테스트 방법 재료로 돌려준다(입력 값은 적지 않는다)
-- `server/remove.ts` — 삭제: 시나리오 하나(md · 생성 코드 · suite.md 의 순서 · 규칙) 또는 묶음 전체. 이 플러그인 파일(suite.md · 시나리오 .md · .spec.mjs)만 지우고 폴더에 다른 파일이 있으면 폴더를 남긴다. 결과서 · 이력은 지우지 않는다. 수행 중인 묶음은 거절
+- `server/remove.ts` — 삭제: 시나리오 하나(md · 생성 코드 · suite.md 의 순서 · 규칙) 또는 묶음 전체. 이 플러그인 파일(suite.md · 시나리오 .md · .spec.mjs)만 지우고 폴더에 다른 파일이 있으면 폴더를 남긴다. 묶음 삭제는 이어서 결과서 · 가이드 · 스크린샷 · 수행 이력까지 모두 지우고(runner.removeSuite), 시나리오 삭제는 그 시나리오의 수행 이력 · 스크린샷을 지우고 결과서를 남은 시나리오로 다시 쓴다(runner.removeScenario). 수행 중인 묶음은 거절
 - `server/guide.ts` — 가이드형 결과물 `guide.html` (결과서와 같은 입력)
 - `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 케이스마다 단계 표 · 오류 · 테스트 방법
 - `server/history.ts` — 이력 · 지난 수행과 비교(새로 실패 · 고쳐짐 · 그대로 실패)
