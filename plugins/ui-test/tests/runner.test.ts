@@ -29,6 +29,20 @@ describe('지난 수행과 비교', () => {
     expect(compareRuns(undefined, [caseOf('01', 'failed')])).toBeUndefined()
   })
 
+  it('일부만 돌린 수행이 끼어도 — 직전 수행에 없던 시나리오는 더 오래된 기록의 마지막 결과와 견준다', () => {
+    const older = runOf('20261105-100000', [caseOf('01', 'failed'), caseOf('02', 'passed')]) // 전체 수행
+    const previous = runOf('20261105-110000', [caseOf('02', 'passed')]) // 02 만 다시 수행
+    // 01 은 older 에서 이미 실패 중이었으니 이번에도 실패면 "그대로 실패"(새로 실패가 아니다)
+    expect(compareRuns(previous, [caseOf('01', 'failed')], [older])).toEqual({ previousId: '20261105-110000', newFail: [], fixed: [], stillFail: ['01'] })
+    // 01 이 이번에 통과하면 "고쳐짐"
+    expect(compareRuns(previous, [caseOf('01', 'passed')], [older])?.fixed).toEqual(['01'])
+    // 멈춤 · 코드 없음은 돈 게 아니라 이전 결과를 덮지 않는다
+    const stopped = runOf('20261105-120000', [{ ...caseOf('01', 'stopped') }])
+    expect(compareRuns(stopped, [caseOf('01', 'failed')], [older])?.stillFail).toEqual(['01'])
+    // older 를 안 주면(옛 동작) 직전에 없던 01 의 실패는 새로 실패
+    expect(compareRuns(previous, [caseOf('01', 'failed')])?.newFail).toEqual(['01'])
+  })
+
   it('이력은 최근 20개 — 넘친 것을 돌려준다(그 스크린샷 · 결과서를 지운다)', () => {
     let runs: RunRecord[] = []
     const dropped: string[] = []
