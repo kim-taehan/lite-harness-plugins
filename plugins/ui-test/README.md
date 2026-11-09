@@ -27,15 +27,15 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
   <묶음>/suite.md                       요청 원문 · 만든 날 · 대상 · 시나리오 순서 · AI 없이 돌리는 명령
   <묶음>/01-<이름>.md                   시나리오 + ## 테스트 방법 (첫 성공 뒤 AI 가 쓴다)
   <묶음>/01-<이름>.spec.mjs             생성 코드 — 시나리오 옆에 같은 이름, import 없이 단계 API 만 쓴다
-  _reports/<묶음>/<YYYYMMDD-HHmmss>/index.html   결과서 (설정 "결과서 폴더", 절대 경로 = 공유 드라이브도 됨)
+  _reports/<묶음>/<YYYYMMDD-HHmmss>/index.html   결과서 (테스트 폴더 안 고정 — 폴더 설정은 하나)
 ```
 
 수행 이력(비교 기준 · 스크린샷)은 이 PC 의 플러그인 데이터 폴더에 프로젝트(실제 경로)마다 따로, 묶음마다 최근 20 개. 넘친 수행의 결과서 폴더도 지운다.
-파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다(`.gitignore` 도 고치지 않는다 — 결과서 폴더가 프로젝트 안이고 `.gitignore` 에 없으면 처음 한 번 AI 가 넣을지 묻는다).
+파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다(`.gitignore` 도 고치지 않는다 — 결과서 폴더(`<테스트 폴더>/_reports`)가 `.gitignore` 에 없으면 처음 한 번 AI 가 넣을지 묻는다).
 
 ## 구성
 
-- `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 · 결과서 폴더), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
+- `plugin.json` — `service`(`service.mjs`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 · 테스트 폴더 — 결과서는 그 안 `_reports`), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
 - `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `progress` · `stop` · `shot`), 패널이 `service.call` 로 부르는 `list` · `run` · `progress` · `stop` · `shot` · `openFile` · `ask` · `prefs`(패널 기본값 — 프로젝트별 저장 칸 `storage.*`) 를 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `chat.compose`)으로 넘기고, 수행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`) — 서버 env 의 `${secret:password}` 로 서버에만 간다
 - `build.mjs` — 서비스를 `service.mjs` 한 파일로, 서버를 `server/ui-test.mjs` 로 묶는다(`--dir` 지원)
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run <묶음> [--failed] [--headed]`, 실패가 있으면 종료 코드 1
@@ -60,7 +60,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 
 ### AI 없이 (CI)
 
-zip 의 `server/` 폴더(러너 + `node_modules/playwright-core`)를 CI 에 두고, 프로젝트 폴더에서 `node <server>/ui-test.mjs run <묶음> --headless`. env: `UI_TEST_BASE_URL` · `UI_TEST_USER` · `UI_TEST_PASSWORD` · `UI_TEST_BROWSER` · `UI_TEST_DIR` · `UI_TEST_REPORT_DIR` (이력은 결과서 폴더의 `.history`). Node 20+ 와 Chrome 또는 Edge 가 필요하다.
+zip 의 `server/` 폴더(러너 + `node_modules/playwright-core`)를 CI 에 두고, 프로젝트 폴더에서 `node <server>/ui-test.mjs run <묶음> --headless`. env: `UI_TEST_BASE_URL` · `UI_TEST_USER` · `UI_TEST_PASSWORD` · `UI_TEST_BROWSER` · `UI_TEST_DIR` (결과서는 그 안 `_reports`, 이력은 그 안 `.history`). Node 20+ 와 Chrome 또는 Edge 가 필요하다.
 
 ### 테스트
 

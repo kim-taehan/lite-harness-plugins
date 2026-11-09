@@ -30,7 +30,6 @@ export default (host) =>
           UI_TEST_PASSWORD: '${secret:password}',
           UI_TEST_BACKEND_DIRS: '${storage:backendDirs}',
           UI_TEST_DIR: '${storage:testDir}',
-          UI_TEST_REPORT_DIR: '${storage:reportDir}',
           UI_TEST_DATA_DIR: '${dataDir}',
         },
         idleMs: 1_800_000,

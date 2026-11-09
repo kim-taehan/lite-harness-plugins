@@ -74,7 +74,7 @@ browser: Chrome
 ```
 node "<the CI command from list>" run "가입설계-화면" --headless
 ```
-Environment: UI_TEST_BASE_URL (target), UI_TEST_USER, UI_TEST_PASSWORD (from the CI secret store), UI_TEST_BROWSER (Chrome · Edge), UI_TEST_DIR (default ui-tests), UI_TEST_REPORT_DIR (default ui-tests/_reports). Exit code 1 when any case fails.
+Environment: UI_TEST_BASE_URL (target), UI_TEST_USER, UI_TEST_PASSWORD (from the CI secret store), UI_TEST_BROWSER (Chrome · Edge), UI_TEST_DIR (default ui-tests; reports go to its `_reports` folder). Exit code 1 when any case fails.
 ```
 
 - `request` is the user's request text, `created` the date you made it. `url` is optional — leave it out to use the settings' target address (an address here wins over the setting).
