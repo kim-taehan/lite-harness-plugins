@@ -116,7 +116,8 @@ describe('도구', () => {
       'measure select * from t where id = :id {"id":2}',
       'measure select /* rewrite */ * from t where id = :id {"id":2}',
     ])
-    expect(text).toContain('{"id":1} | 2 rows · 160ms · 33,551 buffers | 2 rows · 2ms · 6 buffers | yes')
+    // 체크섬 앞 8자도 같이 보인다 — AI 가 report 도구의 checksum 칸을 채울 수 있게
+    expect(text).toMatch(/\{"id":1\} \| 2 rows · 160ms · 33,551 buffers · sum \w{1,8} \| 2 rows · 2ms · 6 buffers · sum \w{1,8} \| yes/)
     expect(text).not.toContain('WARNING')
   })
 

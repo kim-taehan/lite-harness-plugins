@@ -22,6 +22,7 @@
           "projectWrite",
           "chat",
           "usage",
+          "llm",
           "service"
         ]
       }

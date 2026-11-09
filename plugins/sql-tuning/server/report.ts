@@ -298,6 +298,20 @@ export function maskBind(value: unknown): string {
   return '‹값›'
 }
 
+/** 바인드 묶음의 이름(compare 도구가 `{"d":"2026-10-15"}` 처럼 실제 값을 넣어 준다)에서 문자열 바인드 값을 가린다 —
+ *  따옴표로 감싼 값은 늘, 따옴표 없는 값은 3자 이상일 때만(짧은 값이 다른 글자를 망가뜨리지 않게) */
+export function maskLabel(label: string, binds: unknown): string {
+  const values = Array.isArray(binds) ? binds : isObj(binds) ? Object.values(binds) : []
+  const strings = values.filter((value): value is string => typeof value === 'string' && value.length > 0).sort((a, b) => b.length - a.length)
+  let out = label
+  for (const value of strings) {
+    const mask = maskBind(value)
+    out = out.split(`"${value}"`).join(`"${mask}"`)
+    if ([...value].length >= 3) out = out.split(value).join(mask)
+  }
+  return out
+}
+
 export function maskBinds(binds: unknown): string {
   if (Array.isArray(binds)) return binds.map((value, at) => `#${at + 1}=${maskBind(value)}`).join(' ')
   if (isObj(binds)) return Object.entries(binds).map(([name, value]) => `${name}=${maskBind(value)}`).join(' ')
@@ -685,7 +699,7 @@ export function renderReport(input: ReportInput, context: RenderContext): string
       const eq = same(set)
       const diffRows = set.original.rows - set.candidate.rows
       const plus = (side: RunSide): string => `${fmt(side.rows)}${set.partial ? '+' : ''}`
-      return `<tr class="${eq ? '' : 'differ'}"><td class="set"><b>바인드 ${at + 1} · ${clean(set.label)}</b><span>${clean(maskBinds(set.binds))}</span></td>
+      return `<tr class="${eq ? '' : 'differ'}"><td class="set"><b>바인드 ${at + 1} · ${clean(maskLabel(set.label, set.binds))}</b><span>${clean(maskBinds(set.binds))}</span></td>
       <td data-k="원래 행 수">${plus(set.original)}</td><td class="sum" data-k="원래 체크섬">${clean(set.original.checksum)}</td><td data-k="원래 시간">${fmt(set.original.ms)} ms</td>
       <td class="sep after ${eq ? '' : 'rowsdiff'}" data-k="고친 행 수">${plus(set.candidate)}${diffRows === 0 ? '' : `<small>${diffRows > 0 ? '−' : '+'}${fmt(Math.abs(diffRows))}행</small>`}</td><td class="sum ${eq ? '' : 'diffsum'}" data-k="고친 체크섬">${clean(set.candidate.checksum)}</td><td class="after" data-k="고친 시간">${fmt(set.candidate.ms)} ms<small>${set.candidate.ms <= set.original.ms ? `${pct(set.original.ms, set.candidate.ms)}% 빨라짐` : `${pct(set.candidate.ms, set.original.ms)}% 느려짐`}</small></td>
       <td class="v sep">${eq ? '<span class="chip ok">✓ 같음</span>' : '<span class="chip bad">✕ 다름</span>'}</td></tr>`

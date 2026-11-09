@@ -205,7 +205,7 @@ export interface CompareRow {
   candidate: RunStats
 }
 
-const stat = (run: RunStats): string => `${num(run.rows)}${run.partial ? '+' : ''} rows · ${run.ms}ms${run.buffers !== undefined ? ` · ${num(run.buffers)} buffers` : ''}`
+const stat = (run: RunStats): string => `${num(run.rows)}${run.partial ? '+' : ''} rows · ${run.ms}ms${run.buffers !== undefined ? ` · ${num(run.buffers)} buffers` : ''}${run.checksum ? ` · sum ${run.checksum.slice(0, 8)}` : ''}`
 
 export function formatCompare(rows: CompareRow[]): string {
   const lines = ['Comparison (both queries were executed; rows discarded, only counts and checksums kept):', '', 'binds | original | candidate | same result']
