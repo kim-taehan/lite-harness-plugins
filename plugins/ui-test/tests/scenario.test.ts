@@ -52,6 +52,8 @@ describe('parseScenario', () => {
     expect(fingerprint(SCENARIO.replace('8.2초', '9.9초'))).toBe(base)
     expect(fingerprint(SCENARIO.replace('1. 로그인한다', '1. 로그인한다   \n'))).toBe(base)
     expect(fingerprint(SCENARIO.replace('40세', '41세'))).not.toBe(base)
+    // `## 시행착오` 는 `## 테스트 방법` 뒤에 두므로 고쳐도 코드가 낡지 않는다
+    expect(fingerprint(`${SCENARIO}\n## 시행착오\n- 1단계 · 11-09 · 증상: 대기 시간 초과 → 원인: SPA → 해결: 제목을 기다림\n`)).toBe(base)
   })
 })
 

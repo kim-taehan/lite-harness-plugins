@@ -44,6 +44,10 @@ sources: [src/main/webapp/join/design.jsp@3f2a9c1b7d04, src/main/java/ins/join/J
 
 - `## 테스트 방법` — written by the AI after the case first passes, updated when a fix changes how it is tested. Short bullets, in this order: 사전 조건 (account name, start address/menu path, required data state) · 입력 데이터 (values actually used, personal-looking values masked like 900101-1******) · 화면 요소 찾는 법 (selector style per step, only the key ones) · 기다리는 법 (which signal: message, response, URL) · 확인 방법 (how each 확인 line was judged; for 확인(DB) the query) · 마지막 성공 (date · duration). A person can follow it by hand; the AI follows it when regenerating code. The fingerprint of a scenario ignores this section (and the `sources:` line), but includes the head, steps and `## 데이터`.
 
+- `## 시행착오` (optional) — lessons from fixing this case, **after** `## 테스트 방법` (the fingerprint ignores everything from `## 테스트 방법` to the end, so editing it never makes the code stale). One bullet per lesson, tagged with the step it concerns:
+  `- 3단계 · 11-09 · 증상: 로그인 뒤 /main 대기가 시간 초과 → 원인: SPA 라 URL 이 안 바뀜 → 해결: "프로젝트 현황" 제목이 보이길 기다림`
+  Keep only lessons that help next time (not typos or one-off errors) and only test-side ones — an app defect is not a lesson. At most 3 bullets per step, newest first; no total cap, but when the section passes about 40 lines merge duplicates and drop bullets for steps that no longer exist or whose screen/code changed. No passwords or personal data (mask like in 테스트 방법).
+
 ## Suite — `<test folder>/<suite>/suite.md`
 
 ```markdown

@@ -69,13 +69,13 @@ Write these with your normal file tools. Never write passwords anywhere — the 
 
 ## Keeping it healthy
 
-- **코드 낡음** (in `list`, the panel, or a warning at the top of a `run` result): the scenario md changed after its code was generated. Before running it, read the scenario (steps, `## 데이터`) and its `## 테스트 방법`, regenerate the `.spec.mjs` keeping the selectors/waits that still fit, and write the new fingerprint from `list` into the header. A result produced with stale code is not trustworthy — regenerate and run again.
+- **코드 낡음** (in `list`, the panel, or a warning at the top of a `run` result): the scenario md changed after its code was generated. Before running it, read the scenario (steps, `## 데이터`), its `## 테스트 방법` and `## 시행착오`, regenerate the `.spec.mjs` keeping the selectors/waits that still fit, and write the new fingerprint from `list` into the header. A result produced with stale code is not trustworthy — regenerate and run again.
 - **코드 바뀜**: a file in the scenario's `sources:` changed (or is gone). Read the changed file(s) (and `git diff` of them if available), then propose concrete updates to the scenario — expected messages, error codes, new required fields, flow — as an enrichment (below, kind 코드 바뀜). When the user accepted (or there is nothing to change), refresh the `sources:` line with `fingerprint` so the mark goes away. Refreshing `sources:` alone does not make the code stale.
 
 ## When a case fails
 
 Each failure carries a **갈래** (rough guess from the error): 셀렉터 못 찾음 · 기다림 시간 초과 · 확인 값 다름 · 이동 오류 · 코드 오류. The result also prints a hint per 갈래. Look at the error and the screenshot in the report, then decide and say which it is:
-- **The test is stale** (usually 셀렉터 못 찾음 · 기다림 시간 초과 · 코드 오류 — a renamed button, a changed URL, a typo in the spec): read `## 테스트 방법`, fix the `.spec.mjs`, and run that case again (`scenarios: ["03"]`). Keep the scenario md as it is.
+- **The test is stale** (usually 셀렉터 못 찾음 · 기다림 시간 초과 · 코드 오류 — a renamed button, a changed URL, a typo in the spec): read `## 테스트 방법` and `## 시행착오` first (don't repeat an approach that already failed), fix the `.spec.mjs`, and run that case again (`scenarios: ["03"]`). Keep the scenario's steps, data and "확인:" lines as they are. Once the case passes, add one `## 시행착오` bullet (symptom → cause → fix, tagged with the step; format and size rules in formats.md) when the lesson will help next time — no bullet for a typo or a one-off error.
 - **The app is probably wrong** (usually 확인 값 다름 — the element is there but the value or message differs from the scenario): do not change the test. Report it as a probable app defect with the evidence (step, data row, error, screenshot in the report). If the source code changed on purpose (코드 바뀜), propose a scenario change instead.
 - **Environment** (이동 오류): the target server is down or the address is wrong — tell the user.
 - Never change a scenario's steps, data or "확인:" lines without the user's OK — propose the change and ask.
@@ -119,7 +119,7 @@ suite.md `## 규칙` lists the screen's validation (`[검증]`) and business (`[
 
 "어제 가입설계 테스트 다시 돌려 줘" → `list`, find the suite (ask if several match), then `run { suite }`. "실패만" → `scenarios: "failed"`. Specific cases → `scenarios: ["01", "03"]`. "화면 없이" → `headed: false`.
 If `list` shows 코드 낡음 for any case you are about to run, regenerate it first.
-Before you regenerate or fix any spec, **read the scenario's `## 테스트 방법` first** and keep the code consistent with it — same selectors, waits and data — unless they are what fails. If a fix changes how the case is tested, update 테스트 방법 after it passes.
+Before you regenerate or fix any spec, **read the scenario's `## 테스트 방법` and `## 시행착오` first** and keep the code consistent with it — same selectors, waits and data — unless they are what fails. If a fix changes how the case is tested, update 테스트 방법 after it passes.
 Always report the comparison with the previous run (새로 실패 · 고쳐짐 · 그대로 실패 — data-table scenarios compare per row, "04-나이 2행") — it is the point of a re-run. For older results use `report { suite }` (or `run: "<id>"`).
 
 ## Rules for the code
