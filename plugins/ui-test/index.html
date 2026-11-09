@@ -128,7 +128,7 @@ function call(method, params) {
 }
 /** 서비스의 메서드 — 서버 도구의 글을 그대로 돌려준다. 실패면 Error(글) */
 const tool = (name, args = {}) => call('service.call', { name, params: args })
-const ERRORS = { 'no-project': '열린 프로젝트가 없습니다', 'mcp-failed': '플러그인 서버를 띄우지 못했습니다', 'not-on': '이 프로젝트에서 UI 테스트가 꺼져 있습니다', 'service-off': 'UI 테스트 서비스가 꺼져 있습니다 — 설정 › 기능 › 플러그인에서 켜 주세요', 'service-failed': 'UI 테스트 서비스가 오류로 멈췄습니다' }
+const ERRORS = { 'no-project': '열린 프로젝트가 없습니다', 'mcp-failed': '플러그인 서버를 띄우지 못했습니다', 'not-on': '이 프로젝트에서 UI 테스트가 꺼져 있습니다', 'service-off': 'UI 테스트 서비스가 꺼져 있습니다 — 설정 › 기능 › 플러그인에서 켜 주세요', 'service-failed': 'UI 테스트 서비스가 오류로 멈췄습니다', 'no-window': '설정 화면을 열 수 없습니다 — 이 플러그인 탭이 보일 때 눌러 주세요' }
 const errorText = (error) => ERRORS[error?.message] || error?.message || String(error)
 
 const state = {
@@ -486,6 +486,15 @@ function detailView(data) {
   return out
 }
 
+/** 앱의 설정 폼을 연다 — 앱 통로는 설정 값을 읽기(settings.summary)와 폼 열기(settings.open)만 주고 쓰기는 없다. 값은 그 폼에서 고친다 */
+async function openSettings() {
+  try {
+    await call('settings.open')
+  } catch (error) {
+    state.env.saved = errorText(error)
+    render()
+  }
+}
 async function openEnv() {
   state.env = { headed: state.headed, saved: '' }
   render()
@@ -499,7 +508,7 @@ function envDialog(data) {
     el(
       'div',
       { class: 'dlg-body' },
-      el('div', { class: 'sec' }, el('div', { class: 't' }, '연결'), el('dl', { class: 'kv' }, el('dt', {}, '대상 주소'), el('dd', {}, data.baseUrl || '(설정 안 됨)'), el('dt', {}, '브라우저'), el('dd', {}, data.browser), el('dt', {}, '읽는 곳'), el('dd', {}, el('code', {}, data.testDir)), el('dt', {}, '결과서 폴더'), el('dd', {}, el('code', {}, data.reportDir))), el('div', { class: 'sub' }, '고치려면 설정 › 기능 › 플러그인 › UI 테스트 › [고치기]')),
+      el('div', { class: 'sec' }, el('div', { class: 't' }, '연결'), el('dl', { class: 'kv' }, el('dt', {}, '대상 주소'), el('dd', {}, data.baseUrl || '(설정 안 됨)'), el('dt', {}, '브라우저'), el('dd', {}, data.browser), el('dt', {}, '읽는 곳'), el('dd', {}, el('code', {}, data.testDir)), el('dt', {}, '결과서 폴더'), el('dd', {}, el('code', {}, data.reportDir))), el('div', { class: 'acts', style: 'justify-content:flex-start' }, btn('설정 열기', openSettings), el('span', { class: 'sub' }, '대상 주소 · 브라우저 · 계정 · 폴더를 바꿉니다'))),
       el('hr', { class: 'div' }),
       el('div', { class: 'sec' }, el('div', { class: 't' }, '기본값'), el('div', { class: 'field' }, el('label', { for: 'headed' }, '브라우저 창', el('small', {}, '[다시 수행 ▾] 에서 이번만 바꿀 수 있습니다.')), el('select', { id: 'headed', onchange: (event) => (state.env.headed = event.target.value === 'headed') }, el('option', { value: 'headed', selected: state.env.headed }, '보이게'), el('option', { value: 'headless', selected: !state.env.headed }, '화면 없이')))),
       el('hr', { class: 'div' }),
