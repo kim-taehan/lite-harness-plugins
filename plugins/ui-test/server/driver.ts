@@ -73,10 +73,15 @@ export async function loadSpec(file: string): Promise<Spec> {
   return loaded.default as Spec
 }
 
+/** 창 · 브라우저가 닫혀서 난 오류 — 정리 중에 떠 있던 기다리기가 내는 소음 */
+const CLOSED = /closed|Target page|Browser has been|Execution context was destroyed/i
+
 export class WebDriver implements Driver {
   readonly target = 'web'
   private browser: BrowserLike | undefined
   private used: Channel
+  /** 수행 중 처리되지 않은 Promise 실패의 첫 줄 — 케이스가 끝날 때마다 비운다 */
+  private stray: string[] = []
 
   constructor(
     private readonly channel: Channel,
@@ -128,6 +133,12 @@ export class WebDriver implements Driver {
   async run(cases: DriverCase[], options: DriverRunOptions): Promise<CaseResult[]> {
     const results: CaseResult[] = []
     this.browser = await this.open(!options.headed)
+    // 생성 코드가 기다리지 않고 걸어 둔 Promise(예: `const r = page.waitForResponse(…)` 를 await 하지 못한 채 단계가 실패) 는
+    // 창이 닫힐 때 reject 되어 unhandledRejection 으로 Node 프로세스를 통째로 죽인다 — 수행 동안 받아 그 케이스의 일로 센다
+    const onStray = (reason: unknown): void => {
+      this.stray.push(reason instanceof Error ? reason.message.split('\n')[0]! : String(reason))
+    }
+    process.on('unhandledRejection', onStray)
     try {
       for (const [index, item] of cases.entries()) {
         if (options.stopped()) {
@@ -170,6 +181,7 @@ export class WebDriver implements Driver {
         options.onCase?.(index, result)
       }
     } finally {
+      process.off('unhandledRejection', onStray)
       await this.stop()
     }
     return results
@@ -177,13 +189,27 @@ export class WebDriver implements Driver {
 
   /** 창을 열다 · 닫다 깨져도(멈추기로 브라우저가 닫힘 등) 수행 전체가 깨지지 않게 — 멈춤이면 멈춤, 아니면 그 케이스만 실패 */
   private async safely(item: DriverCase, options: DriverRunOptions, work: () => Promise<CaseResult>): Promise<CaseResult> {
+    this.stray = []
+    let result: CaseResult
     try {
-      return await work()
+      result = await work()
     } catch (error) {
-      if (options.stopped()) return { id: item.id, title: item.title, status: 'stopped', durationMs: 0, steps: [] }
-      const message = error instanceof Error ? error.message.split('\n')[0]! : String(error)
-      return { id: item.id, title: item.title, status: 'failed', durationMs: 0, steps: [], error: message, failKind: 'navigation' }
+      if (options.stopped()) result = { id: item.id, title: item.title, status: 'stopped', durationMs: 0, steps: [] }
+      else {
+        const message = error instanceof Error ? error.message.split('\n')[0]! : String(error)
+        result = { id: item.id, title: item.title, status: 'failed', durationMs: 0, steps: [], error: message, failKind: 'navigation' }
+      }
     }
+    return this.withStray(result)
+  }
+
+  /** 창을 닫는 순간 reject 되는 따로 뜬 Promise 의 소식은 이 케이스에 이어 붙인다 — 이미 실패한 케이스는 그대로 두고, 성공으로 끝난 케이스에서 창이 닫혀서 난 오류(Target closed 따위)는 소음이라 무시하고, 그 밖의 처리 안 된 실패는 케이스를 실패로 바꾼다 */
+  private async withStray(result: CaseResult): Promise<CaseResult> {
+    await new Promise((resolve) => setImmediate(resolve)) // unhandledRejection 은 다음 틱에 온다
+    const real = this.stray.filter((message) => !CLOSED.test(message))
+    this.stray = []
+    if (result.status !== 'passed' || real.length === 0) return result
+    return { ...result, status: 'failed', error: `처리되지 않은 Promise 실패: ${real[0]} — 기다리기(waitForResponse 따위)는 동작과 묶어 await Promise.all([…]) 로 쓰세요`, failKind: 'script' }
   }
 
   /** 새 창 하나로 케이스(또는 데이터 표 한 행)를 한 번 */

@@ -146,7 +146,7 @@ Always report the comparison with the previous run (새로 실패 · 고쳐짐 �
 ## Rules for the code
 
 - Selectors — the conventions in `_prompt.md` win; otherwise in this order: label text (`getByLabel`), role + accessible name (`getByRole('button', { name: '저장' })`), visible text for messages (`getByText`), then `#id`, `[name=…]`, `[data-*=…]`. No XPath, no nth-child, no generated class names.
-- Waiting: wait for a signal, never sleep — a message to appear (`expect(...).toBeVisible()`), a URL (`page.waitForURL`), a response (`page.waitForResponse`), an element state. No `waitForTimeout`.
+- Waiting: wait for a signal, never sleep — a message to appear (`expect(...).toBeVisible()`), a URL (`page.waitForURL`), a response (`page.waitForResponse`), an element state. No `waitForTimeout`. **Wait and action go together**: `await Promise.all([page.waitForResponse(…), page.goto(…)])` — never keep a wait promise in a variable and await it later (a failing step in between leaves it dangling and it can kill the run).
 - Accounts: `account.user` / `account.password` from settings. A scenario's `account:` names which account it means; only one account exists for now.
 - Each case (and each data row) starts from a fresh browser context — log in inside the case when it needs a login.
 - Data tables: read the row from `data.<column>` (e.g. `data.나이`, `data.기대`) and branch on the expected column where the outcome differs; one spec serves every row.
