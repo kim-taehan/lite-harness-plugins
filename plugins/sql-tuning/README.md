@@ -3,7 +3,7 @@
 ## 역할
 
 SQL 튜닝 도우미 — 개발 DB 의 실행계획 · 테이블 · 인덱스 · 통계를 AI 가 읽고 고친 SQL 과 인덱스를 제안한다 (#1051, 설계 `docs/guide/superpowers/specs/2026-11-02-sql-tuning-design.md`).
-도구 8개(`server/tools.ts`)와 스킬(`skills/sql-tuning`)은 **공통**이고, 두 가지 껍데기로 쓴다:
+도구 9개(`server/tools.ts`)와 스킬(`skills/sql-tuning`)은 **공통**이고, 두 가지 껍데기로 쓴다:
 - **litecode 플러그인** (#1072 · #1232 · 0.10.0 서비스 #1614) — `plugin.json`(서비스 · 패널 · 설정 칸 선언 — 스킬은 서비스가 올린다). DB 연결 정보는 앱의 설정 폼으로 받고, 작은 패널 `index.html` 은 카드 두 개(표준 · 연결)만 둔다. 서비스(`service/index.mjs`)가 `host.mcp.register` 로 같은 `server/index.ts` 를 앱에 등록하고, 앱이 별도 프로세스로 띄운다. 아래 "플러그인으로 쓰기"
 - **표준 MCP 서버(stdio)** — `server/index.ts`. davis-code 등 다른 호스트에서. 아래 "MCP 서버로 쓰기"
 
@@ -15,9 +15,10 @@ SQL 튜닝 도우미 — 개발 DB 의 실행계획 · 테이블 · 인덱스 ·
 - `server/index.ts` — MCP 입구. 연결은 `DATABASE_URL`, 없으면 `SQL_TUNING_DB` · `_HOST` · `_PORT` · `_SERVICE` · `_USER` · `_PASSWORD` 칸으로 만든다(`connect.ts` `databaseUrlFromEnv`). 스킴으로 어댑터를 고른다(`oracle://` · `postgres://`)
 - `plugin.json` — `settings` 칸(`db` · `host` · `port` · `service` · `user` · `password`(secret) · `schema`)을 앱이 설치 2 단계와 설정 › 기능 › 플러그인 › [고치기] 에 폼으로 그린다. `service` 선언(`service.mjs`) — `mcp` · `skills` 선언은 0.10.0 에서 서비스로 옮겼다.
 - `service/index.mjs` — 서비스 원본(`build.mjs` 가 `service.mjs` 한 파일로 묶는다). ① `host.mcp.register` 로 MCP 서버를 등록한다: 명령 `server/sql-tuning.mjs`(묶은 서버), env 는 칸 값 자리표시(`${storage:<키>}` · `${secret:password}` — 0.7.0 이후 같은 키라 저장한 값이 그대로 쓰인다), 10분 쉬면 내린다. AI 도구 이름은 옛 `mcp` 선언 때와 같다(`attach` 없음 → `litecode_sql-tuning_<도구>`). 값을 바꾸면 앱이 다음 호출에 서버를 다시 띄운다. 도구 목록은 앱이 서버에게 묻는다 ② 스킬 `skills/sql-tuning`(SKILL.md 와 references/ 통째로)을 `host.skills.register({ name: 'sql-tuning', dir })` 로 올린다 — 패널이 읽는 플러그인 기본 표준(`references/sql-standard.md`)은 `bundledFile` 이 `host.skills.readFile` 로 읽어 준다(사용자가 `host.skills.writeFile` 로 얹은 글이 먼저, 없으면 스킬 폴더에 든 원래 파일, 둘 다 없으면 "플러그인 기본 없음") ③ 패널이 `service.call` 로 부르는 메서드(`readFile` · `fileInfo` · `writeFile` · `removeFile` · `openFile` · `projectInfo` · `settingsSummary` · `settingsCheck` · `settingsOpen`)를 같은 이름의 앱 호출(`host.call`)로 중계하고, 실패하면 오류 코드를 `{ ok: false, code }` 로 돌려준다
-- `server/tools.ts` — 도구 8개: `explain`(실행 안 함) · `table_info` · `top_queries` · `runtime_plan`(실제 실행) · `impact_check`(인덱스 전 영향) · `captured_sql`(애플리케이션이 실제로 보낸 SQL · Oracle 바인드 값 표본 — MyBatis · JPA 코드의 진짜 SQL, #1056) · `compare`(원래 · 고친 쿼리를 여러 바인드 값으로 실제 실행해 비교) · `query`(확인용, 행 수 제한)
+- `server/tools.ts` — 도구 9개: `explain`(실행 안 함) · `table_info` · `top_queries` · `runtime_plan`(실제 실행) · `impact_check`(인덱스 전 영향) · `captured_sql`(애플리케이션이 실제로 보낸 SQL · Oracle 바인드 값 표본 — MyBatis · JPA 코드의 진짜 SQL, #1056) · `compare`(원래 · 고친 쿼리를 여러 바인드 값으로 실제 실행해 비교) · `query`(확인용, 행 수 제한) · `report`(튜닝 최종 결과서 — 아래 `server/report.ts`)
 - `server/status.ts` — [연결 확인] 도구 `server_status`(인자 없음): 비어 있는 필수 칸이 있으면 그 이름, 다 있으면 `SELECT 1` 한 번으로 "연결됨 — Oracle tuner@host:1521/FREEPDB1 (12ms)" 또는 "연결 실패 — …: <오류>" 한 줄. litecode 는 manifest `settingsCheck` 로 AI 목록에서 뺀다(davis-code 에서는 목록에 보이지만 설명이 "설정 폼 전용")
-- `index.html` — 오른쪽 패널(0.9.0~, 결과 기록 없음. 0.10.0 부터 앱과는 `service.call` 한 통로만 쓴다). 연결 정보는 0.9.1 부터 `settingsPer: "project"` — 모든 프로젝트로 켜도 프로젝트마다 따로 (#1252). **표준** 카드: 이 프로젝트에 쓰이는 표준 — 프로젝트 파일 `.litecode/sql-standard.md`(팀 공유, 규칙 수 = 규칙 번호 `SQL-\d+` 같은 것이 든 줄, 고친 날) 또는 플러그인 기본(zip 의 `references/sql-standard.md`) 또는 없음, 앞 규칙 몇 개. [고치기](편집 · 미리보기 → 저장하면 프로젝트 파일) · [.md 로 바꾸기](고른 .md 내용을 프로젝트 파일로) · [플러그인 기본으로](프로젝트 파일 지우기). 쓰기는 앱 권한 `projectWrite`(`project.writeFile` · `removeFile` — `.litecode/` 바로 아래 .md 만). **연결** 카드: 앱의 `settings.summary`(비밀번호는 저장됐나만) · [연결 확인](`settings.check` — 서비스가 켜진 뒤에 된다) · [연결 정보 고치기](`settings.open` — 앱의 설정 폼)
+- `index.html` — 오른쪽 패널(0.9.0~, 결과 기록 없음. 0.10.0 부터 앱과는 `service.call` 한 통로만 쓴다). 카드 순서는 **연결 → 표준**(시안 2026-11-09, `.interface-design/system.md` 토큰). 서비스가 꺼져 있으면 두 카드를 "읽지 못함"으로 흐리게 그리고 설정 경로 안내 + [다시 확인] 만 둔다. 연결 정보는 0.9.1 부터 `settingsPer: "project"` — 모든 프로젝트로 켜도 프로젝트마다 따로 (#1252). **표준** 카드: 이 프로젝트에 쓰이는 표준 — 프로젝트 파일 `.litecode/sql-standard.md`(팀 공유, 규칙 수 = 규칙 번호 `SQL-\d+` 같은 것이 든 줄, 고친 날) 또는 플러그인 기본(zip 의 `references/sql-standard.md`) 또는 없음, 앞 규칙 몇 개. [고치기](편집 · 미리보기 → 저장하면 프로젝트 파일) · [.md 로 바꾸기](고른 .md 내용을 프로젝트 파일로) · [플러그인 기본으로](프로젝트 파일 지우기). 쓰기는 앱 권한 `projectWrite`(`project.writeFile` · `removeFile` — `.litecode/` 바로 아래 .md 만). **연결** 카드: 앱의 `settings.summary`(비밀번호는 저장됐나만) · [연결 확인](`settings.check` — 서비스가 켜진 뒤에 된다) · [연결 정보 고치기](`settings.open` — 앱의 설정 폼)
+- `server/report.ts` — `report` 도구의 입력 검사(`parseReport` — 빠진 칸을 한꺼번에 알림) · 결과서 HTML 렌더러(`renderReport` — 한 파일, 외부 요청 · 스크립트 없음, 라이트 · 다크 · 좁은 폭 · 인쇄) · 파일 쓰기(`writeReport` — 프로젝트 폴더의 `sql-tuning-reports/<YYYYMMDD-HHMMSS>/index.html`, 실제 경로가 폴더 밖이면 거절) · `.gitignore` 제안(`gitignoreHint` — 처음 한 번 글만, 파일은 고치지 않는다). 모든 글을 이스케이프하고 비밀번호 · 접속 주소 · 호스트 · 계정을 지우며(계정이 스키마와 같으면 객체 소유자라 둔다) 바인드 문자열은 길이만 적는다. 데이터 행은 받지 않는다
 - `server/checksum.ts` — compare 의 결과 체크섬(행 순서와 상관없음)
 - `server/guard.ts` — 한 문장 · SELECT/WITH 만, 오류 글의 비밀번호 지우기
 - `server/adapters/oracle.ts`(node-oracledb thin — Oracle Client 불필요) · `server/adapters/postgres.ts`(pg)
@@ -56,7 +57,7 @@ Oracle 의 인덱스 사용 수(`DBA_INDEX_USAGE`, 12.2+)는 표본 추적이고
 
 ## 데이터가 나가는 범위
 
-도구 결과(SQL · 테이블 · 열 이름 · 실행계획 · 통계 · compare 의 행 수와 체크섬)는 대화의 일부로 사내 LLM(Gateway 경유)까지 간다. `explain` · `table_info` · `top_queries` · `impact_check` · `runtime_plan` · `compare` 는 데이터 행을 돌려주지 않는다(`table_info` 는 열 통계의 최소 · 최대값도 뺀다). `top_queries` 의 SQL 글에는 리터럴 값이 들어 있을 수 있다. 데이터 행은 `query` 만 — 매번 승인. `captured_sql` 의 바인드 값(Oracle)은 실제 값이다(이메일 등이 들어 있을 수 있다) — 매번 승인.
+도구 결과(SQL · 테이블 · 열 이름 · 실행계획 · 통계 · compare 의 행 수와 체크섬)는 대화의 일부로 사내 LLM(Gateway 경유)까지 간다. `explain` · `table_info` · `top_queries` · `impact_check` · `runtime_plan` · `compare` 는 데이터 행을 돌려주지 않는다(`table_info` 는 열 통계의 최소 · 최대값도 뺀다). `top_queries` 의 SQL 글에는 리터럴 값이 들어 있을 수 있다. 데이터 행은 `query` 만 — 매번 승인. `captured_sql` 의 바인드 값(Oracle)은 실제 값이다(이메일 등이 들어 있을 수 있다) — 매번 승인. `report` 가 만드는 결과서는 프로젝트 폴더의 로컬 파일이라 어디로도 나가지 않는다(비밀번호 · 접속 정보 · 데이터 행 없음, 문자열 바인드는 길이만) — 다만 SQL 글은 그대로 들어가니 개인정보가 든 리터럴이 있으면 결과서에도 있다.
 
 ## 라이선스 (Oracle)
 
