@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileS
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { diffLines, hiddenValues, maskBinds, parseReport, renderReport, scrub, writeReport } from '../server/report.ts'
+import { diffLines, hiddenValues, maskBinds, maskLabel, parseReport, renderReport, scrub, writeReport } from '../server/report.ts'
 import type { ReportInput } from '../server/report.ts'
 import { createTools } from '../server/tools.ts'
 import type { Adapter } from '../server/types.ts'
@@ -88,6 +88,15 @@ describe('결과서 렌더러', () => {
   it('계정이 스키마와 같으면(객체 소유자 이름) 지우지 않는다', () => {
     expect(hiddenValues('oracle://shop:pw1234@h.example/XE', 'SHOP')).toEqual(['pw1234', 'h.example'])
     expect(hiddenValues('oracle://shop:pw1234@h.example/XE')).toContain('shop')
+  })
+
+  it('바인드 묶음 이름(compare 가 실제 값을 넣어 준다)에서도 문자열 값은 가린다 — 짧은 값은 따옴표로 감싼 것만', () => {
+    expect(maskLabel('{"d":"2026-10-15"}', { d: '2026-10-15' })).toBe('{"d":"‹문자열 10자›"}')
+    expect(maskLabel('email=kim@example.com status=Y', { email: 'kim@example.com', status: 'Y' })).toBe('email=‹문자열 15자› status=Y')
+    expect(maskLabel('{"s":"Y","note":"YES"}', { s: 'Y', note: 'YES' })).toBe('{"s":"‹문자열 1자›","note":"‹문자열 3자›"}')
+    expect(maskLabel('최근 7일 · 결제 완료', { days: 7 })).toBe('최근 7일 · 결제 완료')
+    const html = render({ ...win, compare: [{ ...win.compare[0]!, label: '{"email":"kim@example.com"}', binds: { email: 'kim@example.com' } }] })
+    expect(html).not.toContain('kim@example.com')
   })
 
   it('바인드 값 — 문자열은 길이만, 숫자 · 불리언 · NULL 은 그대로', () => {
