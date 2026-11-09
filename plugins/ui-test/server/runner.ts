@@ -43,7 +43,10 @@ export interface ScenarioInfo {
 export interface SuiteInfo {
   suite: Suite
   scenarios: ScenarioInfo[]
+  /** 가장 최근 수행(일부 시나리오만 돌린 수행일 수 있다) */
   last?: RunRecord
+  /** 시나리오마다 **실제로 마지막에 돈** 결과 — 일부만 다시 수행해도 나머지는 지난 결과가 남는다. 성공 · 실패만(멈춤 · 코드 없음은 돈 게 아니라 덮지 않는다) */
+  lastCases: Map<string, CaseResult>
 }
 
 export interface Progress {
@@ -147,8 +150,12 @@ export class Workspace {
         }
       }),
     )
-    const last = (await this.history.runs(id))[0]
-    return { suite, scenarios, ...(last && { last }) }
+    const runs = await this.history.runs(id)
+    const last = runs[0]
+    // 최근 수행부터 거슬러 올라가며 시나리오마다 처음 만나는 "돈" 결과를 잡는다
+    const lastCases = new Map<string, CaseResult>()
+    for (const run of runs) for (const item of run.cases) if ((item.status === 'passed' || item.status === 'failed') && !lastCases.has(item.id)) lastCases.set(item.id, item)
+    return { suite, scenarios, lastCases, ...(last && { last }) }
   }
 
   /** sources 의 파일 지문을 지금 내용과 견준다 — 프로젝트 · 백엔드 코드 폴더 밖 · 없는 파일은 missing, 지문 없이 적힌 것은 보지 않는다 */
@@ -233,7 +240,7 @@ export class Workspace {
   async pick(info: SuiteInfo, wanted: RunArgs['scenarios']): Promise<SuiteInfo['scenarios']> {
     if (!wanted || (Array.isArray(wanted) && wanted.length === 0)) return info.scenarios
     if (wanted === 'failed') {
-      const failed = new Set(info.last?.cases.filter((item) => item.status === 'failed').map((item) => item.id) ?? [])
+      const failed = new Set([...info.lastCases.values()].filter((item) => item.status === 'failed').map((item) => item.id))
       return info.scenarios.filter((item) => failed.has(item.scenario.id))
     }
     const picked = info.scenarios.filter((item) => wanted.some((want) => item.scenario.id === want || item.scenario.name === want || item.scenario.id.split('-')[0] === want || item.scenario.id === want.replace(/\.(md|spec\.mjs)$/, '')))
@@ -317,9 +324,10 @@ export class Workspace {
         },
       )
       const cases: CaseResult[] = picked.map(({ scenario, hasCode }) => ran.find((item) => item.id === scenario.id) ?? { id: scenario.id, title: scenario.name, status: hasCode ? 'stopped' : 'no-code', durationMs: 0, steps: [] })
-      const previous = (await this.history.runs(args.suite))[0]
+      const earlier = await this.history.runs(args.suite)
+      const previous = earlier[0]
       const reportFile = path.join(this.config.reportDir, args.suite, runId, 'index.html')
-      const compare = compareRuns(previous, cases)
+      const compare = compareRuns(previous, cases, earlier.slice(1))
       const run: RunRecord = { id: runId, suite: args.suite, startedAt, durationMs: Date.now() - startedAt, headed, browser: driver.browserName(), baseUrl: info.suite.url || this.config.baseUrl, cases, report: reportFile, ...(compare && { compare }), ...(this.interruptReason && { interrupted: this.interruptReason }) }
       await this.writeReport(run, info, shotsDir)
       await this.history.add(run)

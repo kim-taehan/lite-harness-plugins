@@ -165,6 +165,30 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 수행 (�
     return md
   }
 
+  it('일부 시나리오만 다시 수행해도 나머지의 마지막 결과가 남는다 — list · 실패만 · 비교', async () => {
+    await scenario()
+    const second = '---\nname: 둘\n---\n1. 연다\n'
+    await fs.writeFile(path.join(root, 'ui-tests/join/02-둘.md'), second)
+    await fs.writeFile(path.join(root, 'ui-tests/join/02-둘.spec.mjs'), `// ui-test source: ui-tests/join/02-둘.md · fingerprint: ${fingerprint(second)}\nexport default async ({ step, page }) => {\n  await step('1. 연다', async () => { await page.goto('/') })\n}\n`)
+    const space = workspace()
+    await space.run({ suite: 'join', headed: false }) // 01-나이(71 행 실패) · 02-둘 성공
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await space.run({ suite: 'join', scenarios: ['02-둘'], headed: false }) // 02-둘 만 다시
+    const json = JSON.parse((await tool(tools(space), 'list').run({ json: true })).text)
+    const [first, other] = json.suites[0].scenarios
+    // 02-둘 만 다시 수행해도 01-나이 가 "수행 전" 으로 돌아가지 않는다
+    expect(first).toMatchObject({ id: '01-나이', lastStatus: 'failed' })
+    expect(first.lastFailure).toBeDefined()
+    expect(other).toMatchObject({ id: '02-둘', lastStatus: 'passed' })
+    expect((await tool(tools(space), 'list').run({})).text).toContain('01-나이')
+    // "실패만" 은 직전 수행이 아니라 시나리오마다의 마지막 결과로 고른다 · 계속 실패 중이니 "새로 실패" 가 아니다
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    const failed = await space.run({ suite: 'join', scenarios: 'failed', headed: false })
+    expect(failed.run.cases.map((item) => item.id)).toEqual(['01-나이'])
+    expect(failed.run.compare?.newFail).toEqual([])
+    expect(failed.run.compare?.stillFail.length).toBeGreaterThan(0)
+  })
+
   it('guide — 수행 뒤 결과서 옆에 guide.html 을 쓴다 · 수행 기록이 없거나 묶음이 없으면 알린다', async () => {
     await scenario()
     const space = workspace()

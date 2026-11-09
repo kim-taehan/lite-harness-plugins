@@ -118,11 +118,11 @@ const coverageText = (value: Coverage): string =>
 const changedText = (item: ScenarioInfo): string => item.changed.map((change) => `${change.path}${change.state === 'missing' ? '(없음)' : ''}`).join(', ')
 
 function suiteLine(info: SuiteInfo, workspace: Workspace, serverFile: string): string {
-  const { suite, scenarios, last } = info
+  const { suite, scenarios, last, lastCases } = info
   const head = `## ${suite.id} — ${suite.name}${suite.request ? ` ("${suite.request}")` : ''}${suite.created ? ` · ${suite.created} 만듦` : ''} · 대상 ${suite.target}`
   const rows = scenarios.map((item) => {
     const { scenario, hasCode, specFile } = item
-    const lastCase = last?.cases.find((result) => result.id === scenario.id)
+    const lastCase = lastCases.get(scenario.id)
     const marks = [item.stale ? `**코드 낡음** (코드 머리말 지문 ${item.codeFingerprint ?? '없음'} ≠ ${scenario.fingerprint})` : '', item.changed.length ? `**코드 바뀜**: ${changedText(item)}` : ''].filter(Boolean).join(' · ')
     return `- ${scenario.id}: ${scenario.name}${scenario.kind ? ` [${scenario.kind}]` : ''} · 단계 ${scenario.steps.length}${scenario.data ? ` · 데이터 ${scenario.data.rows.length}행 (${scenario.data.columns.join(', ')})` : ''} · 지문 ${scenario.fingerprint} · 코드 ${hasCode ? workspace.rel(specFile) : '없음'} · 테스트 방법 ${scenario.method.length ? '있음' : '없음'}${lastCase ? ` · 마지막 ${STATUS[lastCase.status]}` : ''}${marks ? ` · ${marks}` : ''}`
   })
@@ -190,7 +190,7 @@ export function createTools(deps: ToolDeps): Tool[] {
                 created: info.suite.created,
                 coverage: coverage(info.suite.rules, info.scenarios.map((item) => item.scenario.id)),
                 scenarios: info.scenarios.map((item) => {
-                  const lastCase = info.last?.cases.find((result) => result.id === item.scenario.id)
+                  const lastCase = info.lastCases.get(item.scenario.id)
                   return {
                     id: item.scenario.id,
                     name: item.scenario.name,
