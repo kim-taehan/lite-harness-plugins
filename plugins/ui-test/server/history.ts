@@ -15,10 +15,12 @@ export function units(cases: CaseResult[]): { key: string; status: CaseResult['s
 /** `<id>#2` → `<id> 2행` (화면 · 결과서) */
 export const unitLabel = (key: string): string => key.replace(/#(\d+)$/, ' $1행')
 
-/** 지난 수행과 비교 — 이번에 돌린 시나리오(행)만 본다. 지난번에 없던 것의 실패는 새로 실패 */
-export function compareRuns(previous: RunRecord | undefined, current: CaseResult[]): Comparison | undefined {
+/** 지난 수행과 비교 — 일부 시나리오만 돌린 수행이 끼어 있어도 맞게: 단위(시나리오 · 데이터 행)마다 **마지막으로 실제 돈**(성공 · 실패) 결과와 견준다.
+ *  previous 가 바로 직전 수행(비교 기준 id), older 는 그 전 기록들(최근 것부터) — 직전 수행에 없던 시나리오는 더 오래된 기록에서 찾는다 */
+export function compareRuns(previous: RunRecord | undefined, current: CaseResult[], older: RunRecord[] = []): Comparison | undefined {
   if (!previous) return undefined
-  const before = new Map(units(previous.cases).map((item) => [item.key, item.status]))
+  const before = new Map<string, string>()
+  for (const run of [previous, ...older]) for (const item of units(run.cases)) if ((item.status === 'passed' || item.status === 'failed') && !before.has(item.key)) before.set(item.key, item.status)
   const out: Comparison = { previousId: previous.id, newFail: [], fixed: [], stillFail: [] }
   for (const item of units(current)) {
     const old = before.get(item.key)
