@@ -200,6 +200,10 @@ export function createTools(deps: ToolDeps): Tool[] {
                     stale: item.stale,
                     changed: item.changed,
                     checks: item.scenario.steps.filter((step) => step.kind !== 'action').length,
+                    // 패널 상세가 시나리오 원문을 보이는 데 쓴다 — 단계 · 데이터 표 · 테스트 방법
+                    steps: item.scenario.steps.map(({ no, text, kind }) => ({ no, text, kind })),
+                    ...(item.scenario.data && { data: item.scenario.data }),
+                    method: item.scenario.method,
                     rows: item.scenario.data?.rows.length,
                     lastStatus: lastCase?.status,
                     lastFailure: lastFailure(lastCase),

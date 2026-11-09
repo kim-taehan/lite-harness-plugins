@@ -76,7 +76,8 @@ export default (host) =>
       this.expose('guide', (params, call) => this.tool('guide', record(params), call))
       // 앱 기능 — 패널은 앱 통로를 직접 쓰지 않고 서비스를 거친다
       this.expose('openFile', (params, { directory }) => host.call('project.openFile', { path: record(params).path }, { directory }))
-      this.expose('ask', (params, { directory }) => host.call('chat.compose', { text: record(params).text, send: true }, { directory }))
+      // send: false 면 새 대화의 입력창만 채우고 보내지 않는다(변경 요청처럼 사용자가 이어 쓸 때)
+      this.expose('ask', (params, { directory }) => host.call('chat.compose', { text: record(params).text, send: record(params).send !== false }, { directory }))
     }
 
     /** 서버 도구 하나를 부른다 — 실패(isError)면 던진다 */

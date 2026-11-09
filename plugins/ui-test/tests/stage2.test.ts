@@ -202,6 +202,9 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 수행 (�
     const json = JSON.parse((await tool(tools(space), 'list').run({ json: true })).text)
     expect(json.suites[0].coverage.uncovered[0].text).toBe('특약 조합')
     expect(json.suites[0].scenarios[0]).toMatchObject({ stale: true, rows: 3, checks: 1 })
+    // 상세가 보이는 시나리오 원문 — 단계 · 데이터 표
+    expect(json.suites[0].scenarios[0].steps).toEqual([{ no: 1, text: '연다', kind: 'action' }, { no: 2, text: '확인: 결과', kind: 'check' }])
+    expect(json.suites[0].scenarios[0].data.columns).toEqual(['나이', '기대'])
     const run = await tool(tools(space), 'run').run({ suite: 'join', headed: false })
     expect(run.text).toContain('머리말 지문이 맞지 않음): 01-나이')
     expect(await tool(tools(space), 'fingerprint').run({ files: ['../x'] })).toMatchObject({ isError: true })

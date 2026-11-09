@@ -146,6 +146,12 @@ describe('service', () => {
     ])
   })
 
+  it('ask — send: false 면 입력창만 채운다(변경 요청)', async () => {
+    const { fake } = start({})
+    await fake.call('ask', { text: '3 번 시나리오를 바꿔 줘:', send: false }, { directory: DIR })
+    expect(fake.calls).toEqual([{ method: 'chat.compose', params: { text: '3 번 시나리오를 바꿔 줘:', send: false }, directory: DIR }])
+  })
+
   it('prefs — 기본값(headed)을 그 프로젝트의 저장 칸에 두고 읽는다', async () => {
     const { fake } = start({})
     expect(await fake.call('prefs', undefined, { directory: DIR })).toEqual({})

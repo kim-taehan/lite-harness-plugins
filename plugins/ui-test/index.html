@@ -41,6 +41,17 @@ button.small{height:26px;padding:0 9px;font-size:12px}
 .toggle:hover{background:none}
 .toggle .chv{margin-top:3px;color:var(--faint);transition:transform .12s}
 .toggle[aria-expanded=true] .chv{transform:rotate(90deg)}
+.scn-steps{margin:0;padding:10px 14px 10px 36px;display:flex;flex-direction:column;gap:6px}
+.scn-steps li{padding-left:2px}
+.scn-steps .chip2{display:inline-block;font-size:11px;font-weight:600;padding:0 7px;border-radius:99px;background:var(--idle-bg);color:var(--sub);margin-right:6px}
+.scn-steps .chip2.db{background:var(--accent-bg);color:var(--accent)}
+.tblwrap{overflow-x:auto;padding:0 12px 12px}
+.tbl{border-collapse:collapse;font-size:12px;min-width:100%}
+.tbl th,.tbl td{border:1px solid var(--line);padding:4px 9px;text-align:left;overflow-wrap:anywhere}
+.tbl th{background:var(--raise);color:var(--sub);font-weight:600}
+details.how{padding:0 12px 12px;font-size:12px;color:var(--sub)}
+details.how summary{cursor:pointer;padding:6px 0}
+details.how ul{margin:2px 0 0;padding-left:18px}
 .bar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:var(--idle-bg);margin:0 12px 10px}
 .bar>i{display:block;height:100%}.bar .p{background:var(--ok)}.bar .f{background:var(--bad)}.bar .r{background:var(--accent)}
 .row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;height:auto;text-align:left;border:0;border-top:1px solid var(--line);border-radius:0;padding:10px 12px;font-weight:400;background:var(--card)}
@@ -283,11 +294,11 @@ async function stop() {
 }
 
 /** 대화로 넘기기 — 새 대화를 열어 요청 글을 바로 보낸다 (chat 권한) */
-async function ask(text) {
+async function ask(text, send = true) {
   state.message = ''
   state.messageFile = ''
   try {
-    await tool('ask', { text })
+    await tool('ask', { text, send })
   } catch (error) {
     state.message = errorText(error)
     render()
@@ -313,6 +324,14 @@ function enrichPrompt(suite, item) {
     item.changed?.length && `코드 바뀜: ${item.changed.map((change) => change.path + (change.state === 'missing' ? '(없어짐)' : '')).join(', ')} — 기대 메시지 등 바뀐 점도 제안에 넣어 줘.`,
     'ui-test 스킬의 보강 순서대로 빠진 확인 · 데이터 변형 · 변형 시나리오 · 코드 바뀜 제안을 목록으로 보이고, 여러 개 고르기로 물어 본 뒤 고른 것만 반영해 줘.',
   ].filter(Boolean).join('\n')
+}
+/** 변경 요청 — 입력창만 채워 연다(send: false). 사용자가 마지막 줄 뒤에 바꿀 내용을 이어 쓰고 보낸다 */
+function changePrompt(suite, item) {
+  return [
+    `UI 테스트 묶음 "${suite.name}"(${suite.id}) 의 시나리오 ${item.id} "${item.name}"(${item.file}) 를 변경하려고 해.`,
+    'ui-test 스킬의 "수정 요청" 규칙대로, 파일을 바꾸기 전에 바뀌는 전 · 후를 보여 주고 물어본 뒤 반영해 줘. 바뀌면 코드를 다시 만들고 수행할지 물어 줘.',
+    '변경 내용: ',
+  ].join('\n')
 }
 function rulePrompt(suite, rule) {
   return `UI 테스트 묶음 "${suite.name}"(${suite.id}) 에서 아직 어느 시나리오도 다루지 않는 ${KIND_NAME[rule.kind]} 규칙 "${rule.text}" 를 다루도록 보강해 줘. ui-test 스킬의 보강 순서대로 제안(변형 시나리오 · 데이터 변형 등)을 목록으로 보이고 여러 개 고르기로 물어 본 뒤, 고른 것만 반영하고 suite.md ## 규칙 의 덮는 시나리오도 고쳐 줘.`
@@ -480,6 +499,29 @@ function listView(data) {
   return out
 }
 
+/** 시나리오 원문 — 수행 전에 무엇을 하는 시나리오인지 확인한다. 바꾸려면 [변경 요청] 으로 채팅에서 */
+function scenarioCard(item) {
+  const steps = item.steps ?? []
+  const card = el('div', { class: 'card' }, el('div', { class: 'sec-t' }, el('span', {}, '시나리오'), el('span', { class: 'faint', style: 'font-weight:400;letter-spacing:0' }, '변경은 [변경 요청] 으로 채팅에서')))
+  card.append(
+    steps.length
+      ? el(
+          'ol',
+          { class: 'scn-steps' },
+          steps.map((step) => {
+            const check = /^확인(\(DB\))?\s*:\s*/.exec(step.text)
+            return el('li', {}, check ? el('span', { class: `chip2${check[1] ? ' db' : ''}` }, check[1] ? '확인(DB)' : '확인') : '', check ? step.text.slice(check[0].length) : step.text)
+          }),
+        )
+      : el('div', { class: 'empty' }, '단계를 읽지 못했습니다.'),
+  )
+  if (item.data?.rows?.length) {
+    card.append(el('div', { class: 'tblwrap' }, el('table', { class: 'tbl' }, el('thead', {}, el('tr', {}, item.data.columns.map((column) => el('th', {}, column)))), el('tbody', {}, item.data.rows.map((row) => el('tr', {}, item.data.columns.map((column) => el('td', {}, row[column] ?? '')))))), el('div', { class: 'sub' }, `데이터 ${item.data.rows.length}행 — 한 행마다 한 번 돕니다`)))
+  }
+  if (item.method?.length) card.append(el('details', { class: 'how' }, el('summary', {}, '테스트 방법'), el('ul', {}, item.method.map((line) => el('li', {}, line.replace(/^\s*[-*]\s*/, ''))))))
+  return card
+}
+
 function detailView(data) {
   const { suite, item } = findScenario(state.view.suite, state.view.id)
   const running = state.progress?.running
@@ -488,7 +530,7 @@ function detailView(data) {
   const [lastText, lastTone] = LAST_TAG[item.lastStatus] || ['수행 전', 'wait']
   const fail = item.lastFailure
   const out = [
-    el('div', { class: 'top' }, el('button', { type: 'button', class: 'back', onclick: () => ((state.view = { name: 'list' }), render(), scrollTo(0, 0)) }, icon('back'), '목록'), el('div', { class: 'acts' }, btn('보강', () => ask(enrichPrompt(suite, item)), { disabled: running, title: '새 대화에서 보강 제안을 받고 고릅니다' }), iconBtn('play', '다시 수행', () => rerun(suite.id, [item.id]), { class: 'primary', disabled: running || !item.hasCode, title: item.hasCode ? '이 시나리오만 다시 돌립니다' : '코드가 없어 돌릴 수 없습니다' }))),
+    el('div', { class: 'top' }, el('button', { type: 'button', class: 'back', onclick: () => ((state.view = { name: 'list' }), render(), scrollTo(0, 0)) }, icon('back'), '목록'), el('div', { class: 'acts' }, btn('변경 요청', () => ask(changePrompt(suite, item), false), { disabled: running, title: '새 대화의 입력창에 이 시나리오를 채워 엽니다 — 바꿀 내용을 이어 쓰고 보내면 AI 가 바꾸기 전에 보여 주고 묻습니다' }), btn('보강', () => ask(enrichPrompt(suite, item)), { disabled: running, title: '새 대화에서 보강 제안을 받고 고릅니다' }), iconBtn('play', '수행', () => rerun(suite.id, [item.id]), { class: 'primary', disabled: running || !item.hasCode, title: item.hasCode ? `이 시나리오만 돌립니다 (${state.headed ? '보면서' : '화면 없이'})` : '코드가 없어 돌릴 수 없습니다 — 대화에서 코드를 만들게 하세요' }))),
     el('div', {}, el('h2', { class: 'title' }, item.name), el('div', { class: 'sub' }, [suite.name, item.kind, item.rows && `데이터 ${item.rows}행`, item.checks && `확인 ${item.checks}`].filter(Boolean).join(' · '))),
   ]
   if (state.message) out.push(messageBox())
@@ -509,6 +551,7 @@ function detailView(data) {
     ),
   )
 
+  out.push(scenarioCard(item))
   const stepsCard = el('div', { class: 'card' }, el('div', { class: 'sec-t' }, el('span', {}, '단계별 수행'), el('span', { class: 'faint', style: 'font-weight:400;letter-spacing:0' }, '스크린샷은 결과서에서')))
   if (!live) stepsCard.append(el('div', { class: 'empty' }, '이 패널이 가진 단계 기록은 서버가 기억하는 마지막 수행뿐입니다. 이 시나리오를 다시 수행하면 여기에 단계가 나옵니다. 지난 수행은 결과서에서 봅니다.'))
   else {

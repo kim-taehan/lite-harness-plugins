@@ -92,6 +92,8 @@ The user can ask for changes **per scenario by number or title**, in the draft l
 - **방향 변경** ("5 번은 이런이런 방향으로 하면 어떨까?"): the user proposes an approach — a question, not an order. Say in one or two lines whether it fits the code (if it doesn't, say why and what you'd do instead), then show the changed scenario as the proposal.
 - **쪼개기 · 삭제 · 순서 · 제목** — as asked. Dropping a scenario from a draft needs no confirmation.
 
+The panel's **[변경 요청]** opens a new conversation with the scenario (suite, id, file) already filled in and a last line `변경 내용:` — the text the user adds after it is the request. Read that scenario file first, then handle it as below. Never run anything because of a change request; after the change is applied and the code regenerated, ask whether to run it.
+
 Rules:
 - **Draft** (not saved yet): apply the changes to the draft list, then show it again. Nothing is written until the user picks what to save.
 - **Saved scenarios**: show the before/after of the scenario first and ask once with the question tool ("이렇게 바꿀까요?") — never edit saved files first. After a yes: edit the md, update suite.md (`## 시나리오 순서`, `## 규칙` covers), refresh `sources:` with `fingerprint` if you read new code. A changed scenario is 코드 낡음 → regenerate its code before running (see Keeping it healthy).
