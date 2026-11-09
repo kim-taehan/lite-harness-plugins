@@ -2,6 +2,7 @@
 // 실제 데이터 행은 query 만 돌려준다(승인은 엔진 권한 규칙이 매번 묻는다 — README)
 
 import { bindsFor, checkReadOnly } from './guard.ts'
+import { gitignoreHint, hiddenValues, parseReport, renderReport, writeReport } from './report.ts'
 import type { Adapter, Binds, CapturedSql, ImpactInfo, Plan, PlanStep, RunStats, TableInfo, TopBy, TopQuery } from './types.ts'
 
 export interface ToolResult {
@@ -27,6 +28,8 @@ export interface ToolOptions {
   serial?: boolean
   /** compare 가 한 번 실행에서 읽을 최대 행 수 */
   compareRows?: number
+  /** report 도구 — 결과서를 쓸 프로젝트 폴더(기본 작업 폴더) · 접속 주소(결과서에서 비밀번호 · 호스트 · 계정을 지우는 데) · 시계(시험용) */
+  report?: { cwd?: string; databaseUrl?: string; now?: () => Date }
 }
 
 /** compare 한 번에 넣을 수 있는 바인드 묶음 수 */
@@ -34,6 +37,51 @@ export const MAX_COMPARE_SETS = 5
 
 const SQL_ARG = { type: 'string', description: 'One SELECT or WITH statement.' }
 const BINDS_ARG = { description: 'Bind values — an array for positional ($1, :1) or an object for named (:name) placeholders.', anyOf: [{ type: 'array' }, { type: 'object' }] }
+
+const RUN_SIDE = {
+  type: 'object',
+  properties: { rows: { type: 'number', description: 'Row count from compare.' }, checksum: { type: 'string', description: 'Checksum text from compare, as printed.' }, ms: { type: 'number', description: 'Milliseconds from compare.' } },
+  required: ['rows', 'checksum', 'ms'],
+}
+const PLAN_SIDE = { type: 'object', properties: { op: { type: 'string', description: 'Plan operation as printed, e.g. TABLE ACCESS FULL ORDERS.' }, detail: { type: 'string', description: 'Rows and cost as printed, e.g. "1,800,000 rows, cost 3,940".' } }, required: ['op'] }
+const LEVEL_NOTE = (what: string) => ({ type: 'object', description: what, properties: { level: { type: 'string', enum: ['low', 'medium', 'high', 'unknown'] }, note: { type: 'string', description: 'Numbers from impact_check only.' } }, required: ['level', 'note'] })
+
+const REPORT_SCHEMA = {
+  type: 'object',
+  properties: {
+    verdict: { type: 'string', enum: ['ok', 'hold'], description: "'ok' = rewrite improved and every compare set returned the same result. 'hold' = do not apply (results differ, or not an improvement); cause is then required." },
+    target: { type: 'string', description: 'What was tuned, e.g. OrderMapper.selectRecentOrders.' },
+    kind: { type: 'string', description: 'e.g. "MyBatis mapper", "JPA @Query", "SQL".' },
+    project: { type: 'string' },
+    db: { type: 'string', enum: ['oracle', 'postgres'] },
+    schema: { type: 'string' },
+    source: { type: 'object', description: 'Where the SQL came from, project-relative.', properties: { file: { type: 'string' }, line: { type: 'number' } }, required: ['file'] },
+    original_sql: { type: 'string', description: 'The original SQL, exactly as tuned. The report shows it; the server builds the line diff.' },
+    candidate_sql: { type: 'string', description: 'The rewritten (or hinted) SQL. Use bind variables, not literals with personal data — SQL text is shown as is.' },
+    diff_note: { type: 'string', description: 'One or two sentences: what changed and why it is the same condition.' },
+    cost: { type: 'object', description: 'Estimated plan cost from explain (reference only).', properties: { before: { type: 'number' }, after: { type: 'number' } }, required: ['before', 'after'] },
+    plan: { type: 'array', description: 'Key plan lines before/after from explain.', items: { type: 'object', properties: { what: { type: 'string', description: 'e.g. "how orders is read"' }, before: PLAN_SIDE, after: PLAN_SIDE, changed: { type: 'boolean', description: 'Default: true when before and after differ.' } }, required: ['what', 'before', 'after'] } },
+    plan_full: { type: 'object', description: 'Whole explain output of each query, as printed.', properties: { before: { type: 'string' }, after: { type: 'string' } }, required: ['before', 'after'] },
+    compare: {
+      type: 'array',
+      description: 'One item per compare bind set, copied from the compare result. No data rows. String bind values are shown only by length in the report; do not put personal data in label.',
+      items: { type: 'object', properties: { label: { type: 'string', description: 'Short description of the set, e.g. "last 7 days, paid".' }, binds: { description: 'The bind values you passed to compare (array or object).', anyOf: [{ type: 'array' }, { type: 'object' }] }, original: RUN_SIDE, candidate: RUN_SIDE, partial: { type: 'boolean', description: 'True when compare stopped at the row cap.' } }, required: ['label', 'original', 'candidate'] },
+    },
+    cause: { type: 'object', description: "Required when verdict is 'hold': what went wrong, from tool results. Say what you could not check.", properties: { title: { type: 'string' }, text: { type: 'string' } }, required: ['title', 'text'] },
+    index: {
+      type: 'object',
+      description: "Index proposal (verdict 'ok' only). Proposal only — nothing was created.",
+      properties: { ddl: { type: 'string' }, write_load: LEVEL_NOTE('Write volume from impact_check.'), other_queries: LEVEL_NOTE('Other recorded queries and overlapping indexes from impact_check.'), effect_verified: { type: 'boolean', description: 'true only if you measured the effect. An index that does not exist cannot be measured, so normally false.' }, effect_note: { type: 'string' } },
+      required: ['ddl', 'write_load', 'other_queries', 'effect_verified'],
+    },
+    standard: { type: 'object', description: 'The company SQL standard you used. Omit when none is installed — the report then says "no standard verdict".', properties: { file: { type: 'string' }, rules_total: { type: 'number' } }, required: ['file'] },
+    rules: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, status: { type: 'string', enum: ['applied', 'already', 'failed', 'not_fixed'], description: 'applied = the rewrite follows it; already = original already followed it; failed = applied but results changed; not_fixed = original violates it, not fixed.' }, where: { type: 'string' } }, required: ['id', 'text', 'status'] } },
+    limits: { type: 'array', items: { type: 'string' }, description: 'Extra limits beyond the standard ones the report adds.' },
+    unknown: { type: 'array', items: { type: 'string' }, description: 'What you could not check.' },
+    estimates: { type: 'array', items: { type: 'string' }, description: 'Anything you estimated instead of measuring, with the reason. Shown with an "estimate" label.' },
+  },
+  required: ['verdict', 'target', 'db', 'original_sql', 'candidate_sql', 'compare'],
+}
 
 function fail(text: string): ToolResult {
   return { text, isError: true }
@@ -315,6 +363,25 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
           rows.push({ label, ...measured })
         }
         return { text: formatCompare(rows) }
+      },
+    },
+    {
+      name: 'report',
+      description:
+        'Write the final tuning report as one HTML file in the project folder (sql-tuning-reports/<time>/index.html) and return its path. Call it only after tuning is finished and the user asked for a report. Fill it only with values from explain, compare and impact_check; label estimates. It never contains passwords, connection details or data rows, and string bind values are reduced to their length.',
+      inputSchema: REPORT_SCHEMA,
+      async run(args) {
+        const parsed = parseReport(args)
+        if (!parsed.ok) return fail(parsed.error)
+        const cwd = options.report?.cwd ?? process.cwd()
+        const now = options.report?.now?.() ?? new Date()
+        const html = renderReport(parsed.input, { at: now, hide: hiddenValues(options.report?.databaseUrl ?? '', parsed.input.schema) })
+        const file = await writeReport(cwd, html, now)
+        const lines = [`Report written: ${file}`, 'Tell the user this path. It is a local file; open it in a browser (print to PDF if needed).']
+        if (parsed.notices.length) lines.push('', ...parsed.notices.map((notice) => `Note: ${notice}`))
+        const hint = await gitignoreHint(cwd)
+        if (hint) lines.push('', `The report folder \`${hint}\` is not in .gitignore — ask the user whether to add it so reports are not committed (this plugin does not edit .gitignore).`)
+        return { text: lines.join('\n') }
       },
     },
     {

@@ -2,66 +2,194 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SQL 튜닝</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--text:#1c1f26;--sub:#5f6470;--faint:#80868f;--line:#e3e5ea;--soft:#eef0f4;--ok:#23774a;--ok-bg:#e9f6ee;--bad:#a12a2f;--bad-bg:#fdecec;--warn:#8a5200;--warn-bg:#fff6e8;--btn:#1c1f26;--btn-text:#fff;--accent:#3566d6;--accent-bg:#e4edfd;--rule:#6b4cc6}
-@media (prefers-color-scheme:dark){:root{--bg:#16181d;--card:#1f2228;--text:#e8eaf0;--sub:#b0b6c1;--faint:#8a909c;--line:#2e323a;--soft:#2a2e36;--ok:#6fd39b;--ok-bg:#1d3327;--bad:#ff8a8f;--bad-bg:#3a2224;--warn:#f0a53a;--warn-bg:rgba(240,165,58,.14);--btn:#e8eaf0;--btn-text:#16181d;--accent:#7ea4f4;--accent-bg:rgba(107,151,242,.18);--rule:#b29cf3;color-scheme:dark}}
+/* 토큰 · 규칙은 .interface-design/system.md. 색은 여기 토큰으로만 쓰고 다크는 값만 바꾼다 */
+:root{--paper:#eef0f4;--sheet:#ffffff;--well:#f5f6f9;--rule:rgba(20,28,46,.10);--rule-strong:rgba(20,28,46,.18);--ink:#141a29;--ink-2:#566077;--ink-3:#8a93a6;--probe:#2d4fd6;--probe-wash:#eef1fd;--probe-ring:rgba(45,79,214,.28);--pass:#167a3f;--pass-wash:#e4f5ea;--bad:#c0332b;--bad-wash:#fdecea;--warn:#8a5200;--warn-wash:#fff6e8;--lift-sm:0 0 0 1px rgba(20,28,46,.06),0 2px 4px -1px rgba(20,28,46,.06),0 16px 32px -10px rgba(20,28,46,.26);--ease:cubic-bezier(.23,1,.32,1);--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--paper:#0e1118;--sheet:#161b26;--well:#1b2130;--rule:rgba(255,255,255,.08);--rule-strong:rgba(255,255,255,.16);--ink:#e9ecf4;--ink-2:#a2abc0;--ink-3:#6e788f;--probe:#8fa4ff;--probe-wash:#1f2745;--probe-ring:rgba(143,164,255,.35);--pass:#63d28f;--pass-wash:#15301f;--bad:#f2928b;--bad-wash:#3a1e1c;--warn:#f0a53a;--warn-wash:rgba(240,165,58,.14);--lift-sm:0 0 0 1px rgba(255,255,255,.08),0 16px 32px -10px rgba(0,0,0,.7);color-scheme:dark}}
 *{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
-main{display:flex;flex-direction:column;gap:12px;padding:14px;min-height:100%}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
-.head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-h2{margin:0;font-size:12px;font-weight:600;color:var(--sub)}
-.sub{font-size:12.5px;color:var(--sub);overflow-wrap:anywhere}
-.faint{color:var(--faint)}
-.tag{font-size:11px;padding:1px 8px;border-radius:99px;background:var(--accent-bg);color:var(--accent);white-space:nowrap}
-.tag.off{background:var(--soft);color:var(--sub)}
-code{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--soft);border-radius:5px;padding:0 5px}
-.rule{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px;font-size:12.5px;padding:5px 0;border-top:1px solid var(--line)}
-.rule b{font:600 11.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--rule)}
-.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.conn{display:flex;align-items:center;gap:8px;font-size:12.5px;overflow-wrap:anywhere}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex-shrink:0}
-.dot.ok{background:var(--ok)}
-.dot.bad{background:var(--bad)}
-button{font:inherit;font-size:12.5px;cursor:pointer;height:30px;padding:0 11px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);white-space:nowrap}
-button.primary{background:var(--btn);border-color:var(--btn);color:var(--btn-text);font-weight:600}
-button:disabled{opacity:.5;cursor:default}
-.msg{padding:8px 10px;border-radius:8px;font-size:12.5px;overflow-wrap:anywhere;white-space:pre-wrap}
-.msg.ok{background:var(--ok-bg);color:var(--ok)}
-.msg.bad{background:var(--bad-bg);color:var(--bad)}
-.msg.warn{background:var(--warn-bg);color:var(--warn)}
-.note{margin:0;font-size:11.5px;color:var(--faint)}
-/* 고치기 */
-.edit{display:flex;flex-direction:column;height:100vh}
-.edit-top{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
-.edit-title{display:flex;flex-direction:column;gap:2px;min-width:0}
-.edit-title b{font-size:13.5px}
-.seg{display:inline-flex;background:var(--soft);border-radius:8px;padding:3px;gap:2px}
-.seg button{height:26px;padding:0 10px;border:0;background:transparent;color:var(--sub);font-size:12px;border-radius:6px}
-.seg button[aria-checked=true]{background:var(--card);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.edit-body{flex:1;display:flex;min-height:0;padding:12px 14px}
-textarea{flex:1;width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;resize:none;background:var(--card);color:var(--text)}
-textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
-.preview{flex:1;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 14px;background:var(--card);font-size:13px}
-.preview h1,.preview h2,.preview h3{color:var(--text);margin:12px 0 4px}
-.preview h1{font-size:15px}.preview h2{font-size:14px}.preview h3{font-size:13px}
-.preview ul{margin:4px 0;padding-left:18px}
+[hidden]{display:none!important}
+html{-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--paper);color:var(--ink);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;font-variant-numeric:tabular-nums;word-break:keep-all}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,summary:focus-visible,textarea:focus-visible{outline:2px solid var(--probe);outline-offset:2px}
+code{font-family:var(--mono);font-size:11.5px}
+svg.i{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+h1,h2,p{text-wrap:balance}
+.preview h1,.preview h2,.preview h3{text-wrap:balance}
+
+/* ── 패널 ── */
+main{display:flex;flex-direction:column;gap:14px;padding:16px}
+.top h1{margin:0;font-size:19px;line-height:1.25;font-weight:700;letter-spacing:-.018em}
+.where{margin:4px 0 0;color:var(--ink-3);font-size:12px;text-wrap:pretty}
+.where code{color:var(--ink-2)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 11px;border:0;border-radius:8px;background:var(--sheet);box-shadow:inset 0 0 0 1px var(--rule-strong);font-size:12.5px;font-weight:600;white-space:nowrap;transition:transform .12s var(--ease),background-color .15s,box-shadow .15s,filter .15s,color .15s}
+.btn:hover{background:var(--well)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;background:var(--sheet)}
+.btn.primary{background:var(--probe);color:var(--sheet);box-shadow:none}
+.btn.primary:hover{background:var(--probe);filter:brightness(1.1)}
+.btn.primary:disabled{background:var(--probe);filter:none}
+.btn.tint{background:var(--probe-wash);color:var(--probe);box-shadow:inset 0 0 0 1px var(--probe-ring)}
+.btn.tint:hover{background:var(--probe-wash);box-shadow:inset 0 0 0 1px var(--probe)}
+.btn.ghost{background:none;box-shadow:none;color:var(--ink-2);font-weight:500}
+.btn.ghost:hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.btn.danger{color:var(--bad);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 45%,var(--rule))}
+.btn.danger:hover{background:var(--bad-wash)}
+.btn.solid-bad{background:var(--bad);color:var(--sheet);box-shadow:none}
+.btn.solid-bad:hover{background:var(--bad);filter:brightness(1.08)}
+.btn.out{color:var(--probe)}
+.btn.out.tint{background:var(--probe-wash)}
+.link{border:0;background:none;padding:0 2px;min-height:28px;color:var(--probe);font-size:12px;font-weight:500;text-align:left;border-radius:4px}
+.link:hover{text-decoration:underline;text-underline-offset:2px}
+.link:active{opacity:.7}
+.acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+.card{background:var(--sheet);border-radius:12px;box-shadow:0 0 0 1px var(--rule);padding:14px;display:grid;gap:12px;min-width:0;transition:opacity .2s}
+.card.dim{opacity:.52}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.ch h2{margin:0;font-size:14.5px;font-weight:650;line-height:1.3}
+.ch .meta{margin:2px 0 0;font-size:12px;color:var(--ink-3)}
+.sumline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:12.5px;color:var(--ink-2)}
+.sumline .none{color:var(--ink-3)}
+.sumline .r{margin-left:auto;color:var(--ink-3);font-size:12px}
+.chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap}
+.chip.bad{background:var(--bad-wash);color:var(--bad)}
+.chip.ok{background:var(--pass-wash);color:var(--pass)}
+.chip.warn{background:var(--warn-wash);color:var(--warn)}
+.chip.off{background:var(--well);color:var(--ink-2);font-weight:600;box-shadow:inset 0 0 0 1px var(--rule)}
+
+/* 주소창 줄 */
+.addr{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;background:var(--well);box-shadow:inset 0 0 0 1px var(--rule)}
+.addr .dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--ink-3);box-shadow:0 0 0 3px var(--rule)}
+.addr .dot.ok{background:var(--pass);box-shadow:0 0 0 3px var(--pass-wash)}
+.addr .dot.bad{background:var(--bad);box-shadow:0 0 0 3px var(--bad-wash)}
+.addr .url{flex:1 1 150px;min-width:0;font:12.5px/1.45 var(--mono);overflow-wrap:anywhere}
+.addr .url i{font-style:normal;color:var(--ink-3)}
+.facts{margin:-4px 2px 0;font-size:12px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:0 14px}
+.facts b{font-weight:600;color:var(--ink-2)}
+.facts .w{color:var(--warn);font-weight:600}
+
+/* 확인 결과 */
+.res{border-radius:8px;padding:10px 12px;display:grid;gap:6px;font-size:12.5px}
+.res.idle{display:block;margin:0;padding:0 2px;color:var(--ink-3);font-size:12px;text-wrap:pretty}
+.res.ok{background:var(--pass-wash);grid-template-columns:1fr auto;align-items:center}
+.res.ok .t{display:flex;align-items:center;gap:8px;color:var(--pass);font-size:14px;font-weight:700}
+.res.ok .when{grid-column:1;color:var(--ink-2);font-size:12px}
+.res.ok .ms{grid-row:1/3;grid-column:2;font-size:19px;font-weight:700;letter-spacing:-.018em;color:var(--ink);text-align:right;line-height:1.2}
+.res.ok .ms small{font-size:12px;font-weight:600;color:var(--ink-2);margin-left:2px}
+.res.ok .ms em{display:block;font-style:normal;font-size:11px;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+.res.bad{background:var(--bad-wash)}
+.res.warn{background:var(--warn-wash)}
+.res b{display:block;font-size:13.5px;font-weight:650}
+.res.bad b{color:var(--bad)}
+.res.warn b{color:var(--warn)}
+.res p{margin:0;color:var(--ink);text-wrap:pretty}
+.res .err{font:12px/1.5 var(--mono);color:var(--bad);overflow-wrap:anywhere;background:color-mix(in srgb,var(--bad) 9%,transparent);border-radius:6px;padding:6px 8px}
+.res .miss{display:flex;flex-wrap:wrap;gap:6px}
+.res .miss span{font-size:12px;font-weight:650;padding:1px 9px;border-radius:99px;background:var(--sheet);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 40%,transparent);color:var(--warn)}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--rule-strong);border-top-color:var(--probe);animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.res.run{display:flex;align-items:center;gap:10px;background:var(--well);color:var(--ink-2)}
+
+/* 파일 줄 */
+.file{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 8px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--rule)}
+.file .ico{flex:none;width:32px;height:32px;border-radius:8px;background:var(--well);display:grid;place-items:center;color:var(--ink-2)}
+.file .nm{flex:1;min-width:0;display:grid;gap:1px}
+.file .nm code{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file .nm span{font-size:12px;color:var(--ink-3);text-wrap:pretty}
+.fallback{margin:-4px 2px 0;font-size:12px;color:var(--ink-3);text-wrap:pretty}
+
+/* 규칙 */
+.rules{display:grid}
+.rules .lh{font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--ink-3);padding:0 2px 4px}
+.rule{display:grid;grid-template-columns:58px minmax(0,1fr);gap:8px;padding:6px 2px;border-top:1px solid var(--rule);font-size:12.5px;align-items:baseline}
+.rule b{font:600 11.5px var(--mono);color:var(--ink)}
+.rule span{color:var(--ink-2);text-wrap:pretty}
+.rules .scroll{max-height:216px;overflow:auto}
+.more{justify-self:start;margin:2px 0 -2px}
+
+/* 비어 있음 */
+.empty{display:grid;gap:4px;padding:12px;border-radius:8px;background:var(--well);box-shadow:inset 0 0 0 1px var(--rule)}
+.empty b{font-size:13.5px;font-weight:650}
+.empty p{margin:0;font-size:12.5px;color:var(--ink-2);text-wrap:pretty}
+
+/* 확인 상자 */
+.confirm{padding:12px;border-radius:8px;background:var(--bad-wash);display:grid;gap:10px;font-size:12.5px}
+.confirm.caution{background:var(--warn-wash)}
+.confirm b{display:block;color:var(--bad);font-size:13.5px;font-weight:650;margin-bottom:2px}
+.confirm.caution b{color:var(--warn)}
+.confirm p{margin:0;color:var(--ink);text-wrap:pretty}
+.confirm .acts{justify-content:flex-end}
+.inline-err{padding:8px 12px;border-radius:8px;background:var(--bad-wash);color:var(--bad);font-size:12.5px;text-wrap:pretty}
+.inline-err b{font-weight:650}
+.inline-err span{display:block;color:var(--ink);margin-top:1px}
+
+/* 알림 한 줄 */
+.toasts{position:fixed;left:16px;right:16px;bottom:16px;z-index:5;pointer-events:none}
+.toast{pointer-events:auto;position:relative;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 12px;background:var(--sheet);box-shadow:var(--lift-sm);border-radius:12px;font-size:12.5px;overflow:hidden}
+.toast .mk{flex:none;width:18px;height:18px;border-radius:50%;background:var(--pass-wash);color:var(--pass);display:grid;place-items:center}
+.toast .mk svg{width:11px;height:11px;stroke-width:2.4}
+.toast span.t{flex:1;min-width:0;text-wrap:pretty}
+.toast .x{flex:none;width:26px;height:26px;border:0;background:none;border-radius:6px;color:var(--ink-3);display:grid;place-items:center}
+.toast .x:hover{background:var(--well);color:var(--ink)}
+.toast .life{position:absolute;left:0;bottom:0;height:2px;background:var(--pass);width:100%;transform-origin:left;animation:life 8s linear forwards}
+@keyframes life{to{transform:scaleX(0)}}
+
+/* 불러오는 중 */
+.sk{display:grid;gap:8px}
+.sk i{display:block;height:12px;border-radius:6px;background:var(--well)}
+.sk i.a{width:38%;height:15px}.sk i.b{width:72%}.sk i.c{height:36px;border-radius:12px}
+
+/* 서비스 꺼짐 */
+.svc{padding:12px;border-radius:12px;background:var(--bad-wash);box-shadow:0 0 0 1px color-mix(in srgb,var(--bad) 35%,transparent);display:grid;gap:10px;font-size:12.5px}
+.svc b{display:block;color:var(--bad);font-size:13.5px;font-weight:650;margin-bottom:2px}
+.svc p{margin:0;text-wrap:pretty}
+
+/* 고치기 화면 */
+.ed{display:flex;flex-direction:column;min-height:100vh}
+.ed-top{display:flex;align-items:center;gap:10px;padding:12px 16px;box-shadow:inset 0 -1px 0 var(--rule);background:var(--sheet);flex-wrap:wrap}
+.ed-top .tt{flex:1 1 200px;min-width:0}
+.ed-top b{display:block;font-size:14.5px;font-weight:650}
+.ed-top code{color:var(--ink-3);font-size:11.5px;overflow-wrap:anywhere}
+.seg{display:inline-flex;background:var(--well);border-radius:8px;padding:3px;gap:2px;box-shadow:inset 0 0 0 1px var(--rule)}
+.seg button{height:26px;padding:0 11px;border:0;background:none;color:var(--ink-2);font-size:12px;border-radius:6px;transition:background-color .15s}
+.seg button[aria-checked=true]{background:var(--sheet);color:var(--ink);font-weight:650;box-shadow:0 0 0 1px var(--rule-strong)}
+.ed-body{flex:1;padding:14px 16px 0;display:grid;min-height:0}
+textarea{width:100%;height:100%;min-height:310px;border:0;border-radius:12px;padding:12px;font:12.5px/1.65 var(--mono);resize:none;background:var(--sheet);color:var(--ink);box-shadow:0 0 0 1px var(--rule)}
+textarea:focus{outline:0;box-shadow:0 0 0 1.5px var(--probe),0 0 0 4px var(--probe-wash)}
+.preview{border-radius:12px;padding:4px 14px 10px;background:var(--sheet);box-shadow:0 0 0 1px var(--rule);min-height:310px;font-size:13px}
+.preview h1,.preview h2,.preview h3{font-size:14.5px;margin:12px 0 4px}
 .preview p{margin:6px 0}
-.edit-note{padding:0 14px 8px}
-.edit-foot{padding:10px 14px 14px;display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line)}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.preview code{background:var(--well);border-radius:4px;padding:0 4px}
+.preview ul{margin:4px 0;padding-left:18px}
+.preview li{margin:3px 0}
+.preview li b{font:600 11.5px var(--mono)}
+.ed-note{padding:12px 16px 0}
+.ed-foot{padding:12px 16px 16px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.spin{animation:none}}
 </style>
 </head>
 <body>
-<div id="app"><main><div class="card sub">불러오는 중…</div></main></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4M9.5 12.5h5M9.5 16h5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+</svg>
+<div id="app"></div>
+<div class="toasts" id="toasts"></div>
 <input id="picker" type="file" accept=".md,.markdown,text/markdown" hidden>
 <script>
-// SQL 튜닝 패널 (#1232, 시안 FfLzCjANQdZ6FMwVV8ekUV ④ · ④-2) — 카드 두 개: 이 프로젝트에 쓰이는 사내 SQL 표준 · DB 연결.
+// SQL 튜닝 패널 (#1232, 시안 2026-11-09 확정) — 카드 두 개: 개발 DB 연결 · 이 프로젝트에 쓰이는 사내 SQL 표준. 규격은 .interface-design/system.md.
 // 표준: 프로젝트 파일 `.litecode/sql-standard.md`(팀이 커밋해 같이 씀, 권한 projectWrite) 가 있으면 그것, 없으면 zip 에 든 스킬의
 // references/sql-standard.md(플러그인 기본). 스킬도 같은 순서로 읽는다. 연결: 앱이 가진 설정 칸 값의 요약(비밀번호는 저장됐나만) ·
-// [연결 확인](settingsCheck) · [연결 정보 고치기](앱의 설정 폼). 앱과는 통로로만 말한다: parent.postMessage({ litecode: 1, id, method, params }) — 서비스의 service.call 한 가지
+// [연결 확인](settingsCheck) · [연결 정보 고치기](앱의 설정 폼 — 값을 쓰는 입력칸은 패널에 없다). 앱과는 통로로만 말한다:
+// parent.postMessage({ litecode: 1, id, method, params }) — 서비스의 service.call 한 가지
 
 const PROJECT_FILE = '.litecode/sql-standard.md'
 const BUNDLED = { skill: 'sql-tuning', path: 'references/sql-standard.md' }
@@ -84,6 +212,7 @@ const ERRORS = {
   'service-failed': '서비스가 요청을 처리하지 못했습니다',
 }
 const errorText = (error) => ERRORS[error?.message] || error?.message || String(error)
+const isOff = (error) => error?.message === 'service-off'
 
 let seq = 0
 const waiting = new Map()
@@ -121,18 +250,28 @@ async function call(method, params) {
   if (!reply.ok) throw new Error(reply.code)
   return reply.value
 }
+/** 읽기용 호출 — 실패는 없는 것으로 보되, 서비스가 꺼진 것은 "읽지 못함" 이라 그대로 던진다 */
+const soft = (promise) =>
+  promise.catch((error) => {
+    if (isOff(error)) throw error
+    return undefined
+  })
 
 const state = {
+  load: 'loading', // 'loading' | 'ready' | 'off'(서비스 꺼짐 — 표준 · 연결을 읽지 못함)
   project: '',
   std: undefined, // { source: 'project' | 'bundled' | 'none', text, modified? }
   bundledRules: 0,
-  conn: undefined, // settings.summary
-  check: undefined, // { text, isError }
+  conn: undefined, // settings.summary 또는 { error, code }
+  check: undefined, // { text, isError } — 마지막 [연결 확인] 결과
+  checkAt: undefined,
   busy: '',
-  message: undefined, // { tone, text } — 표준 카드
-  connMessage: undefined,
+  message: undefined, // { title, text? } — 표준 카드 오류 한 줄
+  connMessage: undefined, // 연결 카드 오류 한 줄 (확인 · 설정 열기 호출이 던진 것)
   confirm: undefined, // { kind: 'reset' } | { kind: 'replace', name, text }
+  more: false,
   edit: undefined, // { text, mode: 'edit' | 'preview' }
+  fatal: undefined,
 }
 
 /** 규칙 — 규칙 번호가 든 줄마다 첫 번호 하나 (같은 번호는 한 번) */
@@ -149,16 +288,21 @@ function rulesOf(text) {
   return rules
 }
 
+const pad = (n) => String(n).padStart(2, '0')
 const day = (ms) => {
   const date = new Date(ms)
-  return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+const clock = (ms) => {
+  const date = new Date(ms)
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 async function loadStandard() {
   const [own, info, bundled] = await Promise.all([
-    call('project.readFile', { path: PROJECT_FILE }).catch(() => undefined),
-    call('project.fileInfo', { path: PROJECT_FILE }).catch(() => undefined),
-    call('skills.readFile', BUNDLED).catch(() => undefined),
+    soft(call('project.readFile', { path: PROJECT_FILE })),
+    soft(call('project.fileInfo', { path: PROJECT_FILE })),
+    soft(call('skills.readFile', BUNDLED)),
   ])
   // zip 에 든 것(또는 0.7.0 패널이 덧씌운 것 — 스킬 폴더에 그대로 실린다)
   const shipped = typeof bundled?.text === 'string' && bundled.text.trim() ? bundled.text : ''
@@ -169,17 +313,32 @@ async function loadStandard() {
 }
 
 async function loadConnection() {
-  state.conn = await call('settings.summary').catch((error) => ({ error: errorText(error) }))
+  state.conn = await call('settings.summary').catch((error) => {
+    if (isOff(error)) throw error
+    return { error: errorText(error), code: error?.message }
+  })
 }
 
 async function load() {
-  const info = await call('project.info').catch(() => undefined)
-  state.project = info?.name ?? ''
-  await Promise.all([loadStandard(), loadConnection()])
+  state.load = 'loading'
+  state.fatal = undefined
+  render()
+  try {
+    const info = await soft(call('project.info'))
+    state.project = info?.name ?? ''
+    await Promise.all([loadStandard(), loadConnection()])
+    state.load = 'ready'
+  } catch (error) {
+    if (isOff(error)) state.load = 'off'
+    else {
+      state.load = 'ready'
+      state.fatal = errorText(error)
+    }
+  }
   render()
 }
 
-/** 일을 하나 — 도는 동안 버튼을 막고, 실패는 그 카드 아래 한 줄 */
+/** 일을 하나 — 도는 동안 단추를 막고, 실패는 그 카드 안 한 줄 */
 async function run(name, task, where = 'message') {
   state.busy = name
   state[where] = undefined
@@ -187,17 +346,39 @@ async function run(name, task, where = 'message') {
   try {
     await task()
   } catch (error) {
-    state[where] = { tone: 'bad', text: errorText(error) }
+    if (isOff(error)) {
+      state.load = 'off'
+      state.edit = undefined
+      state.confirm = undefined
+    } else state[where] = { title: where === 'connMessage' ? '연결 정보를 다루지 못했습니다' : '처리하지 못했습니다', text: errorText(error) }
   }
   state.busy = ''
   render()
 }
 
+let toastTimer
+function toast(text) {
+  const box = document.getElementById('toasts')
+  const close = () => box.replaceChildren()
+  box.replaceChildren(
+    el(
+      'div',
+      { class: 'toast', role: 'status' },
+      el('span', { class: 'mk' }, icon('check')),
+      el('span', { class: 't' }, text),
+      el('button', { class: 'x', type: 'button', 'aria-label': '알림 닫기', onclick: close }, icon('x')),
+      el('span', { class: 'life' }),
+    ),
+  )
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(close, 8000)
+}
+
 async function saveStandard(text, done) {
   await call('project.writeFile', { path: PROJECT_FILE, text })
   await loadStandard()
-  state.message = { tone: 'ok', text: `${PROJECT_FILE} 를 저장했습니다 — 새 대화부터 적용됩니다` }
   done?.()
+  toast(`${PROJECT_FILE} 를 저장했습니다 — 새 대화부터 적용됩니다`)
 }
 
 function resetStandard() {
@@ -205,7 +386,7 @@ function resetStandard() {
     await call('project.removeFile', { path: PROJECT_FILE })
     state.confirm = undefined
     await loadStandard()
-    state.message = { tone: 'ok', text: state.std.source === 'bundled' ? '이 프로젝트 파일을 지웠습니다 — 새 대화부터 플러그인 기본 표준을 씁니다' : '이 프로젝트 파일을 지웠습니다 — 표준 없이 답합니다' }
+    toast(state.std.source === 'bundled' ? '이 프로젝트 파일을 지웠습니다 — 새 대화부터 플러그인 기본 표준을 씁니다' : '이 프로젝트 파일을 지웠습니다 — 표준 없이 답합니다')
   })
 }
 
@@ -214,19 +395,20 @@ picker.addEventListener('change', () => {
   const file = picker.files?.[0]
   picker.value = ''
   if (!file) return
+  state.message = undefined
   if (!/\.(md|markdown)$/i.test(file.name)) {
-    state.message = { tone: 'bad', text: 'Markdown(.md) 문서만 넣을 수 있습니다 — Word · PDF · HWP 는 먼저 Markdown 으로 바꿔 주세요' }
+    state.message = { title: '.md 파일이 아닙니다', text: 'Markdown(.md) 문서만 넣을 수 있습니다. Word · PDF · HWP 는 먼저 Markdown 으로 바꿔 주세요.' }
     return render()
   }
   const reader = new FileReader()
   reader.onload = () => {
     const text = String(reader.result ?? '')
-    if (!text.trim()) state.message = { tone: 'bad', text: `${file.name} 가 비어 있습니다` }
+    if (!text.trim()) state.message = { title: `${file.name} 가 비어 있습니다` }
     else state.confirm = { kind: 'replace', name: file.name, text }
     render()
   }
   reader.onerror = () => {
-    state.message = { tone: 'bad', text: `${file.name} 를 읽지 못했습니다` }
+    state.message = { title: `${file.name} 를 읽지 못했습니다` }
     render()
   }
   reader.readAsText(file)
@@ -245,118 +427,229 @@ function el(tag, props = {}, ...children) {
   for (const child of children.flat()) if (child !== undefined && child !== null && child !== false) node.append(child)
   return node
 }
-const button = (text, onclick, { primary = false, disabled = false } = {}) => el('button', { type: 'button', class: primary ? 'primary' : undefined, disabled: disabled || !!state.busy, onclick }, text)
-const message = (item) => item && el('div', { class: `msg ${item.tone}`, role: item.tone === 'bad' ? 'alert' : 'status' }, item.text)
+function icon(name) {
+  const holder = document.createElement('template')
+  holder.innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-${name}"/></svg>`
+  return holder.content.firstChild
+}
+/** 단추 — kind: primary · tint · ghost · danger · solid-bad · '' / out: 바깥(설정 · 파일)으로 나가는 화살표 / fk: 다시 그려도 포커스를 되돌릴 이름 */
+const button = (text, onclick, { kind = '', out = false, disabled = false, fk } = {}) =>
+  el('button', { type: 'button', class: ['btn', kind, out && 'out'].filter(Boolean).join(' '), disabled: disabled || !!state.busy, 'data-fk': fk, onclick }, text, out && icon('out'))
+const inlineError = (item) => item && el('div', { class: 'inline-err', role: 'alert' }, el('b', {}, item.title), item.text && el('span', {}, item.text))
+const offOnly = () => state.load === 'off'
+
+function cancelConfirm() {
+  const kind = state.confirm?.kind
+  state.confirm = undefined
+  render()
+  document.querySelector(kind === 'reset' ? '[data-fk=resetask]' : '[data-fk=pick]')?.focus()
+}
 
 function standardCard() {
+  const off = offOnly()
   const std = state.std
-  const rules = rulesOf(std.text)
-  const own = std.source === 'project'
-  const where =
-    std.source === 'project'
-      ? [el('code', {}, PROJECT_FILE), ` · 규칙 ${rules.length}개`, std.modified ? ` · ${day(std.modified)} 수정` : '']
-      : std.source === 'bundled'
-        ? ['플러그인 기본 표준 (zip) · 규칙 ', String(rules.length), '개']
-        : ['표준 없음 — AI 는 표준 판정 없이 답합니다']
-  const fallback = own ? (state.bundledRules ? `이 파일이 없으면 플러그인 기본 표준(zip, 규칙 ${state.bundledRules}개)을 씁니다` : '이 파일이 없으면 표준 없이 답합니다') : `${PROJECT_FILE} 를 만들면 이 프로젝트는 그 표준을 씁니다`
+  const own = std?.source === 'project'
+  const none = !std || std.source === 'none'
+  const rules = std ? rulesOf(std.text) : []
+  const chip = own ? '팀 공유' : std?.source === 'bundled' ? '플러그인 기본' : '없음'
   const confirm = state.confirm
+  const summary = off
+    ? el('span', { class: 'none' }, '서비스가 꺼져 있어 읽지 못했습니다')
+    : none
+      ? [el('span', { class: 'chip off' }, chip), el('span', { class: 'none' }, '표준 없이 답합니다')]
+      : [el('span', { class: 'chip off' }, chip), el('span', {}, `규칙 ${rules.length}개${own && std.modified ? ` · ${day(std.modified)} 수정` : ''}`), el('span', { class: 'r' }, '새 대화부터 적용')]
+  const file = off
+    ? undefined
+    : own
+      ? el(
+          'div',
+          { class: 'file' },
+          el('span', { class: 'ico' }, icon('doc')),
+          el('span', { class: 'nm' }, el('code', { title: PROJECT_FILE }, PROJECT_FILE), el('span', {}, '이 프로젝트 · 커밋하면 팀이 같이 씁니다')),
+          button('열기', () => void call('project.openFile', { path: PROJECT_FILE }).catch((error) => ((state.message = { title: '파일을 열지 못했습니다', text: errorText(error) }), render())), { kind: 'ghost', out: true }),
+        )
+      : std.source === 'bundled'
+        ? el('div', { class: 'file' }, el('span', { class: 'ico' }, icon('doc')), el('span', { class: 'nm' }, el('code', {}, BUNDLED.path), el('span', {}, '플러그인에 든 기본 표준 · 고치면 이 프로젝트 파일이 새로 생깁니다')))
+        : undefined
+  const fallback = off
+    ? undefined
+    : own
+      ? el('p', { class: 'fallback' }, state.bundledRules ? `이 파일을 지우면 플러그인 기본 표준(규칙 ${state.bundledRules}개)을 씁니다.` : '이 파일을 지우면 표준 없이 답합니다.')
+      : std.source === 'bundled'
+        ? el('p', { class: 'fallback' }, el('code', {}, PROJECT_FILE), ' 를 만들면 이 프로젝트는 그 표준을 씁니다.')
+        : undefined
+  const ruleRow = (rule) => el('div', { class: 'rule' }, el('b', {}, rule.id), el('span', {}, rule.text))
+  const rest = rules.slice(PREVIEW_RULES)
+  const ruleBlock = off
+    ? undefined
+    : none
+      ? el('div', { class: 'empty' }, el('b', {}, '적용할 표준이 없습니다'), el('p', {}, 'AI 는 표준 판정 없이 답합니다. 사내 SQL 개발 표준을 .md 로 넣으면 AI 가 튜닝 전에 읽고 규칙 번호를 근거로 답합니다.'))
+      : rules.length > 0
+        ? el(
+            'div',
+            { class: 'rules' },
+            el('div', { class: 'lh' }, '규칙'),
+            rules.slice(0, PREVIEW_RULES).map(ruleRow),
+            state.more && el('div', { class: 'scroll', tabindex: '0', 'aria-label': '나머지 규칙' }, rest.map(ruleRow)),
+            rest.length > 0 && el('button', { type: 'button', class: 'link more', 'data-fk': 'more', 'aria-expanded': String(state.more), onclick: () => ((state.more = !state.more), render()) }, state.more ? '접기' : `규칙 ${rest.length}개 더 보기`),
+          )
+        : undefined
+  const box =
+    !off && confirm?.kind === 'reset'
+      ? el(
+          'div',
+          { class: 'confirm', role: 'alertdialog', 'aria-labelledby': 'cf-t' },
+          el('div', {}, el('b', { id: 'cf-t' }, '이 프로젝트의 표준 파일을 지울까요?'), el('p', {}, el('code', {}, PROJECT_FILE), ` 를 지우고 ${state.bundledRules ? '새 대화부터 플러그인 기본 표준을 씁니다' : '플러그인 기본 표준이 없어 표준 없이 답합니다'}. 커밋한 파일이면 지운 것도 커밋해야 팀에 반영됩니다.`)),
+          el('div', { class: 'acts' }, button('취소', cancelConfirm, { fk: 'cancel' }), button('지우기', () => void resetStandard(), { kind: 'solid-bad' })),
+        )
+      : !off && confirm?.kind === 'replace'
+        ? el(
+            'div',
+            { class: 'confirm caution', role: 'alertdialog', 'aria-labelledby': 'cf-t' },
+            el(
+              'div',
+              {},
+              el('b', { id: 'cf-t' }, `${confirm.name} 로 ${own ? '바꿀까요' : '만들까요'}?`),
+              el('p', {}, `규칙 ${rulesOf(confirm.text).length}개가 든 파일로 `, el('code', {}, PROJECT_FILE), ` 를 ${own ? '바꿉니다' : '만듭니다'}. 새 대화부터 적용되고, 커밋하면 팀에도 쓰입니다.`),
+            ),
+            el('div', { class: 'acts' }, button('취소', cancelConfirm, { fk: 'cancel' }), button(own ? '바꾸기' : '만들기', () => void run('replace', () => saveStandard(confirm.text, () => (state.confirm = undefined))), { kind: 'primary' })),
+          )
+        : undefined
+  const acts =
+    box || off
+      ? undefined
+      : el(
+          'div',
+          { class: 'acts' },
+          button(none ? '새로 쓰기' : '고치기', () => ((state.edit = { text: std.text, mode: 'edit' }), (state.message = undefined), render()), { kind: none ? 'tint' : '', disabled: off, fk: 'edit' }),
+          button(none ? '.md 로 가져오기' : '.md 로 바꾸기', () => picker.click(), { disabled: off, fk: 'pick' }),
+          own && button('플러그인 기본으로', () => ((state.confirm = { kind: 'reset' }), (state.message = undefined), render()), { kind: 'danger', disabled: off, fk: 'resetask' }),
+        )
   return el(
     'section',
-    { class: 'card', 'aria-labelledby': 'std-title' },
-    el('div', { class: 'head' }, el('h2', { id: 'std-title' }, '사내 SQL 표준 — 이 프로젝트'), el('span', { class: own ? 'tag' : 'tag off' }, own ? '팀 공유' : std.source === 'bundled' ? '플러그인 기본' : '없음')),
-    el('div', { class: 'sub' }, ...where, el('br'), el('span', { class: 'faint' }, fallback)),
-    rules.length > 0 &&
-      el(
-        'div',
-        {},
-        rules.slice(0, PREVIEW_RULES).map((rule) => el('div', { class: 'rule' }, el('b', {}, rule.id), el('span', {}, rule.text))),
-        rules.length > PREVIEW_RULES && el('div', { class: 'rule faint' }, el('span'), el('span', {}, `… ${rules.length - PREVIEW_RULES}개 더`)),
-      ),
-    confirm?.kind === 'reset' &&
-      el(
-        'div',
-        { class: 'msg warn', role: 'alertdialog', 'aria-label': '플러그인 기본으로' },
-        `${PROJECT_FILE} 를 지웁니다 — ${state.bundledRules ? '새 대화부터 플러그인 기본 표준을 씁니다' : '플러그인 기본 표준이 없어 표준 없이 답합니다'}. 커밋한 파일이면 지운 것도 커밋해야 팀에 반영됩니다.`,
-        el('div', { class: 'row', style: 'margin-top:8px' }, button('취소', () => ((state.confirm = undefined), render())), button('지우기', () => void resetStandard(), { primary: true })),
-      ),
-    confirm?.kind === 'replace' &&
-      el(
-        'div',
-        { class: 'msg warn', role: 'alertdialog', 'aria-label': '.md 로 바꾸기' },
-        `${confirm.name} (규칙 ${rulesOf(confirm.text).length}개) 로 ${PROJECT_FILE} 를 ${own ? '바꿉니다' : '만듭니다'} — 새 대화부터 적용되고, 커밋하면 팀에도 쓰입니다.`,
-        el(
-          'div',
-          { class: 'row', style: 'margin-top:8px' },
-          button('취소', () => ((state.confirm = undefined), render())),
-          button(own ? '바꾸기' : '만들기', () => void run('replace', () => saveStandard(confirm.text, () => (state.confirm = undefined))), { primary: true }),
-        ),
-      ),
-    !confirm &&
-      el(
-        'div',
-        { class: 'row' },
-        button('고치기', () => ((state.edit = { text: std.text, mode: 'edit' }), (state.message = undefined), render()), { primary: true }),
-        button('.md 로 바꾸기', () => picker.click()),
-        own && button('플러그인 기본으로', () => ((state.confirm = { kind: 'reset' }), (state.message = undefined), render())),
-      ),
-    message(state.message),
+    { class: off ? 'card dim' : 'card', 'aria-labelledby': 'std-t' },
+    el('div', { class: 'ch' }, el('div', {}, el('h2', { id: 'std-t' }, '사내 SQL 표준'), el('p', { class: 'meta' }, 'AI 가 튜닝 전에 읽고, 규칙 번호를 근거로 답합니다'))),
+    el('div', { class: 'sumline' }, summary),
+    file,
+    fallback,
+    ruleBlock,
+    box,
+    off ? undefined : inlineError(state.message),
+    acts,
   )
 }
 
-/** 연결 요약 한 줄 — Oracle · tuner@127.0.0.1:1521/FREEPDB1 · 스키마 COM · 비밀번호 저장됨 */
-function connectionLine(view) {
-  const v = view.values
-  const db = DB_NAMES[v.db] ?? v.db
-  const address = v.host ? `${v.user ? `${v.user}@` : ''}${v.host}${v.port ? `:${v.port}` : ''}${v.service ? `/${v.service}` : ''}` : ''
-  const password = `비밀번호 ${view.saved.includes('password') ? '저장됨' : '없음'}`
-  return [db, address, v.schema && `스키마 ${v.schema}`, password].filter(Boolean).join(' · ')
+/** [연결 확인] 결과 문장("연결됨 — Oracle … (12ms)")에서 응답 시간만 뽑는다 — 못 뽑으면 undefined */
+const responseMs = (text) => /\((\d+(?:\.\d+)?)\s*ms\)/i.exec(text)?.[1]
+
+function connectionResult(view, missing) {
+  const check = state.check
+  if (view.error) {
+    return el('div', { class: 'res bad', role: 'alert' }, el('b', {}, '연결 정보를 읽지 못했습니다'), el('p', {}, view.error, view.code === 'no-settings' ? '. 플러그인을 다시 설치해 주세요.' : ''))
+  }
+  if (state.busy === 'check') return el('div', { class: 'res run', role: 'status' }, el('span', { class: 'spin', 'aria-hidden': 'true' }), 'DB 에 연결해 보는 중…')
+  if (missing.length > 0) {
+    return el(
+      'div',
+      { class: 'res warn', role: 'status' },
+      el('b', {}, '넣어야 할 칸이 비어 있습니다'),
+      el('div', { class: 'miss' }, missing.map((key) => el('span', {}, LABELS[key] ?? key))),
+      el('p', {}, '[연결 정보 고치기] 에서 채우면 연결을 확인할 수 있습니다.'),
+    )
+  }
+  if (!check) return el('p', { class: 'res idle' }, '아직 확인하지 않았습니다. [연결 확인] 은 ', el('code', {}, 'SELECT 1'), ' 한 번만 보내고 데이터는 읽지 않습니다.')
+  const text = check.text || (check.isError ? '연결 실패' : '연결됨')
+  if (check.isError) {
+    const reason = text.replace(/^연결\s*(실패|안\s*됨)\s*[—:-]?\s*/, '').trim() || text
+    return el(
+      'div',
+      { class: 'res bad', role: 'alert' },
+      el('b', {}, '연결 실패'),
+      el('span', { class: 'err' }, reason),
+      el('p', {}, '호스트 · 포트가 맞는지, DB 가 켜져 있는지 확인하고 [연결 정보 고치기] 에서 고친 뒤 다시 확인하세요.'),
+    )
+  }
+  const ms = responseMs(text)
+  return el(
+    'div',
+    { class: 'res ok', role: 'status' },
+    el('span', { class: 't' }, icon('check'), '연결됨'),
+    el('span', { class: 'when' }, ms ? `${clock(state.checkAt)} 확인 · AI 가 이 DB 를 조회할 수 있습니다` : `${clock(state.checkAt)} 확인 · ${text}`),
+    ms && el('span', { class: 'ms' }, el('em', {}, '응답'), ms, el('small', {}, 'ms')),
+  )
 }
 
 function connectionCard() {
+  const off = offOnly()
   const view = state.conn
+  const error = !off && view?.error
   const check = state.check
-  const missing = view && !view.error ? view.missing : []
+  const missing = view && !view.error ? view.missing ?? [] : []
+  const v = view?.values ?? {}
+  const checking = state.busy === 'check'
+  let address, facts
+  if (!off && view && !error) {
+    const dot = !checking && check && missing.length === 0 ? (check.isError ? ' bad' : ' ok') : ''
+    const plain = [v.user ? `${v.user}@` : '', v.host || '호스트 없음', v.port ? `:${v.port}` : '', v.service ? `/${v.service}` : ''].join('')
+    address = el(
+      'div',
+      { class: 'addr' },
+      el('span', { class: `dot${dot}`, 'aria-hidden': 'true' }),
+      el('span', { class: 'url', title: `${DB_NAMES[v.db] ?? v.db ?? ''} ${plain}`.trim() }, el('i', {}, `${DB_NAMES[v.db] ?? v.db ?? ''} `), v.user ? `${v.user}@` : '', v.host ? v.host : el('i', {}, '호스트 없음'), v.port ? `:${v.port}` : '', v.service ? `/${v.service}` : ''),
+    )
+    const saved = view.saved?.includes('password')
+    facts = el(
+      'p',
+      { class: 'facts' },
+      v.schema && el('span', {}, '스키마 ', el('b', {}, v.schema)),
+      el('span', {}, saved ? ['비밀번호 ', el('b', {}, '저장됨'), ' · 값은 보이지 않습니다'] : el('span', { class: 'w' }, '비밀번호 없음')),
+    )
+  }
+  const needFix = !error && (check?.isError || missing.length > 0)
   return el(
     'section',
-    { class: 'card', 'aria-labelledby': 'conn-title' },
-    el('h2', { id: 'conn-title' }, '연결'),
-    view?.error
-      ? message({ tone: 'bad', text: view.error })
-      : el(
-          'div',
-          { class: 'conn' },
-          el('span', { class: `dot${check ? (check.isError ? ' bad' : ' ok') : ''}`, 'aria-hidden': 'true' }),
-          el('span', {}, connectionLine(view), view.target === 'project' && el('span', { class: 'faint' }, ' (이 프로젝트 값)')),
-        ),
-    missing.length > 0 && el('div', { class: 'sub' }, `넣어야 할 칸: ${missing.map((key) => LABELS[key] ?? key).join(', ')}`),
-    el(
+    { class: off ? 'card dim' : 'card', 'aria-labelledby': 'conn-t' },
+    el('div', { class: 'ch' }, el('div', {}, el('h2', { id: 'conn-t' }, '연결'), el('p', { class: 'meta' }, view?.target === 'project' ? '개발 DB · 이 프로젝트 값' : '개발 DB'))),
+    off && el('div', { class: 'sumline' }, el('span', { class: 'none' }, '서비스가 꺼져 있어 읽지 못했습니다')),
+    address,
+    facts,
+    !off &&
+      el(
       'div',
-      { class: 'row' },
-      button(state.busy === 'check' ? '확인하는 중…' : '연결 확인', () =>
-        void run(
-          'check',
-          async () => {
-            state.check = undefined
-            state.check = await call('settings.check')
-          },
-          'connMessage',
-        ),
+      { class: 'acts' },
+      button(
+        checking ? '확인하는 중…' : '연결 확인',
+        () =>
+          void run(
+            'check',
+            async () => {
+              state.check = undefined
+              state.check = await call('settings.check')
+              state.checkAt = Date.now()
+            },
+            'connMessage',
+          ),
+        { kind: 'primary', disabled: off || !!error || missing.length > 0, fk: 'check' },
       ),
-      button('연결 정보 고치기', () =>
-        void run(
-          'open',
-          async () => {
-            const { saved } = await call('settings.open')
-            if (!saved) return
-            state.check = undefined
-            await loadConnection()
-          },
-          'connMessage',
+      !error &&
+        button(
+          '연결 정보 고치기',
+          () =>
+            void run(
+              'open',
+              async () => {
+                const { saved } = await call('settings.open')
+                if (!saved) return
+                state.check = undefined
+                await loadConnection()
+              },
+              'connMessage',
+            ),
+          { kind: needFix ? 'tint' : '', out: true, disabled: off, fk: 'open' },
         ),
-      ),
     ),
-    check && message({ tone: check.isError ? 'bad' : 'ok', text: check.text || (check.isError ? '연결 실패' : '연결됨') }),
-    message(state.connMessage),
+    !off && view && connectionResult(view, missing),
+    off ? undefined : inlineError(state.connMessage),
   )
 }
 
@@ -387,54 +680,81 @@ function markdown(text) {
 function editView() {
   const edit = state.edit
   const own = state.std.source === 'project'
+  const leave = () => ((state.edit = undefined), (state.message = undefined), render(), document.querySelector('[data-fk=edit]')?.focus())
   const seg = (mode, label) =>
-    el('button', { type: 'button', role: 'radio', 'aria-checked': String(edit.mode === mode), onclick: () => ((edit.mode = mode), render()) }, label)
-  const area = el('textarea', { 'aria-label': '표준 문서 내용', spellcheck: 'false', placeholder: '# 사내 SQL 개발 표준\n\n- **SQL-01** 규칙 …' })
+    el('button', { type: 'button', role: 'radio', 'aria-checked': String(edit.mode === mode), 'data-fk': `m-${mode}`, onclick: () => ((edit.mode = mode), render()) }, label)
+  const area = el('textarea', { id: 'ta', 'aria-label': '표준 문서 내용', spellcheck: 'false', placeholder: '# 사내 SQL 개발 표준\n\n- **SQL-01** 규칙 …' })
   area.value = edit.text
-  area.addEventListener('input', () => (edit.text = area.value))
+  area.addEventListener('input', () => {
+    edit.text = area.value
+    const save = document.querySelector('[data-fk=save]')
+    if (save) save.disabled = !edit.text.trim() || !!state.busy
+  })
   return el(
     'div',
-    { class: 'edit' },
+    { class: 'ed' },
     el(
       'div',
-      { class: 'edit-top' },
-      el('div', { class: 'edit-title' }, el('b', {}, '사내 SQL 표준 고치기'), el('span', { class: 'sub' }, el('code', {}, PROJECT_FILE), state.project ? ` · ${state.project}` : '')),
+      { class: 'ed-top' },
+      button([icon('back'), '돌아가기'], leave, { kind: 'ghost', fk: 'back' }),
+      el('div', { class: 'tt' }, el('b', {}, '사내 SQL 표준 고치기'), el('code', {}, PROJECT_FILE, state.project ? ` · ${state.project}` : '')),
       el('div', { class: 'seg', role: 'radiogroup', 'aria-label': '보기' }, seg('edit', '편집'), seg('preview', '미리보기')),
     ),
-    el('div', { class: 'edit-body' }, edit.mode === 'edit' ? area : markdown(edit.text)),
-    el('div', { class: 'edit-note' }, el('p', { class: 'msg warn', style: 'margin:0' }, '저장하면 이 프로젝트 파일이 바뀝니다 — ', el('b', {}, '새 대화부터'), ' 적용되고, 커밋하면 팀원에게도 같은 표준이 쓰입니다.')),
-    state.message?.tone === 'bad' && el('div', { class: 'edit-note' }, message(state.message)),
+    el('div', { class: 'ed-body' }, edit.mode === 'edit' ? area : markdown(edit.text)),
+    el('div', { class: 'ed-note' }, el('div', { class: 'confirm caution' }, el('p', {}, el('b', { style: 'display:inline' }, '저장하면 이 프로젝트 파일이 바뀝니다.'), ' 새 대화부터 적용되고, 커밋하면 팀원에게도 같은 표준이 쓰입니다.'))),
+    state.message && el('div', { class: 'ed-note' }, inlineError(state.message)),
     el(
       'div',
-      { class: 'edit-foot' },
-      button('취소', () => ((state.edit = undefined), (state.message = undefined), render())),
+      { class: 'ed-foot' },
+      button('취소', leave),
       el(
         'div',
-        { class: 'row' },
-        button('파일로 열기', () => void call('project.openFile', { path: PROJECT_FILE }).catch((error) => ((state.message = { tone: 'bad', text: errorText(error) }), render())), { disabled: !own }),
-        button(state.busy === 'save' ? '저장하는 중…' : '저장', () => void run('save', () => saveStandard(edit.text, () => (state.edit = undefined))), { primary: true, disabled: !edit.text.trim() }),
+        { class: 'acts' },
+        button('파일로 열기', () => void call('project.openFile', { path: PROJECT_FILE }).catch((error) => ((state.message = { title: '파일을 열지 못했습니다', text: errorText(error) }), render())), { kind: 'ghost', out: true, disabled: !own }),
+        button(state.busy === 'save' ? '저장하는 중…' : '저장', () => void run('save', () => saveStandard(edit.text, () => (state.edit = undefined))), { kind: 'primary', disabled: !edit.text.trim(), fk: 'save' }),
       ),
     ),
   )
 }
 
-function render() {
-  const app = document.getElementById('app')
-  if (state.edit) return app.replaceChildren(editView())
-  app.replaceChildren(
-    el(
-      'main',
-      {},
-      state.std ? standardCard() : el('div', { class: 'card sub' }, '불러오는 중…'),
-      state.conn ? connectionCard() : undefined,
-      el('p', { class: 'note' }, '이 패널은 SQL 튜닝을 켠 프로젝트에서만 보입니다. 표준과 연결 정보도 이 프로젝트 것입니다.'),
-    ),
+function loadingCards() {
+  const skeleton = (label, lines) => el('section', { class: 'card', 'aria-busy': 'true', 'aria-label': label }, el('div', { class: 'sk' }, lines.map((cls) => el('i', { class: cls }))))
+  return [skeleton('연결 불러오는 중', ['a', 'b', 'c']), skeleton('표준 불러오는 중', ['a', 'b', 'c', 'b'])]
+}
+
+function mainView() {
+  const off = offOnly()
+  return el(
+    'main',
+    {},
+    el('header', { class: 'top' }, el('h1', {}, 'SQL 튜닝'), el('p', { class: 'where' }, state.project ? ['프로젝트 ', el('code', {}, state.project), ' 에서 켜져 있습니다.'] : '이 프로젝트에서 켜져 있습니다.', ' 표준과 연결 정보도 이 프로젝트 것입니다.')),
+    off &&
+      el(
+        'div',
+        { class: 'svc', role: 'alert' },
+        el('div', {}, el('b', {}, 'SQL 튜닝 서비스가 꺼져 있습니다'), el('p', {}, '설정 › 기능 › 플러그인 에서 SQL 튜닝을 켠 뒤 [다시 확인] 을 누르세요. 켜기 전에는 표준과 연결 정보를 읽을 수 없습니다.')),
+        el('div', { class: 'acts' }, el('button', { type: 'button', class: 'btn', 'data-fk': 'retry', onclick: () => void load() }, '다시 확인')),
+      ),
+    state.fatal && inlineError({ title: '화면을 그리지 못했습니다', text: state.fatal }),
+    state.load === 'loading' ? loadingCards() : state.fatal ? undefined : [connectionCard(), standardCard()],
   )
 }
 
-void load().catch((error) => {
-  document.getElementById('app').replaceChildren(el('main', {}, message({ tone: 'bad', text: errorText(error) })))
+function render() {
+  const app = document.getElementById('app')
+  const fk = document.activeElement?.dataset?.fk
+  app.replaceChildren(state.edit ? editView() : mainView())
+  if (state.confirm && fk !== 'cancel') app.querySelector('[data-fk=cancel]')?.focus()
+  else if (fk) {
+    const target = app.querySelector(`[data-fk="${fk}"]`)
+    if (target && !target.disabled) target.focus()
+  }
+}
+addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && state.confirm) cancelConfirm()
 })
+
+void load()
 </script>
 </body>
 </html>
