@@ -342,15 +342,29 @@ export class Workspace {
     }
   }
 
-  /** 삭제 — 수행 중인 묶음은 거절. 결과서 · 이력은 남긴다 */
+  /** 시나리오 삭제 — 파일 · 수행 이력의 그 시나리오 결과 · 스크린샷까지 지우고, 남은 시나리오로 결과서(와 있던 가이드)를 다시 쓴다 */
   async removeScenario(suite: string, scenario: string): Promise<Removed> {
     this.refuseWhileRunning(suite)
-    return removeScenario(this.config.testDir, suite, scenario)
+    const done = await removeScenario(this.config.testDir, suite, scenario)
+    const { changed } = await this.history.dropScenario(suite, scenario)
+    if (changed.length) {
+      const info = await this.suite(suite)
+      for (const run of changed) {
+        const hadGuide = existsSync(path.join(path.dirname(run.report), 'guide.html'))
+        await this.writeReport(run, info, this.history.shotsDir(suite, run.id))
+        if (hadGuide) await this.writeGuide(run, info)
+      }
+    }
+    return done
   }
 
+  /** 묶음 삭제 — 파일 · 결과서 · 가이드 · 스크린샷 · 수행 이력까지 전부 지운다 */
   async removeSuite(suite: string): Promise<Removed> {
     this.refuseWhileRunning(suite)
-    return removeSuite(this.config.testDir, suite)
+    const done = await removeSuite(this.config.testDir, suite)
+    await fs.rm(path.join(this.config.reportDir, suite), { recursive: true, force: true })
+    await this.history.purge(suite)
+    return done
   }
 
   private refuseWhileRunning(suite: string): void {
