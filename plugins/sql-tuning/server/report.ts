@@ -817,7 +817,45 @@ const inside = (root: string, target: string): boolean => {
 }
 
 /** 프로젝트 폴더 아래 sql-tuning-reports/<시각>/index.html 로 쓰고 프로젝트 기준 경로를 돌려준다. 실제 경로(심볼릭 링크 풀어서)가 프로젝트 밖이면 거절한다 */
-export async function writeReport(cwd: string, html: string, now: Date): Promise<string> {
+/** 결과서 폴더에 같이 쓰는 작은 요약(meta.json) — 패널의 튜닝 이력 목록이 이것만 읽는다. 비밀 · 접속 정보 · 데이터 행 없음(결과서와 같은 scrub) */
+export interface ReportMeta {
+  v: 1
+  id: string
+  at: string
+  target: string
+  kind?: string
+  project?: string
+  db: 'oracle' | 'postgres'
+  verdict: Verdict
+  cost?: { before: number; after: number }
+  compare: { sets: number; same: number; partial: number }
+  cause?: { title: string; text: string }
+  index_proposed: boolean
+  file: 'index.html'
+}
+
+const cut = (text: string, max: number): string => ([...text].length > max ? `${[...text].slice(0, max - 1).join('')}…` : text)
+
+export function buildMeta(input: ReportInput, id: string, at: Date, hide: string[]): ReportMeta {
+  const clean = (text: string, max: number): string => cut(scrub(text, hide), max)
+  return {
+    v: 1,
+    id,
+    at: at.toISOString(),
+    target: clean(input.target, 200),
+    ...(input.kind && { kind: clean(input.kind, 60) }),
+    ...(input.project && { project: clean(input.project, 120) }),
+    db: input.db,
+    verdict: input.verdict,
+    ...(input.cost && { cost: input.cost }),
+    compare: { sets: input.compare.length, same: input.compare.filter(same).length, partial: input.compare.filter((set) => set.partial === true).length },
+    ...(input.cause && { cause: { title: clean(input.cause.title, 160), text: clean(input.cause.text, 300) } }),
+    index_proposed: input.index !== undefined,
+    file: 'index.html',
+  }
+}
+
+export async function writeReport(cwd: string, html: string, now: Date, meta?: (id: string) => ReportMeta): Promise<string> {
   const root = await realpath(cwd)
   const base = path.join(root, REPORT_DIR)
   await mkdir(base, { recursive: true })
@@ -833,6 +871,7 @@ export async function writeReport(cwd: string, html: string, now: Date): Promise
     const file = path.join(dir, 'index.html')
     if (!inside(root, await realpath(dir))) throw new Error('The report folder resolves outside the project folder.')
     await writeFile(file, html, 'utf8')
+    if (meta) await writeFile(path.join(dir, 'meta.json'), `${JSON.stringify(meta(path.basename(dir)), null, 1)}\n`, 'utf8')
     return path.relative(root, file).split(path.sep).join('/')
   }
   throw new Error('Could not pick a free report folder name.')

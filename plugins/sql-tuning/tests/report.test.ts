@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileS
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { diffLines, hiddenValues, maskBinds, maskLabel, parseReport, renderReport, scrub, writeReport } from '../server/report.ts'
+import { buildMeta, diffLines, hiddenValues, maskBinds, maskLabel, parseReport, renderReport, scrub, writeReport } from '../server/report.ts'
 import type { ReportInput } from '../server/report.ts'
 import { createTools } from '../server/tools.ts'
 import type { Adapter } from '../server/types.ts'
@@ -97,6 +97,25 @@ describe('결과서 렌더러', () => {
     expect(maskLabel('최근 7일 · 결제 완료', { days: 7 })).toBe('최근 7일 · 결제 완료')
     const html = render({ ...win, compare: [{ ...win.compare[0]!, label: '{"email":"kim@example.com"}', binds: { email: 'kim@example.com' } }] })
     expect(html).not.toContain('kim@example.com')
+  })
+
+  it('meta.json — 결과서 옆에 목록용 요약(판정 · 비용 · 비교 요약)만 쓰고 비밀 · 접속 정보 · 데이터 행은 넣지 않는다', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sqlt-meta-'))
+    dirs.push(dir)
+    const file = await writeReport(dir, '<html></html>', at, (id) => buildMeta({ ...hold, project: 'shop (pw1234)' }, id, at, ['pw1234']))
+    const metaFile = path.join(dir, path.dirname(file), 'meta.json')
+    const meta = JSON.parse(readFileSync(metaFile, 'utf8'))
+    expect(meta).toMatchObject({ v: 1, verdict: 'hold', file: 'index.html', db: hold.db, index_proposed: false })
+    expect(meta.id).toBe(path.basename(path.dirname(file)))
+    expect(meta.compare.sets).toBe(hold.compare.length)
+    expect(meta.compare.same).toBeLessThan(meta.compare.sets)
+    expect(meta.cause.title).toBeTruthy()
+    const raw = readFileSync(metaFile, 'utf8')
+    expect(raw).not.toContain('pw1234')
+    expect(raw).not.toContain('original_sql')
+    const ok = buildMeta(win, 'x', at, [])
+    expect(ok).toMatchObject({ verdict: 'ok', index_proposed: true, cost: win.cost })
+    expect(ok.cause).toBeUndefined()
   })
 
   it('개요 — 맨 앞에 요약 · 절 · 코드 블록으로 나오고, 문단 · `코드` 를 살리되 이스케이프한다', () => {

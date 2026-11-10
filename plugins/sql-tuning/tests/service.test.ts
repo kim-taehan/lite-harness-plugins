@@ -19,7 +19,7 @@ const DIR = '/work/a'
 type Reply = { ok: true; value: unknown } | { ok: false; code: string }
 
 function start(calls: Record<string, (params: unknown, options: { directory?: string }) => unknown> = {}) {
-  const fake = createFakeHost({ id: 'sql-tuning', scope: 'project', calls })
+  const fake = createFakeHost({ id: 'sql-tuning', scope: 'project', events: ['project.filesChanged'], calls })
   fake.enableProject(DIR)
   fake.mount(createService as never)
   const call = (name: string, params?: unknown) => fake.call(name, params, { directory: DIR }) as Promise<Reply>
@@ -68,6 +68,15 @@ describe('service', () => {
     const { fake } = start()
     expect(fake.mcpServers()).toHaveLength(1)
     expect(fake.mcpServers()[0]).toMatchObject({ command: 'server/sql-tuning.mjs', idleMs: 600000 })
+  })
+
+  it('결과서 폴더(sql-tuning-reports)의 파일이 바뀌면 그 프로젝트 패널에 reports 소식을 보내고, 다른 파일 소식은 거른다', async () => {
+    const { fake } = start()
+    await fake.emit('project.filesChanged', { directory: DIR, paths: ['src/Main.java', 'pom.xml'] })
+    expect(fake.pushes().filter((p) => p.event === 'service.reports')).toHaveLength(0)
+    await fake.emit('project.filesChanged', { directory: DIR, paths: ['sql-tuning-reports/20261110-090333/meta.json'] })
+    await fake.emit('project.filesChanged', { directory: DIR, paths: [], truncated: true })
+    expect(fake.pushes().filter((p) => p.event === 'service.reports')).toHaveLength(2)
   })
 
   it('패널이 부르는 메서드를 낸다', () => {
