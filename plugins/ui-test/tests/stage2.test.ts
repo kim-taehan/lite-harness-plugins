@@ -5,15 +5,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { configFromEnv } from '../server/config.ts'
 import { driverFor, type BrowserLike, type Launch } from '../server/driver.ts'
 import { classifyFailure } from '../server/failure.ts'
-import { compareRuns, unitLabel } from '../server/history.ts'
+import { compareWithLast, unitLabel } from '../server/history.ts'
 import { budgetShots, renderReport } from '../server/report.ts'
 import { Workspace } from '../server/runner.ts'
-import { coverage, fingerprint, parseDataTable, parseRule, parseScenario, parseSuite, sourceFingerprint } from '../server/scenario.ts'
+import { fingerprint, parseDataTable, parseScenario, sourceFingerprint } from '../server/scenario.ts'
 import type { PageLike } from '../server/steps.ts'
 import { createTools } from '../server/tools.ts'
+import { fakeDb } from './store-helper.ts'
 import type { CaseResult, RunRecord } from '../server/types.ts'
 
-// UI 테스트 2 단계 (#1248) — 코드 낡음 · 코드 바뀜 · 실패 가르기 · 데이터 표(행마다 수행 · 결과서 · 비교) · 규칙 덮임 · 비동기 수행 · 결과서 스크린샷 예산
+// UI 테스트 2 단계 (#1248) — 코드 낡음 · 코드 바뀜 · 실패 가르기 · 데이터 표(행마다 실행 · 결과서 · 비교) · 비동기 실행 · 결과서 스크린샷 예산
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9])
 
@@ -56,19 +57,6 @@ describe('데이터 표 · sources · 지문', () => {
   })
 })
 
-describe('규칙 덮임 (어림값)', () => {
-  it('suite.md ## 규칙 — [검증] · [업무], 다루는 시나리오 번호, 없는 시나리오는 안 다룬 것', () => {
-    const suite = parseSuite('s', `## 시나리오 순서\n1. 01-a.md\n\n## 규칙\n- [검증] 이름 필수 — 01, 02\n- [검증] 주민번호 13자리 — 09\n- [업무] 가입 나이 15~70세 — 04-나이\n- [업무] 특약 조합 제한 — (없음)\n- 아무 줄\n`)
-    expect(suite.rules).toHaveLength(4)
-    expect(parseRule('- [검증] 길이 20자 → 03.md')).toEqual({ kind: 'validation', text: '길이 20자', covers: ['03'] })
-    const cover = coverage(suite.rules, ['01-a', '04-나이'])!
-    expect(cover.validation).toEqual({ covered: 1, total: 2 })
-    expect(cover.business).toEqual({ covered: 1, total: 2 })
-    expect(cover.uncovered.map((rule) => rule.text)).toEqual(['주민번호 13자리', '특약 조합 제한'])
-    expect(coverage([], ['01'])).toBeUndefined()
-  })
-})
-
 describe('실패 가르기', () => {
   it.each([
     ["locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: '저장' })", 'selector'],
@@ -89,10 +77,10 @@ describe('실패 가르기', () => {
 
 describe('행마다 비교 · 결과서 스크린샷 예산', () => {
   const rowCase = (statuses: CaseResult['status'][]): CaseResult => ({ id: '04', title: '나이', status: statuses.includes('failed') ? 'failed' : 'passed', durationMs: 1, steps: [], rows: statuses.map((status, index) => ({ row: index + 1, label: `${69 + index}`, status, durationMs: 1, steps: [] })) })
-  const runOf = (id: string, cases: CaseResult[]): RunRecord => ({ id, suite: 's', startedAt: 0, durationMs: 1, headed: false, browser: 'Chrome', baseUrl: 'http://a', cases, report: `/r/s/${id}/index.html` })
+  const runOf = (id: string, cases: CaseResult[]): RunRecord => ({ id, startedAt: 0, durationMs: 1, headed: false, browser: 'Chrome', baseUrl: 'http://a', cases, report: `/r/${id}/index.html` })
 
   it('데이터 표 시나리오는 행 단위로 새로 실패 · 고쳐짐 · 그대로 실패', () => {
-    const compare = compareRuns(runOf('a', [rowCase(['passed', 'failed', 'failed'])]), [rowCase(['failed', 'passed', 'failed'])])
+    const compare = compareWithLast(new Map([['04#1', 'passed'], ['04#2', 'failed'], ['04#3', 'failed']] as const), 'a', [rowCase(['failed', 'passed', 'failed'])])
     expect(compare).toMatchObject({ newFail: ['04#1'], fixed: ['04#2'], stillFail: ['04#3'] })
     expect(unitLabel('04#3')).toBe('04 3행')
   })
@@ -102,7 +90,7 @@ describe('행마다 비교 · 결과서 스크린샷 예산', () => {
       { row: 1, label: '69 · 계산됨', status: 'passed', durationMs: 900, steps: [{ title: '1. 연다', status: 'passed', durationMs: 900, shot: 'c1-r1-s1.jpg', used: [] }] },
       { row: 2, label: '70 · 계산됨', status: 'failed', durationMs: 900, error: 'x', failKind: 'assertion', steps: [{ title: '1. 연다', status: 'failed', durationMs: 900, failShot: 'c1-r2-s1-fail.jpg', error: 'x', failKind: 'assertion', used: [] }] },
     ] }
-    const html = renderReport({ run: runOf('20261106-120000', [item]), project: 'p', suiteName: 's', user: 'u', scenarios: new Map(), files: [], image: () => JPEG, secrets: [] })
+    const html = renderReport({ run: runOf('20261106T120000_01', [item]), project: 'p', title: 's', user: 'u', scenarios: new Map(), files: [], image: () => JPEG, secrets: [] })
     expect(html).toContain('1행 — 69 · 계산됨')
     expect(html).toContain('2행 — 70 · 계산됨')
     expect(html).toContain('1/2 행 성공')
@@ -118,7 +106,7 @@ describe('행마다 비교 · 결과서 스크린샷 예산', () => {
     expect(dropped).toBe(7)
     const big = new Uint8Array(200_000)
     const steps = Array.from({ length: 40 }, (_, index) => ({ title: `${index + 1}. 단계`, status: 'passed' as const, durationMs: 1, shot: `c1-s${index + 1}.jpg`, used: [] }))
-    const html = renderReport({ run: runOf('r', [{ id: '01', title: 't', status: 'passed', durationMs: 1, steps }]), project: 'p', suiteName: 's', user: 'u', scenarios: new Map(), files: [], image: () => big, secrets: [], imageBudget: 1_000_000 })
+    const html = renderReport({ run: runOf('r', [{ id: '01', title: 't', status: 'passed', durationMs: 1, steps }]), project: 'p', title: 's', user: 'u', scenarios: new Map(), files: [], image: () => big, secrets: [], imageBudget: 1_000_000 })
     expect(html.length).toBeLessThan(1_000_000 * 1.34 + 60_000)
     expect(html).toContain('스크린샷 35 장은 결과서 크기')
   })
@@ -132,105 +120,109 @@ const fakeBrowser = (contexts: Record<string, unknown>[] = []): BrowserLike => (
   close: async () => undefined,
 })
 
-describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 수행 (가짜 브라우저)', () => {
+describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (가짜 브라우저)', () => {
   let dir: string
   let root: string
+  let db: ReturnType<typeof fakeDb>['db']
   beforeEach(async () => {
     dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ui-test2-')))
     root = path.join(dir, 'proj')
-    await fs.mkdir(path.join(root, 'ui-tests', 'join'), { recursive: true })
+    await fs.mkdir(path.join(root, '.litecode/plugins/ui-test/scenarios'), { recursive: true })
     await fs.mkdir(path.join(root, 'src'), { recursive: true })
     await fs.writeFile(path.join(root, 'src', 'join.jsp'), '<input name="age">\n')
-    await fs.writeFile(path.join(root, 'ui-tests', 'join', 'suite.md'), '---\nname: 가입\n---\n## 시나리오 순서\n1. 01-나이.md\n\n## 규칙\n- [검증] 나이 숫자 — 01\n- [업무] 15~70세 — 01\n- [업무] 특약 조합 — (없음)\n')
+    db = fakeDb().db
   })
   afterEach(async () => {
     await fs.rm(dir, { recursive: true, force: true })
   })
-  const workspace = (launch: Launch = async () => fakeBrowser()) => new Workspace(configFromEnv({ UI_TEST_BASE_URL: 'http://a', UI_TEST_DATA_DIR: path.join(dir, 'data') }, root), launch)
+  const workspace = (launch: Launch = async () => fakeBrowser()) => new Workspace(configFromEnv({ UI_TEST_BASE_URL: 'http://a', UI_TEST_DATA_DIR: path.join(dir, 'data') }, root), launch, db)
   const tools = (space: Workspace, waitMs?: number) => createTools({ workspace: space, checkDriver: () => driverFor('web', { channel: 'chrome' }), serverFile: '/p/ui-test.mjs', ...(waitMs !== undefined && { waitMs }) })
   const tool = (list: ReturnType<typeof tools>, name: string) => list.find((item) => item.name === name)!
+  /** 저장소를 파일에 맞추고 첫 시나리오의 파일 상태 */
+  const first = async (space: Workspace) => {
+    await space.reindex()
+    return (await space.select({})).infos[0]!
+  }
 
   async function scenario(extra = '', delayMs = 0): Promise<string> {
     const space = workspace()
     const sources = (await tool(tools(space), 'fingerprint').run({ files: ['src/join.jsp'] })).text
     expect(sources).toMatch(/^sources: \[src\/join\.jsp@[0-9a-f]{12}\]$/)
     const md = `---\nname: 나이\n${sources}\n---\n1. 연다\n2. 확인: 결과\n\n## 데이터\n| 나이 | 기대 |\n|---|---|\n| 69 | ok |\n| 71 | no |${extra}\n`
-    await fs.writeFile(path.join(root, 'ui-tests/join/01-나이.md'), md)
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.md'), md)
     const fp = fingerprint(md)
     // 기대가 no 인 행은 실패 — data 가 행 값으로 온다
     await fs.writeFile(
-      path.join(root, 'ui-tests/join/01-나이.spec.mjs'),
-      `// ui-test source: ui-tests/join/01-나이.md · fingerprint: ${fp}\nexport default async ({ step, page, expect, data }) => {\n  await step('1. 연다', async () => { await page.goto('/?age=' + data.나이); await new Promise((r) => setTimeout(r, ${delayMs})) })\n  await step('2. 확인: 결과', async () => expect(data.기대).toBe('ok'))\n}\n`,
+      path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.spec.mjs'),
+      `// ui-test source: .litecode/plugins/ui-test/scenarios/a-01.md · fingerprint: ${fp}\nexport default async ({ step, page, expect, data }) => {\n  await step('1. 연다', async () => { await page.goto('/?age=' + data.나이); await new Promise((r) => setTimeout(r, ${delayMs})) })\n  await step('2. 확인: 결과', async () => expect(data.기대).toBe('ok'))\n}\n`,
     )
     return md
   }
 
-  it('일부 시나리오만 다시 수행해도 나머지의 마지막 결과가 남는다 — list · 실패만 · 비교', async () => {
+  it('일부 시나리오만 다시 실행해도 나머지의 마지막 결과가 남는다 — list · 실패만 · 비교', async () => {
     await scenario()
     const second = '---\nname: 둘\n---\n1. 연다\n'
-    await fs.writeFile(path.join(root, 'ui-tests/join/02-둘.md'), second)
-    await fs.writeFile(path.join(root, 'ui-tests/join/02-둘.spec.mjs'), `// ui-test source: ui-tests/join/02-둘.md · fingerprint: ${fingerprint(second)}\nexport default async ({ step, page }) => {\n  await step('1. 연다', async () => { await page.goto('/') })\n}\n`)
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-02.md'), second)
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-02.spec.mjs'), `// ui-test source: .litecode/plugins/ui-test/scenarios/a-02.md · fingerprint: ${fingerprint(second)}\nexport default async ({ step, page }) => {\n  await step('1. 연다', async () => { await page.goto('/') })\n}\n`)
     const space = workspace()
-    await space.run({ suite: 'join', headed: false }) // 01-나이(71 행 실패) · 02-둘 성공
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    await space.run({ suite: 'join', scenarios: ['02-둘'], headed: false }) // 02-둘 만 다시
+    await space.run({ headed: false }) // a-01(71 행 실패) · a-02 성공
+    await space.run({ scenarios: ['a-02'], headed: false }) // a-02 만 다시
     const json = JSON.parse((await tool(tools(space), 'list').run({ json: true })).text)
-    const [first, other] = json.suites[0].scenarios
-    // 02-둘 만 다시 수행해도 01-나이 가 "수행 전" 으로 돌아가지 않는다
-    expect(first).toMatchObject({ id: '01-나이', lastStatus: 'failed' })
-    expect(first.lastFailure).toBeDefined()
-    expect(other).toMatchObject({ id: '02-둘', lastStatus: 'passed' })
-    expect((await tool(tools(space), 'list').run({})).text).toContain('01-나이')
+    const [one, other] = json.scenarios
+    // a-02 만 다시 실행해도 a-01 이 "실행 전" 으로 돌아가지 않는다
+    expect(one).toMatchObject({ id: 'a-01', status: 'failed' })
+    expect(other).toMatchObject({ id: 'a-02', status: 'passed' })
+    expect((await tool(tools(space), 'list').run({})).text).toContain('- a-01: 나이')
+    const detail = JSON.parse((await tool(tools(space), 'detail').run({ id: 'a-01' })).text)
+    expect(detail.results[0].failure).toMatchObject({ step: '2. 확인: 결과', kind: '확인 값 다름', row: '2행 (71 · no)' })
     // "실패만" 은 직전 수행이 아니라 시나리오마다의 마지막 결과로 고른다 · 계속 실패 중이니 "새로 실패" 가 아니다
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    const failed = await space.run({ suite: 'join', scenarios: 'failed', headed: false })
-    expect(failed.run.cases.map((item) => item.id)).toEqual(['01-나이'])
+    const failed = await space.run({ failed: true, headed: false })
+    expect(failed.run.cases.map((item) => item.id)).toEqual(['a-01'])
     expect(failed.run.compare?.newFail).toEqual([])
     expect(failed.run.compare?.stillFail.length).toBeGreaterThan(0)
   })
 
-  it('guide — 수행 뒤 결과서 옆에 guide.html 을 쓴다 · 수행 기록이 없거나 묶음이 없으면 알린다', async () => {
+  it('guide — 수행 뒤 결과서 옆에 guide.html 을 쓴다 · 없는 수행은 알린다', async () => {
     await scenario()
     const space = workspace()
-    const noRuns = await tool(tools(space), 'guide').run({ suite: 'join' })
-    expect(noRuns).toMatchObject({ isError: true })
-    expect(noRuns.text).toContain('아직 수행 기록이 없습니다')
-    await tool(tools(space), 'run').run({ suite: 'join', headed: false })
-    const out = await tool(tools(space), 'guide').run({ suite: 'join' })
+    const missing = await tool(tools(space), 'guide').run({ run: '20000101T000000_01' })
+    expect(missing).toMatchObject({ isError: true })
+    expect(missing.text).toContain('수행 기록이 없습니다')
+    const started = await tool(tools(space), 'run').run({ headed: false })
+    const runId = /수행 id (\S+)/.exec(started.text)![1]!
+    const out = await tool(tools(workspace()), 'guide').run({ run: runId }) // 새 서버(메모리 기록 없음)도 저장소에서 읽어 쓴다
     expect(out.isError).toBeUndefined()
     const file = /가이드: (\S+)/.exec(out.text)![1]!
-    expect(file).toMatch(/ui-tests\/_reports\/join\/\d{8}-\d{6}\/guide\.html$/)
+    expect(file).toBe(`.litecode/plugins/ui-test/reports/${runId}/guide.html`)
     const html = await fs.readFile(path.join(root, file), 'utf8')
-    expect(html).toContain('가입 — 화면 사용 가이드')
+    expect(html).toContain('나이 — 화면 사용 가이드')
     expect(html).toContain('1행 — 69 · ok')
     expect(await fs.readFile(path.join(root, file.replace('guide.html', 'index.html')), 'utf8')).toContain('수행 결과서')
-    expect(await tool(tools(space), 'guide').run({ suite: 'join', run: '20000101-000000' })).toMatchObject({ isError: true })
-    expect(await tool(tools(space), 'guide').run({ suite: 'nope' })).toMatchObject({ isError: true })
+    expect(await tool(tools(space), 'guide').run({})).toMatchObject({ isError: true })
   })
 
   it('코드 낡음 — 시나리오를 고치면 list 에 표시, run 결과가 경고 · 코드 바뀜 — sources 파일을 고치면 표시', async () => {
     const md = await scenario()
     const space = workspace()
-    expect((await space.suite('join')).scenarios[0]).toMatchObject({ stale: false, changed: [] })
-    await fs.writeFile(path.join(root, 'ui-tests/join/01-나이.md'), md.replace('| 71 | no |', '| 71 | no |\n| 72 | no |'))
-    expect((await space.suite('join')).scenarios[0]!.stale).toBe(true)
+    expect(await first(space)).toMatchObject({ stale: false, changed: [] })
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.md'), md.replace('| 71 | no |', '| 71 | no |\n| 72 | no |'))
+    expect((await first(space)).stale).toBe(true)
     await fs.writeFile(path.join(root, 'src/join.jsp'), '<input name="age" max="70">\n')
-    expect((await space.suite('join')).scenarios[0]!.changed).toEqual([{ path: 'src/join.jsp', state: 'changed' }])
+    expect((await first(space)).changed).toEqual([{ path: 'src/join.jsp', state: 'changed' }])
     await fs.rm(path.join(root, 'src/join.jsp'))
-    expect((await space.suite('join')).scenarios[0]!.changed).toEqual([{ path: 'src/join.jsp', state: 'missing' }])
+    expect((await first(space)).changed).toEqual([{ path: 'src/join.jsp', state: 'missing' }])
     const list = await tool(tools(space), 'list').run({})
     expect(list.text).toContain('**코드 낡음** (코드 머리말 지문')
     expect(list.text).toContain('**코드 바뀜**: src/join.jsp(없음)')
     expect(list.text).toContain('데이터 3행 (나이, 기대)')
-    expect(list.text).toContain('검증 규칙 1/1 · 업무 규칙 1/2 · 안 다룸: 특약 조합')
     const json = JSON.parse((await tool(tools(space), 'list').run({ json: true })).text)
-    expect(json.suites[0].coverage.uncovered[0].text).toBe('특약 조합')
-    expect(json.suites[0].scenarios[0]).toMatchObject({ stale: true, rows: 3, checks: 1 })
+    expect(json.scenarios[0]).toMatchObject({ stale: true, rows: 3, checks: 1, changed: [{ path: 'src/join.jsp', state: 'missing' }] })
     // 상세가 보이는 시나리오 원문 — 단계 · 데이터 표
-    expect(json.suites[0].scenarios[0].steps).toEqual([{ no: 1, text: '연다', kind: 'action' }, { no: 2, text: '확인: 결과', kind: 'check' }])
-    expect(json.suites[0].scenarios[0].data.columns).toEqual(['나이', '기대'])
-    const run = await tool(tools(space), 'run').run({ suite: 'join', headed: false })
-    expect(run.text).toContain('머리말 지문이 맞지 않음): 01-나이')
+    const detail = JSON.parse((await tool(tools(space), 'detail').run({ id: 'a-01' })).text)
+    expect(detail.steps).toEqual([{ no: 1, text: '연다', kind: 'action' }, { no: 2, text: '확인: 결과', kind: 'check' }])
+    expect(detail.data.columns).toEqual(['나이', '기대'])
+    const run = await tool(tools(space), 'run').run({ headed: false })
+    expect(run.text).toContain('머리말 지문이 맞지 않음): a-01')
     expect(await tool(tools(space), 'fingerprint').run({ files: ['../x'] })).toMatchObject({ isError: true })
   })
 
@@ -240,16 +232,16 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 수행 (�
     const service = path.join(backend, 'svc', 'JoinService.java')
     await fs.writeFile(service, 'if (age > 70) throw\n')
     const env = { UI_TEST_BASE_URL: 'http://a', UI_TEST_DATA_DIR: path.join(dir, 'data'), UI_TEST_BACKEND_DIRS: `${backend}/ , relative/x` }
-    const space = new Workspace(configFromEnv(env, root), async () => fakeBrowser())
+    const space = new Workspace(configFromEnv(env, root), async () => fakeBrowser(), db)
     expect(space.config).toMatchObject({ backendDirs: [backend], backendIgnored: ['relative/x'] })
     const list = tools(space)
     expect((await tool(list, 'list').run({})).text).toContain(`백엔드 코드: ${backend}`)
     const sources = (await tool(list, 'fingerprint').run({ files: ['src/join.jsp', service] })).text
     expect(sources).toMatch(new RegExp(`^sources: \\[src/join\\.jsp@[0-9a-f]{12}, ${service.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}@[0-9a-f]{12}\\]$`))
-    await fs.writeFile(path.join(root, 'ui-tests/join/01-나이.md'), `---\nname: 나이\n${sources}\n---\n1. 연다\n`)
-    expect((await space.suite('join')).scenarios[0]!.changed).toEqual([])
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.md'), `---\nname: 나이\n${sources}\n---\n1. 연다\n`)
+    expect((await first(space)).changed).toEqual([])
     await fs.writeFile(service, 'if (age > 65) throw\n')
-    expect((await space.suite('join')).scenarios[0]!.changed).toEqual([{ path: service, state: 'changed' }])
+    expect((await first(space)).changed).toEqual([{ path: service, state: 'changed' }])
     expect(await tool(list, 'fingerprint').run({ files: [path.join(dir, 'elsewhere.java')] })).toMatchObject({ isError: true })
     expect(await tool(list, 'check').run({})).toMatchObject({ isError: true, text: expect.stringContaining('절대 경로로 적어 주세요: relative/x') })
     // 설정 없이는 프로젝트 안만 (예전 그대로)
@@ -260,77 +252,77 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 수행 (�
     await scenario()
     const contexts: Record<string, unknown>[] = []
     const space = workspace(async () => fakeBrowser(contexts))
-    const result = await tool(tools(space), 'run').run({ suite: 'join', headed: false })
+    const result = await tool(tools(space), 'run').run({ headed: false })
     expect(contexts).toHaveLength(2)
     expect(contexts[0]).toMatchObject({ deviceScaleFactor: 0.75, viewport: { width: 1280, height: 800 } })
     expect(result.text).toContain('데이터 1/2 행 성공')
     expect(result.text).toContain('### 2행 (71 · no): 실패')
     expect(result.text).toContain('[갈래: 확인 값 다름]')
     expect(result.text).toContain('앱 결함 가능성')
-    const [run] = await space.history.runs('join')
-    expect(run!.cases[0]!.rows!.map((row) => [row.row, row.status])).toEqual([[1, 'passed'], [2, 'failed']])
-    expect(run!.cases[0]!.rows![0]!.steps[0]!.shot).toBe('c1-r1-s1.jpg')
-    expect(await fs.readFile(run!.report, 'utf8')).toContain('2행 — 71 · no')
-    const json = JSON.parse((await tool(tools(space), 'list').run({ json: true })).text)
-    expect(json.suites[0].scenarios[0].lastFailure).toMatchObject({ step: '2. 확인: 결과', kind: '확인 값 다름', row: '2행 (71 · no)' })
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    const again = await tool(tools(space), 'run').run({ suite: 'join', scenarios: 'failed', headed: false })
-    expect(again.text).toContain('그대로 실패: 01-나이 2행')
+    const runId = /수행 id (\S+)/.exec(result.text)![1]!
+    const saved = (await space.store!.getResult('a-01', runId))!
+    expect(saved.rows!.map((row) => [row.row, row.status])).toEqual([[1, 'passed'], [2, 'failed']])
+    expect(saved.rows![0]!.steps[0]!.shot).toBe('c1-r1-s1.jpg')
+    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/index.html`), 'utf8')).toContain('2행 — 71 · no')
+    const again = await tool(tools(space), 'run').run({ failed: true, headed: false })
+    expect(again.text).toContain('그대로 실패: a-01 2행')
   })
 
-  it('긴 수행 — run 은 기다림 한도에서 수행 id 와 함께 돌아오고, report { run } 이 끝을 기다린다', async () => {
+  it('긴 실행 — run 은 기다림 한도에서 수행 id 와 함께 돌아오고, report { run } 이 끝을 기다린다', async () => {
     await scenario('', 250)
     const space = workspace()
     const list = tools(space, 50)
-    const started = await tool(list, 'run').run({ suite: 'join', headed: false })
+    const started = await tool(list, 'run').run({ headed: false })
     expect(started.isError).toBeUndefined()
-    expect(started.text).toMatch(/^아직 수행 중 — join · 수행 id \d{8}-\d{6} · 0\/1 건 끝/)
-    const runId = /수행 id (\d{8}-\d{6})/.exec(started.text)![1]!
-    expect(started.text).toContain(`report { suite: "join", run: "${runId}" }`)
-    expect((await tool(list, 'run').run({ suite: 'join' })).text).toContain('이미 수행 중입니다')
-    expect(JSON.parse((await tool(list, 'progress').run({})).text)).toMatchObject({ running: true, runId })
+    expect(started.text).toMatch(/^아직 실행 중 — 나이 · 수행 id \d{8}T\d{6}_\d{2} · 0\/1 건 끝/)
+    const runId = /수행 id (\S+)/.exec(started.text)![1]!
+    expect(started.text).toContain(`report { run: "${runId}" }`)
+    expect((await tool(list, 'run').run({})).text).toContain('이미 수행 중입니다')
+    expect(JSON.parse((await tool(list, 'progress').run({})).text)).toMatchObject({ running: true, runId, title: '나이' })
     let text = ''
-    for (let tries = 0; tries < 40 && !text.startsWith('수행 끝'); tries++) text = (await tool(list, 'report').run({ suite: 'join', run: runId })).text
-    expect(text).toMatch(new RegExp(`^수행 끝 — join .* 수행 id ${runId}`))
-    expect(text).toContain('이력 (최근 1)')
-    expect(JSON.parse((await tool(list, 'progress').run({})).text)).toMatchObject({ running: false })
+    for (let tries = 0; tries < 40 && !text.startsWith('실행 끝'); tries++) text = (await tool(list, 'report').run({ run: runId })).text
+    expect(text).toMatch(new RegExp(`^실행 끝 — 나이 .* 수행 id ${runId}`))
+    const progress = JSON.parse((await tool(list, 'progress').run({})).text)
+    expect(progress).toMatchObject({ running: false, recorded: true, report: `.litecode/plugins/ui-test/reports/${runId}/index.html` })
   })
 
   it('AI 가 지문을 못 구해 000000000000 이나 머리말 없이 쓴 코드도 "코드 낡음" — list 가 맞는 지문을 보여 준다', async () => {
     const md = await scenario()
-    const spec = path.join(root, 'ui-tests/join/01-나이.spec.mjs')
+    const spec = path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.spec.mjs')
     const code = await fs.readFile(spec, 'utf8')
     await fs.writeFile(spec, code.replace(/fingerprint: [0-9a-f]{12}/, 'fingerprint: 000000000000'))
     const space = workspace()
-    expect((await space.suite('join')).scenarios[0]).toMatchObject({ stale: true, codeFingerprint: '000000000000' })
+    expect(await first(space)).toMatchObject({ stale: true, codeFingerprint: '000000000000' })
     const text = (await tool(tools(space), 'list').run({})).text
     expect(text).toContain(`지문 ${fingerprint(md)}`)
     expect(text).toContain(`코드 머리말 지문 000000000000 ≠ ${fingerprint(md)}`)
     await fs.writeFile(spec, code.split('\n').slice(1).join('\n'))
-    expect((await space.suite('join')).scenarios[0]!.stale).toBe(true)
+    expect((await first(space)).stale).toBe(true)
   })
 
-  it('대화가 run 호출을 멈추면 수행을 중단하고, 돈 데까지 결과서 · 이력을 "중단됨" 으로 남긴다', async () => {
+  it('대화가 run 호출을 멈추면 실행을 중단하고, 실행한 데까지 결과서 · 기록을 "중단됨" 으로 남긴다', async () => {
     await scenario('\n| 72 | ok |\n| 73 | ok |', 150)
     const space = workspace()
     const abort = new AbortController()
-    const pending = tool(tools(space), 'run').run({ suite: 'join', headed: false }, abort.signal)
+    const pending = tool(tools(space), 'run').run({ headed: false }, abort.signal)
     await new Promise((resolve) => setTimeout(resolve, 200))
     abort.abort()
     const result = await pending
-    expect(result.text).toMatch(/^수행 중단됨\(대화에서 멈춤\)/)
-    const [run] = await space.history.runs('join')
-    expect(run!.interrupted).toBe('대화에서 멈춤')
-    expect(run!.cases[0]!.rows!.some((row) => row.status === 'stopped')).toBe(true)
-    expect(await fs.readFile(run!.report, 'utf8')).toContain('중단됨')
+    expect(result.text).toMatch(/^실행 중단됨\(대화에서 멈춤\)/)
+    const runId = /수행 id (\S+)/.exec(result.text)![1]!
+    expect((await space.store!.getRun(runId))!.interrupted).toBe('대화에서 멈춤')
+    expect((await space.store!.getResult('a-01', runId))!.rows!.some((row) => row.status === 'stopped')).toBe(true)
+    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/index.html`), 'utf8')).toContain('중단됨')
+    // 멈춤은 돈 게 아니라 마지막 결과를 덮지 않는다
+    expect((await space.store!.getScenario('a-01'))!.last).toBeUndefined()
     expect(space.current().running).toBe(false)
     expect(await space.interrupt('again')).toBe(false)
   })
 
-  it('수행이 시작 뒤에 깨지면 report 가 그 오류를 돌려준다', async () => {
+  it('실행이 시작 뒤에 깨지면 그 오류를 돌려준다', async () => {
     await scenario()
     const space = workspace(async () => Promise.reject(new Error('no browser')))
-    const result = await tool(tools(space), 'run').run({ suite: 'join', headed: false })
+    const result = await tool(tools(space), 'run').run({ headed: false })
     expect(result.isError).toBe(true)
     expect(result.text).toContain('Chrome · Edge 를 띄우지 못했습니다')
   })

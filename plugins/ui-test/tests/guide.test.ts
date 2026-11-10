@@ -34,8 +34,7 @@ const cases: CaseResult[] = [
   },
 ]
 const run: RunRecord = {
-  id: '20261109-120000',
-  suite: '로그인-화면',
+  id: '20261109T120000_01',
   startedAt: new Date(2026, 10, 9, 12, 0, 0).getTime(),
   durationMs: 6000,
   headed: false,
@@ -43,10 +42,10 @@ const run: RunRecord = {
   baseUrl: 'http://a',
   cases,
   report: '/r/index.html',
-  compare: { previousId: '20261108-100000', newFail: ['01-정상'], fixed: [], stillFail: [] },
+  compare: { previousId: '20261108T100000_01', newFail: ['01-정상'], fixed: [], stillFail: [] },
 }
 const render = (extra: Partial<Parameters<typeof renderGuide>[0]> = {}) =>
-  renderGuide({ run, project: 'p', suiteName: '로그인 화면', user: 'tester', scenarios: new Map([[scenario.id, scenario]]), files: [], image: () => JPEG, secrets: [SECRET], ...extra })
+  renderGuide({ run, project: 'p', title: '로그인 화면', user: 'tester', scenarios: new Map([[scenario.id, scenario]]), files: [], image: () => JPEG, secrets: [SECRET], ...extra })
 
 describe('가이드', () => {
   const html = render()

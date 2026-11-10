@@ -112,6 +112,14 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
     expect(manifest.version).toMatch(VERSION)
   })
 
+  // desktop shared/extensions/limits.ts 의 nameLength 80 · descriptionLength 300 · detailsLength 2000 — 넘으면 설치가 거절된다(text-invalid)
+  it('3 · name 80자 · description 300자 · details 2000자 이하', () => {
+    const text = (field: string): string => (typeof manifest[field] === 'string' ? (manifest[field] as string) : '')
+    expect(text('name').length, 'name').toBeLessThanOrEqual(80)
+    expect(text('description').length, 'description').toBeLessThanOrEqual(300)
+    expect(text('details').length, 'details').toBeLessThanOrEqual(2000)
+  })
+
   it('3 · 앱이 아는 필드만', () => {
     expect(Object.keys(manifest).filter((field) => !KNOWN_FIELDS.includes(field))).toEqual([])
   })

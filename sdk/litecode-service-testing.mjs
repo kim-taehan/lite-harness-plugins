@@ -136,6 +136,11 @@ const EXTENSION_LIMITS = {
     fetchRedirects: 5,
     /** project.readFile. 근거: 설정 파일(sonar-project.properties 등)을 읽는 용도라 수 KB — 소스 파일 하나도 대부분 들어가는 256KB */
     projectFileBytes: 256 * 1024,
+    /** project.exportFile 로 프로젝트 밖에 저장하는 원본 한 파일 (#1711). 근거: 결과서·가이드 PDF(이미지 포함 수 MB~수십 MB)가 목적이라 zip 상한(zipBytes)과 같은 100MB — 복사는 메모리에 올리지 않지만, 프로젝트 안 큰 산출물을 통째로 밖에 내보내는 길은 아니다 */
+    exportFileBytes: 100 * MB,
+    /** project.exportFile 저장 창 — 한 플러그인이 exportWindowMs 안에 띄울 수 있는 횟수 (넘으면 export-limit). 근거: 사용자가 직접 확인해야 쓰이지만 창이 연달아 뜨면 방해다 — 결과서 몇 개를 이어 저장해도 1분에 6번(10초에 한 번 꼴)이면 넉넉하고, 반복문 폭주는 막힌다 */
+    exportsPerWindow: 6,
+    exportWindowMs: 60_000,
     /** project.pickPath (이슈 #538, QA 03_qa_538) — 고르기 창은 앱 창에 모달로 붙는다. 확장이 취소된 창을 곧바로 다시 띄우면 사용자가 그 확장을 끄러 갈
      *  틈이 없다. 이 사이에 두 번 연달아 취소하면 pickBlockMs 동안 열지 않는다. 근거: 사람이 실수로 취소하고 다시 고르는 데는 몇 초면 되고,
      *  되풀이를 알아채고 설정 > 기능에서 끄기에는 30초면 넉넉하다 */
@@ -196,6 +201,7 @@ function isAppOnlyServiceEvent(event) {
 }
 /** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 앱의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
  *  llm.ask { prompt } → { text } 는 앱의 기본 모델에 한 번 묻는다(llm 권한 필요, 위 LLM_ASK_* 제한 — 횟수·동시 수 넘으면 llm-limit).
+ *  project.exportFile { path, name? } → { saved, name? } 는 프로젝트 안 파일 하나를 사용자가 저장 창에서 고른 곳에 복사한다(project 권한, 고른 경로는 돌려주지 않는다). 서비스 전용 — 패널은 부르지 못한다.
  *  db.get · set · delete · list · query · batch · usage 는 플러그인 하나의 문서 저장소(host.db, 권한 없이 — storage 와 같은 급, 아래 SERVICE_DB_LIMITS 한도). 서비스 전용이라 패널은 부르지 못한다(PANEL_CALL_METHODS 에 없다).
  *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
  *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · panel.open · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
@@ -221,6 +227,7 @@ const SERVICE_CALL_METHODS = [
     'project.fileInfo',
     'project.writeFile',
     'project.removeFile',
+    'project.exportFile',
     'settings.summary',
     'settings.check',
     'chat.compose',

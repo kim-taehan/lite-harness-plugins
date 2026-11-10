@@ -43,6 +43,8 @@ export interface Driver {
   browserName(): string
   check(url: string): Promise<CheckResult>
   run(cases: DriverCase[], options: DriverRunOptions): Promise<CaseResult[]>
+  /** 결과서 · 가이드 HTML(절대 경로)을 인쇄 모양으로 PDF 에 쓴다 — 화면 없이 브라우저를 한 번 띄운다 */
+  pdf(input: string, output: string): Promise<void>
   /** 멈추기 — 떠 있는 브라우저를 닫는다 */
   stop(): Promise<void>
 }
@@ -61,9 +63,14 @@ export function driverFor(target: string, config: { channel: Channel }, launch?:
   throw new Error(`아직 없는 대상입니다: ${target} (지금은 ${SUPPORTED_TARGETS.join(' · ')})`)
 }
 
+/** 브라우저 프로세스에 넘기는 환경변수 — 기록 저장소 번호표(LITECODE_DB_*)는 넘기지 않는다(브라우저에 토큰이 따라가지 않게) */
+export function browserEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && !entry[0].startsWith('LITECODE_DB_')))
+}
+
 const playwrightLaunch: Launch = async ({ channel, headless }) => {
   const { chromium } = await import('playwright-core')
-  return (await chromium.launch({ channel, headless })) as unknown as BrowserLike
+  return (await chromium.launch({ channel, headless, env: browserEnv(process.env) })) as unknown as BrowserLike
 }
 
 /** 생성 코드 불러오기 — 고쳐 쓴 파일을 다시 읽게 주소에 시각을 붙인다 */
@@ -125,6 +132,19 @@ export class WebDriver implements Driver {
       return { ok, text: `${ok ? '열림' : '열렸지만 오류'} — ${url} · HTTP ${status ?? '-'} · 제목 "${title}" · ${channelLabel(this.used)} (${Date.now() - started}ms)` }
     } catch (error) {
       return { ok: false, text: `열지 못함 — ${url}: ${(error instanceof Error ? error.message : String(error)).split('\n')[0]}` }
+    } finally {
+      await browser.close().catch(() => undefined)
+    }
+  }
+
+  async pdf(input: string, output: string): Promise<void> {
+    const browser = await this.open(true)
+    try {
+      const context = await browser.newContext({ colorScheme: 'light' })
+      const page = (await context.newPage()) as PageLike & { goto(url: string, options: unknown): Promise<unknown>; emulateMedia(options: unknown): Promise<void>; pdf(options: unknown): Promise<unknown> }
+      await page.goto(pathToFileURL(input).href, { waitUntil: 'load', timeout: 30_000 })
+      await page.emulateMedia({ media: 'print' })
+      await page.pdf({ path: output, format: 'A4', printBackground: true, margin: { top: '14mm', bottom: '14mm', left: '12mm', right: '12mm' } })
     } finally {
       await browser.close().catch(() => undefined)
     }

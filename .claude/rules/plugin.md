@@ -9,7 +9,7 @@
 ## manifest
 1. **[필수]** 폴더는 `plugins/<id>/` 하나 — 폴더 이름과 manifest 의 `id` 가 같다. 분류별 하위 폴더를 만들지 않는다. — 테스트
 2. **[필수]** `id` 는 소문자·숫자·`-` 로 3~40자, `version` 은 `주.부.수`. — 테스트
-3. **[필수]** manifest 에는 앱이 아는 필드만 쓴다. 모르는 필드가 하나라도 있으면 설치가 거절된다 — 메모·분류(`category`)·`changes` 를 넣지 않는다. 분류는 `categories.json`, 업데이트 글은 `changes.txt`. — 테스트
+3. **[필수]** manifest 에는 앱이 아는 필드만 쓴다. 모르는 필드가 하나라도 있으면 설치가 거절된다 — 메모·분류(`category`)·`changes` 를 넣지 않는다. 분류는 `categories.json`, 업데이트 글은 `changes.txt`. — 테스트 `name` 80자 · `description` 300자 · `details` 2000자를 넘으면 설치가 거절된다(`text-invalid`).
 4. **[필수]** 새 플러그인의 manifest 파일 이름은 `plugin.json`. `extension.json` 은 옛 플러그인에만 남는다.
 5. **[필수]** `permissions` 는 앱이 아는 값만(`network` · `secrets` · `project` · `projectWrite` · `chat` · `tools` · `mcp` · `usage` · `llm` · `lsp` · `service`). `tools` · `mcp` · `lsp` · `service` 는 같은 이름의 선언과 권한이 둘 다 있거나 둘 다 없다. — 테스트
    서비스가 `host.mcp.register` · `host.tools.register` 로 올린 서버 · 도구는 `service` 권한만 필요하다(`mcp` · `tools` 권한과 선언은 필요 없다). 서비스는 `host.call('secrets.get')` 을 부를 수 없다 — 비밀은 8번.
@@ -47,4 +47,5 @@
 27. **[필수]** `sdk/` 는 desktop `docs/plugin-sdk/` 생성물의 사본이다 — 손으로 고치지 않고 `npm run sync:sdk` 로 옆 desktop 에서 복사한다. 옆 desktop 이 있으면 같은지 `node scripts/sync-sdk.mjs --check` 가 보고 테스트도 막는다. — 테스트(옆 desktop 이 있을 때)
 
 ## 데이터 저장
-28. **[검토]** 남기는 값마다 둘 곳을 `docs/guides/data-storage.md` 의 표로 정한다 — 설정 · 비밀은 설정 칸, 작은 상태는 `storage`, 플러그인이 쌓는 다시 만들 수 있는 기록 · 색인은 `host.db`, 사람 · AI 가 읽고 고치는 원본 · 산출물은 프로젝트 파일, 크고 이 PC 에서만 의미 있는 것은 앱 데이터 폴더. DB 문서에 파일 경로를 적지 않고 id 로 찾는다. 프로젝트에 쓰는 폴더는 `README.md` 에 이름 · 내용 · 지울 때를 적는다.
+28. **[검토]** 남기는 값마다 둘 곳을 `docs/guides/data-storage.md` 의 표로 정한다 — 설정 · 비밀은 설정 칸, 작은 상태는 `storage`, 플러그인이 쌓는 다시 만들 수 있는 기록 · 색인은 `host.db`, 사람 · AI 가 읽고 고치는 원본 · 산출물은 프로젝트 파일, 크고 이 PC 에서만 의미 있는 것은 앱 데이터 폴더. DB 문서에 파일 경로를 적지 않고 id 로 찾는다(한글 파일명처럼 id 가 될 수 없으면 `file` 을 다시 만들 수 있는 색인 값으로 적는다).
+29. **[필수]** 프로젝트 안에 남기는 파일은 `<프로젝트>/.litecode/plugins/<자기 플러그인 id>/` 아래에만 둔다 — 앱이 플러그인을 지울 때 이 폴더를 안내한 뒤 통째로 지운다(desktop #1710). 폴더 이름을 설정으로 바꾸게 하지 않고, 쓰기 전에 실제 경로가 그 폴더 안인지 확인한다. 사용자가 팀과 공유할 파일(표준 `.md` 등)은 이 폴더 밖 `.litecode/` 바로 아래에 둔다. `README.md` 에 폴더 구성과 "지워진다" 를 적는다.
