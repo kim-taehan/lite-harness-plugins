@@ -1,0 +1,149 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { reindex } from '../server/reindex.ts'
+import { hashedScenarioId, importedRequestId, openStore, toResultDoc, type RunDoc } from '../server/store.ts'
+import { fakeDb } from './store-helper.ts'
+
+// 다시 채우기 — 임시 프로젝트 폴더의 ui-tests/ 를 훑어 가짜 host.db 의 scenarios 를 맞춘다
+
+let project: string
+let testDir: string
+beforeEach(() => {
+  project = mkdtempSync(path.join(tmpdir(), 'ui-test-reindex-'))
+  testDir = path.join(project, 'ui-tests')
+  mkdirSync(testDir)
+})
+afterEach(() => rmSync(project, { recursive: true, force: true }))
+
+const md = (name: string, title: string, extra = ''): string => `---\nname: ${title}\nkind: 정상\n---\n1. 연다\n2. 확인: 보인다\n${extra}`
+const write = (rel: string, text: string): void => {
+  mkdirSync(path.dirname(path.join(testDir, rel)), { recursive: true })
+  writeFileSync(path.join(testDir, rel), text)
+}
+const run = (scenarios: string[]): RunDoc => ({ at: 1, durationMs: 1, target: { kind: 'scenarios' }, scenarios, totals: { passed: 1, failed: 0, other: 0 }, report: 'one' })
+const setup = () => {
+  const fake = fakeDb()
+  return { ...fake, store: openStore(fake.db) }
+}
+
+describe('reindex', () => {
+  it('추가 — 바로 아래 ASCII 는 이름이 id, 한글 파일명 · 하위 폴더는 s-<해시> + file 색인', async () => {
+    write('login-ok.md', md('x', '로그인'))
+    write('join/01-정상-렌더링.md', md('x', '정상 렌더링'))
+    write('join/02-ascii.md', md('x', '하위 ASCII'))
+    const { store } = setup()
+    const result = await reindex(store, { project, testDir })
+    expect(result).toMatchObject({ added: 3, updated: 0, removed: 0 })
+    const all = new Map((await store.listScenarios()).map((item) => [item.id, item.doc]))
+    expect(all.get('login-ok')).toMatchObject({ title: '로그인', kind: '정상', file: 'ui-tests/login-ok.md', screens: [], recent: [] })
+    const korean = hashedScenarioId('ui-tests/join/01-정상-렌더링.md')
+    expect(all.get(korean)).toMatchObject({ title: '정상 렌더링', file: 'ui-tests/join/01-정상-렌더링.md' })
+    expect(all.has(hashedScenarioId('ui-tests/join/02-ascii.md'))).toBe(true)
+    expect(all.get('login-ok')!.fingerprint).toMatch(/^[0-9a-f]{12}$/)
+  })
+
+  it('같은 것은 건드리지 않는다 — 두 번째는 쓰기가 없다', async () => {
+    write('a.md', md('x', 'A'))
+    write('join/suite.md', '---\nname: 가입\nrequest: 가입 화면\n---\n## 시나리오 순서\n1. 01-가.md\n')
+    write('join/01-가.md', md('x', '가'))
+    const { store, calls } = setup()
+    await reindex(store, { project, testDir })
+    const writes = (): number => calls.filter((c) => ['set', 'delete', 'batch'].includes(c.method)).length
+    const before = writes()
+    expect(await reindex(store, { project, testDir })).toMatchObject({ added: 0, updated: 0, removed: 0 })
+    expect(writes()).toBe(before)
+  })
+
+  it('갱신 — 지문이 달라지면 고치고 last · recent 같은 기록은 그대로', async () => {
+    write('a.md', md('x', 'A'))
+    const { store } = setup()
+    await reindex(store, { project, testDir })
+    await store.setLast('a', { status: 'passed', at: 1, run: 'r1' })
+    const before = (await store.getScenario('a'))!
+    write('a.md', md('x', 'A 고침', '3. 또 한다\n'))
+    expect(await reindex(store, { project, testDir })).toMatchObject({ added: 0, updated: 1, removed: 0 })
+    const after = (await store.getScenario('a'))!
+    expect(after.title).toBe('A 고침')
+    expect(after.fingerprint).not.toBe(before.fingerprint)
+    expect(after.last).toEqual(before.last)
+  })
+
+  it('삭제 — 파일이 없어진 줄은 results 와 함께 지우고 파일로 지울 것을 돌려준다', async () => {
+    write('a.md', md('x', 'A'))
+    write('b.md', md('x', 'B'))
+    const { store } = setup()
+    await reindex(store, { project, testDir })
+    await store.recordRun('r1', run(['a', 'b']), [toResultDoc('r1', 1, { id: 'a', title: 'A', status: 'passed', durationMs: 1, steps: [{ title: 'x', status: 'passed', durationMs: 1, shot: '/d/01.jpg', used: [] }] }), toResultDoc('r1', 1, { id: 'b', title: 'B', status: 'passed', durationMs: 1, steps: [] })])
+    rmSync(path.join(testDir, 'a.md'))
+    const result = await reindex(store, { project, testDir })
+    expect(result).toMatchObject({ added: 0, updated: 0, removed: 1 })
+    expect(result.dropped.results.map((r) => [r.scenario, r.shots])).toEqual([['a', ['01.jpg']]])
+    expect(result.dropped.runs).toEqual([])
+    expect(await store.getScenario('a')).toBeNull()
+    expect(await store.getResult('a', 'r1')).toBeNull()
+    expect(await store.getResult('b', 'r1')).not.toBeNull()
+  })
+
+  it('수에 안 드는 것 — suite.md · _ · . 폴더 · 한 단계 아래의 아래 · 단계 없는 md', async () => {
+    write('suite.md', '---\nname: 최상위\n---\n1. 연다\n')
+    write('_reports/x/index.md', md('x', 'R'))
+    write('.history/h.md', md('x', 'H'))
+    write('join/deep/d.md', md('x', 'D'))
+    write('notes.md', '# 메모\n그냥 글\n')
+    write('ok.md', md('x', 'OK'))
+    const { store } = setup()
+    expect(await reindex(store, { project, testDir })).toMatchObject({ added: 1 })
+    expect((await store.listScenarios()).map((item) => item.id)).toEqual(['ok'])
+  })
+
+  it('suite.md 가져오기 — 폴더 이름 · request: 가 요청 태그, 그 폴더 시나리오에 붙는다', async () => {
+    write('join/suite.md', '---\nname: 가입설계\nrequest: 가입설계 화면 테스트해줘\ncreated: 2026-11-01\n---\n## 시나리오 순서\n1. 01-가.md\n')
+    write('join/01-가.md', md('x', '가'))
+    write('join/02-나.md', md('x', '나'))
+    write('pay/01-다.md', md('x', '다'))
+    const { store } = setup()
+    await reindex(store, { project, testDir })
+    const requestId = importedRequestId('join')
+    const request = (await store.getRequest(requestId))!
+    expect(request).toMatchObject({ text: '가입설계 화면 테스트해줘', imported: 'join', at: Date.parse('2026-11-01') })
+    expect(request.scenarios).toHaveLength(2)
+    const byFile = new Map((await store.listScenarios()).map((item) => [item.doc.file, item.doc]))
+    expect(byFile.get('ui-tests/join/01-가.md')!.request).toBe(requestId)
+    expect(byFile.get('ui-tests/join/02-나.md')!.request).toBe(requestId)
+    expect(byFile.get('ui-tests/pay/01-다.md')!.request).toBeUndefined()
+    expect(await store.getRequest(importedRequestId('pay'))).toBeNull()
+  })
+
+  it('이미 요청 태그가 있는 시나리오는 가져오기가 덮지 않는다', async () => {
+    write('join/suite.md', '---\nname: 가입\n---\n')
+    write('join/01-가.md', md('x', '가'))
+    const { store } = setup()
+    const id = hashedScenarioId('ui-tests/join/01-가.md')
+    await store.upsertScenario(id, { title: '가', file: 'ui-tests/join/01-가.md', request: 'mine' })
+    await reindex(store, { project, testDir })
+    expect((await store.getScenario(id))!.request).toBe('mine')
+  })
+
+  it('DB 가 비면 파일에서 다시 채운다 — 수행 기록만 잃는다', async () => {
+    write('a.md', md('x', 'A'))
+    const first = setup()
+    await reindex(first.store, { project, testDir })
+    const second = setup()
+    expect(await reindex(second.store, { project, testDir })).toMatchObject({ added: 1 })
+    expect((await second.store.getScenario('a'))!.title).toBe('A')
+  })
+
+  it('테스트 폴더가 없으면 아무것도 지우지 않고, 있는데 비었으면 지운다', async () => {
+    write('a.md', md('x', 'A'))
+    const { store } = setup()
+    await reindex(store, { project, testDir })
+    rmSync(testDir, { recursive: true })
+    expect(await reindex(store, { project, testDir })).toMatchObject({ added: 0, updated: 0, removed: 0 })
+    expect(await store.getScenario('a')).not.toBeNull()
+    mkdirSync(testDir)
+    expect(await reindex(store, { project, testDir })).toMatchObject({ removed: 1 })
+    expect(await store.getScenario('a')).toBeNull()
+  })
+})
