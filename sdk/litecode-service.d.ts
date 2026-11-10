@@ -1,9 +1,9 @@
-// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
+// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · serviceDb.ts · dbClient.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
 // 설치형 서비스 번들(.mjs)을 쓸 때 가져다 쓰는 타입 — cordis 를 설치하지 않아도 된다. 번들은 `export default (host: ServiceHost) => class extends host.Service { … }` 모양이다.
 // manifest(plugin.json)는 JSON 이라 이 파일이 못 본다 — plugin-service.schema.json 이 편집기에서 맞춰 주고, 앱은 설치 때 다시 검사한다.
 
-/** 이 파일이 아는 호스트 API 버전 — manifest `service.api` 는 1 이상 이 값 이하의 정수 */
-export declare const SERVICE_API_LATEST: 1
+/** 이 파일이 아는 호스트 API 버전 — manifest `service.api` 는 1 이상 이 값 이하의 정수. 2 부터 host.db 가 있다(옛 앱 api 1 의 host 에는 db 가 없다) */
+export declare const SERVICE_API_LATEST: 2
 
 /** manifest `service.inject` 와 ctx.get 에 쓸 수 있는 앱 서비스 키 */
 export type ServiceInjectKey = 'projects' | 'usage'
@@ -22,7 +22,7 @@ export interface ServiceEventMap {
 }
 
 /** host.call 로 부를 수 있는 앱 호출 표의 메서드 — 패널이 쓰는 이름과 같고, 권한은 manifest permissions 로 패널과 같게 검사한다 */
-export type ServiceCallMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'secrets.set' | 'secrets.delete' | 'network.fetch' | 'network.connection' | 'network.setConnection' | 'project.info' | 'project.readFile' | 'project.openFile' | 'project.openTabs' | 'project.pickPath' | 'project.changedFiles' | 'project.listDir' | 'project.findFiles' | 'project.countFiles' | 'project.fileInfo' | 'project.writeFile' | 'project.removeFile' | 'settings.summary' | 'settings.check' | 'chat.compose' | 'chat.open' | 'chat.current' | 'chat.exists' | 'chat.titles' | 'mcp.call' | 'mcp.status' | 'usage.summary' | 'panel.notify' | 'panel.fullscreen' | 'panel.open' | 'settings.open' | 'llm.ask'
+export type ServiceCallMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'secrets.set' | 'secrets.delete' | 'network.fetch' | 'network.connection' | 'network.setConnection' | 'project.info' | 'project.readFile' | 'project.openFile' | 'project.openTabs' | 'project.pickPath' | 'project.changedFiles' | 'project.listDir' | 'project.findFiles' | 'project.countFiles' | 'project.fileInfo' | 'project.writeFile' | 'project.removeFile' | 'settings.summary' | 'settings.check' | 'chat.compose' | 'chat.open' | 'chat.current' | 'chat.exists' | 'chat.titles' | 'mcp.call' | 'mcp.status' | 'usage.summary' | 'panel.notify' | 'panel.fullscreen' | 'panel.open' | 'settings.open' | 'llm.ask' | 'db.get' | 'db.set' | 'db.delete' | 'db.list' | 'db.query' | 'db.batch' | 'db.usage'
 
 /** host.call 이 던지는 오류 — code 는 패널 통로와 같은 오류 코드(permission-missing · not-on · no-project · method-unknown · no-window · network-denied …), origin 은 network 오류가 알려 주는 주소 */
 export interface ServiceCallError extends Error {
@@ -120,10 +120,66 @@ export interface ServiceHost {
   /** 바깥으로 요청하는 안내된 길 — host.call('network.fetch') 를 Response 로 감쌌다: manifest 의 network 권한과 사용자가 허용한 주소만(없으면 ServiceCallError network-denied), GET · POST(글 본문), 헤더는 content-type 만. 프로젝트별(scope "project") 서비스는 host.call 처럼 init.directory 가 필요하다.
    *  직접 fetch · WebSocket · node:http · https · http2 · net · tls · dns · dgram 은 설치 검사가 거절한다(글자 점검이라 완전하지 않다 — 서비스는 앱과 같은 프로세스라 최종 강제는 해시 고정 · 동의 · 리뷰 몫) */
   fetch(url: string | URL, init?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; directory?: string }): Promise<Response>
+  /** 문서 저장소(컬렉션 + JSON 문서) — 이력 · 요약 · 상태를 목록 · 조건 조회로 두고 지운다(베타, api 2). 권한은 없다(storage 와 같은 급) — 플러그인마다 따로이고, 프로젝트별(scope "project") 서비스는 프로젝트마다 따로라 options.directory 가 있어야 한다(없으면 not-on).
+   *  옛 앱(service.api 1 까지만 아는 앱)의 host 에는 없다 — `host.db` 가 있나 보고 파일 같은 대체 길로 물러날 수 있다. 데이터는 "다시 만들 수 있는 색인 · 이력 · 상태" 로 둔다(저장소 파일이 깨지면 앱이 옆으로 치우고 빈 채로 시작한다). 한도: 문서 하나 256KB · 컬렉션 20개(플러그인·프로젝트당) · 컬렉션당 문서 50,000개 · 플러그인 총 200MB(모든 프로젝트 몫의 합). 넘으면 ServiceCallError(doc-too-big · collection-limit · collection-full · db-full), 모양이 틀리면 params-invalid */
+  db?: ServiceDbApi
   /** AI 도구를 앱에 올린다 — 이름은 AI 에 `<플러그인 id>_<이름>` 으로 보이고, 그 프로젝트에서 서비스가 켜진 때만 보인다. 이름이 겹치거나 모양이 틀리면 던진다. 서비스가 내려가면 걷힌다 */
   tools: { register(tool: ServiceTool): () => void }
   /** 별도 프로세스 MCP 서버를 선언한다 — 설치 폴더 기준 실행 파일 규칙(자리표시). 플러그인에 서버는 하나. 오래 걸리는 일 · 비밀을 서비스 밖에서 돌릴 때 쓴다. 서비스가 내려가면 걷힌다 */
   mcp: { register(server: ServiceMcpServer): () => void }
+}
+
+/** host.db — 컬렉션 이름은 `[A-Za-z0-9_.-]` 64자 이하, 문서 id 는 같은 글자 128자 이하, 문서는 JSON 객체. 컬렉션은 문서를 처음 쓸 때 생기고 문서가 없어지면 사라진다 */
+export interface ServiceDbApi {
+  /** 없으면 null */
+  get(collection: string, id: string, options?: ServiceDbOptions): Promise<Record<string, unknown> | null>
+  /** 같은 id 가 있으면 통째로 바꾼다 */
+  set(collection: string, id: string, doc: Record<string, unknown>, options?: ServiceDbOptions): Promise<void>
+  /** 없는 문서를 지워도 오류가 아니다 */
+  delete(collection: string, id: string, options?: ServiceDbOptions): Promise<void>
+  /** id 순 목록(기본키 색인이라 문서가 많아도 빠르다) — 더 있으면 cursor 가 온다. cursor 는 "마지막으로 본 값 뒤"에서 이어 읽는 뜻 모를 글이다(건너뛰기가 아니라서 쪽마다 느려지지 않는다) */
+  list(collection: string, params?: { limit?: number; cursor?: string }, options?: ServiceDbOptions): Promise<ServiceDbPage>
+  /** 조건(모두 AND) · 정렬 1개 · limit · cursor. 정렬이 없으면 id 순. 조건이나 정렬을 주면 그 컬렉션을 훑는다 — 색인 선언이 없어 컬렉션 크기에 비례해 느려진다(README 의 "느려지는 때") */
+  query(collection: string, params: ServiceDbQuery, options?: ServiceDbOptions): Promise<ServiceDbPage>
+  /** 연산 최대 50개를 한꺼번에 — 원자적이다: 하나라도 한도에 걸리거나 틀리면 아무것도 안 된다 */
+  batch(ops: ServiceDbOp[], options?: ServiceDbOptions): Promise<void>
+  /** 지금 쓴 양과 한도 — db-full 이 나기 전에 스스로 오래된 것을 지울 때 본다 */
+  usage(options?: ServiceDbOptions): Promise<ServiceDbUsage>
+}
+export interface ServiceDbOptions {
+  /** 프로젝트별 서비스가 볼 프로젝트 폴더(host.call 과 같다) */
+  directory?: string
+}
+export type ServiceDbOp = { op: 'set'; collection: string; id: string; doc: Record<string, unknown> } | { op: 'delete'; collection: string; id: string }
+export interface ServiceDbCondition {
+  /** 점 경로(`meta.size`) — 깊이 5까지, 마디는 글자나 _ 로 시작하는 글자·숫자·_ */
+  field: string
+  /** 글은 코드 포인트 순, 숫자는 크기로 비교한다. 참거짓은 = != in 만. 필드가 없거나 값의 종류가 다르면 어떤 조건에도 맞지 않는다(!= 도). 부분 일치(contains)는 없다 */
+  op: '=' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'prefix'
+  /** in 은 같은 종류 값의 배열(최대 100개), prefix 는 글 */
+  value: string | number | boolean | (string | number | boolean)[]
+}
+export interface ServiceDbQuery {
+  /** 최대 10개, 모두 맞아야 한다 */
+  where?: ServiceDbCondition[]
+  /** 값이 없는 문서가 먼저(오름차순), 그다음 숫자 · 참거짓, 글 순 — 같으면 id 순 */
+  orderBy?: { field: string; dir?: 'asc' | 'desc' }
+  /** 기본 50, 최대 200 */
+  limit?: number
+  cursor?: string
+}
+export interface ServiceDbPage {
+  docs: { id: string; doc: Record<string, unknown> }[]
+  /** 더 있을 때만 — 다음 쪽을 받을 때 그대로 넘긴다 */
+  cursor?: string
+}
+export interface ServiceDbUsage {
+  /** 이 플러그인 전체(모든 프로젝트 몫의 합) 문서 바이트 */
+  bytes: number
+  /** 이 프로젝트 몫(앱 전체 서비스는 전체)의 문서 수 · 컬렉션 수 */
+  docs: number
+  collections: number
+  limits: { docBytes: number; collections: number; docsPerCollection: number; totalBytes: number; pageDefault: number; pageMax: number; batchOps: number; conditions: number; inValues: number }
 }
 
 /** host.grammars.register 에 주는 문법 — 파일 개요가 이 확장자를 읽는다 */

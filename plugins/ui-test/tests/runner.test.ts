@@ -85,7 +85,9 @@ describe('결과서 HTML', () => {
     expect(html).toContain('UI 테스트 수행 결과서 — 로그인 화면')
     expect(html).toContain('ins-sales')
     expect(html).toContain('새로 실패 1 · 고쳐짐 0 · 그대로 실패 0')
-    expect(html).toContain('1. 로그인한다')
+    expect(html).toContain('<p class="t">로그인한다</p>')
+    expect(html).not.toMatch(/<p class="t">\d+\./)
+    expect(html).toContain('<p class="t">확인: 환영 글</p>')
     expect(html).toContain('getByLabel(&quot;아이디&quot;)')
     expect(html.match(/src="data:image\/jpeg;base64,/g)).toHaveLength(2)
     expect(html).toContain(Buffer.from(JPEG).toString('base64'))
@@ -95,8 +97,8 @@ describe('결과서 HTML', () => {
   })
 
   it('케이스마다 테스트 방법 · 끝에 시나리오 원문과 코드 위치', () => {
-    expect(html).toContain('<h3>테스트 방법</h3>')
-    expect(html).toContain('<li>사전 조건: 계정 user</li>')
+    expect(html).toContain('테스트 방법</h3>')
+    expect(html).toContain('<li><b>사전 조건</b><span>계정 user</span></li>')
     expect(html).toContain('ui-tests/login/01-정상.spec.mjs')
     expect(html).toContain('<summary>01-정상.md</summary>')
   })
@@ -104,6 +106,26 @@ describe('결과서 HTML', () => {
   it('비밀 값은 넣지 않는다', () => {
     expect(html).not.toContain(SECRET)
     expect(html).toContain('not visible ****')
+  })
+
+  it('실패 N개 링크 · 시나리오 앵커 · 하나뿐이면 요약 목록 없음', () => {
+    expect(html).toContain('실패 1개')
+    expect(html).toContain('<a href="#s-01-정상">')
+    expect(html).toContain('id="s-01-정상"')
+    expect(html).not.toContain('id="sum"')
+    expect(html).toContain('실패 순간')
+  })
+
+  it('실패가 없으면 링크 줄이 없고, 여럿이면 요약 목록 행이 링크 · 앵커 id 는 공백과 따옴표를 거른다', () => {
+    const ok = (id: string, status: 'passed' | 'failed'): CaseResult => ({ id, title: id, status, durationMs: 1, steps: [] })
+    const input = { project: 'p', suiteName: 's', user: 'u', scenarios: new Map(), files: [], image: () => undefined, secrets: [] }
+    const clean = renderReport({ ...input, run: { ...run, compare: undefined, cases: [ok('a', 'passed'), ok('b', 'passed')] } })
+    expect(clean).not.toContain('class="fails"')
+    expect(clean).toContain('id="sum"')
+    expect(clean).toContain('<a href="#s-b">')
+    const odd = renderReport({ ...input, run: { ...run, compare: undefined, cases: [ok('가 나"<x>', 'failed'), ok('b', 'passed')] } })
+    expect(odd).toContain('id="s-가-나&quot;&lt;x&gt;"')
+    expect(odd).not.toContain('"<x>')
   })
 })
 

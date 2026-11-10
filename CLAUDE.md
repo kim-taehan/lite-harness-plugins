@@ -16,6 +16,7 @@ lite-harness-desktop 앱에 까는 플러그인의 원본과 카탈로그.
 | 앱의 어디에 닿을 수 있는지, 무엇이 막혀 있는지 | `docs/architecture.md` |
 | 화면(패널) 플러그인 — manifest, 앱 통로, 권한 | `docs/guides/first-panel.md` |
 | 코드를 가진 플러그인(서비스) — 번들 · 소식 · `host.call` · 상태 · 가짜 host 시험 | `docs/guides/service-plugin.md` |
+| 값을 어디에 남기나 — 설정 · `storage` · `host.db` · 프로젝트 파일 · 앱 데이터 폴더 | `docs/guides/data-storage.md` |
 | AI 가 쓰는 도구(MCP 서버) — 설정 폼, settingsCheck, 스킬, 번들 | `docs/guides/mcp-plugin.md` |
 | 언어 서버(LSP) — lsp 선언, 런타임 동봉, 플랫폼 전용 | `docs/guides/lsp-plugin.md` |
 | 화면 언어 팩 · 코드 문법 팩 | `docs/guides/locale-grammar.md` |
