@@ -61,9 +61,14 @@ export function driverFor(target: string, config: { channel: Channel }, launch?:
   throw new Error(`아직 없는 대상입니다: ${target} (지금은 ${SUPPORTED_TARGETS.join(' · ')})`)
 }
 
+/** 브라우저 프로세스에 넘기는 환경변수 — 기록 저장소 번호표(LITECODE_DB_*)는 넘기지 않는다(브라우저에 토큰이 따라가지 않게) */
+export function browserEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && !entry[0].startsWith('LITECODE_DB_')))
+}
+
 const playwrightLaunch: Launch = async ({ channel, headless }) => {
   const { chromium } = await import('playwright-core')
-  return (await chromium.launch({ channel, headless })) as unknown as BrowserLike
+  return (await chromium.launch({ channel, headless, env: browserEnv(process.env) })) as unknown as BrowserLike
 }
 
 /** 생성 코드 불러오기 — 고쳐 쓴 파일을 다시 읽게 주소에 시각을 붙인다 */

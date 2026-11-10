@@ -1,9 +1,11 @@
-// 실행기 (#1248, 계획 §2-2 · §2-3a) — 테스트 폴더(기본 ui-tests)의 묶음을 읽고, 드라이버로 돌리고, 결과서를 쓰고, 이력에 남긴다.
-//   <테스트 폴더>/<묶음>/suite.md · 01-<이름>.md(시나리오) · 01-<이름>.spec.mjs(생성 코드, 시나리오 옆에 같은 이름)
-//   <결과서 폴더>/<묶음>/<YYYYMMDD-HHmmss>/index.html
-// 한 번에 수행 하나. 진행은 패널이 progress 로 본다.
-// 2 단계: 시나리오마다 "코드 낡음"(생성 코드 머리말의 지문 ≠ 지금 시나리오 지문) · "코드 바뀜"(머리 sources 의 파일 지문이 달라짐) ·
-// 수행은 start 로 시작만 하고 바로 돌아온다 — 엔진의 MCP 도구 호출 기한(5분)보다 긴 묶음도 돌게, 도구는 wait 로 끝을 기다린다
+// 실행기 (#1248, 0.7.0) — 시나리오를 고르고(직접 · 화면 · 요청 · 실패한 것), 드라이버로 실행하고, 결과서를 쓰고, 기록을 남긴다.
+//   <테스트 폴더>/…/<시나리오>.md · <시나리오>.spec.mjs(생성 코드, 시나리오 옆에 같은 이름) — 하위 폴더는 뜻 없는 그냥 폴더
+//   결과서: <테스트 폴더>/_reports/<수행 id>/index.html (하나로 같이 — 시나리오마다 절 `#s-<시나리오 id>`)
+//          <테스트 폴더>/_reports/<수행 id>/<시나리오 id>/index.html (시나리오마다 따로)
+//   스크린샷: 앱 데이터 폴더 shots/<수행 id>/
+//   기록 · 색인: host.db (store.ts) — 서버가 DB 를 못 쓰면(앱 밖 실행) 실행 · 결과서는 되고 기록 · 비교만 건너뛴다
+// 한 번에 수행 하나. 진행은 패널이 progress 로 본다. 수행은 start 로 시작만 하고 바로 돌아온다 — 엔진의 MCP 도구 호출 기한(5분)보다 긴 수행도 돌게, 도구는 wait 로 끝을 기다린다.
+// 시나리오마다 "코드 낡음"(생성 코드 머리말의 지문 ≠ 지금 시나리오 지문) · "코드 바뀜"(머리 sources 의 파일 지문이 달라짐)을 본다.
 
 import fs from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
@@ -12,15 +14,16 @@ import path from 'node:path'
 import type { Config } from './config.ts'
 import { scrub, sourceFile } from './config.ts'
 import { driverFor, type Driver, type Launch } from './driver.ts'
-import { compareRuns, History } from './history.ts'
+import { DataFiles, isRunId } from './files.ts'
 import { renderGuide } from './guide.ts'
-import { removeScenario, removeSuite } from './remove.ts'
-import type { Removed } from './remove.ts'
-import { renderReport } from './report.ts'
-import type { ReportInput } from './report.ts'
-import { parseScenario, parseSuite, sourceFingerprint, specHeader } from './scenario.ts'
-import { stamp } from './steps.ts'
-import type { CaseResult, RunRecord, Scenario, StepResult, Suite } from './types.ts'
+import { compareFor, compareWithLast } from './history.ts'
+import { reindex, scanScenarios, type Found, type ReindexResult } from './reindex.ts'
+import { removeScenarioFiles, specOf } from './remove.ts'
+import { anchorOf, renderReport, type ReportInput } from './report.ts'
+import { parseScenario, sourceFingerprint, specHeader } from './scenario.ts'
+import { isValidId, openStore, StoreError, timeId, toResultDoc, type Db, type Dropped, type ResultDoc, type RunDoc, type RunTarget, type ScenarioDoc, type Store } from './store.ts'
+import { normalizeRoute, routesOf } from './tag.ts'
+import type { CaseResult, RunRecord, Scenario, StepResult } from './types.ts'
 
 export interface SourceChange {
   path: string
@@ -28,7 +31,10 @@ export interface SourceChange {
 }
 
 export interface ScenarioInfo {
+  /** 시나리오 id (store.ts scenarioIdForFile) */
+  id: string
   scenario: Scenario
+  /** 절대 경로 */
   file: string
   specFile: string
   hasCode: boolean
@@ -38,50 +44,82 @@ export interface ScenarioInfo {
   stale: boolean
   /** sources 중 지문이 달라졌거나 없어진 파일 */
   changed: SourceChange[]
+  /** 저장소의 줄 — 앱 밖 실행(DB 없음)이면 없다 */
+  doc?: ScenarioDoc
 }
 
-export interface SuiteInfo {
-  suite: Suite
-  scenarios: ScenarioInfo[]
-  /** 가장 최근 수행(일부 시나리오만 돌린 수행일 수 있다) */
-  last?: RunRecord
-  /** 시나리오마다 **실제로 마지막에 돈** 결과 — 일부만 다시 수행해도 나머지는 지난 결과가 남는다. 성공 · 실패만(멈춤 · 코드 없음은 돈 게 아니라 덮지 않는다) */
-  lastCases: Map<string, CaseResult>
+/** 실행 · 삭제할 시나리오를 고르는 말 — 여럿을 주면 모두 맞는 것(교집합), 아무것도 안 주면 전부 */
+export interface Selector {
+  /** 시나리오 id · 제목 · 파일 이름 */
+  scenarios?: string[]
+  /** 화면 — 라우트 패턴(`/admin/menu`) 또는 화면 이름 */
+  screen?: string
+  /** 요청 id */
+  request?: string
+  /** 마지막 실행이 실패인 것만 */
+  failed?: boolean
+}
+
+export type ReportMode = 'one' | 'each'
+
+export interface ReportFile {
+  /** 시나리오마다 따로일 때 그 시나리오 id */
+  scenario?: string
+  /** 절대 경로 */
+  file: string
 }
 
 export interface Progress {
   running: boolean
-  suite?: string
+  /** 결과서 · 가이드 제목 — 화면 · 요청 · 시나리오 이름 */
+  title?: string
+  target?: RunTarget
   runId?: string
   startedAt?: number
   headed?: boolean
   browser?: string
+  mode?: ReportMode
   cases: { id: string; title: string; status: CaseResult['status'] | 'waiting' | 'running'; durationMs?: number; steps: StepResult[]; rows?: CaseResult['rows'] }[]
   /** 코드 낡음으로 시작한 시나리오 */
   stale?: string[]
-  /** 끝난 수행의 결과서 */
+  /** 끝난 수행의 결과서 (하나로 같이면 하나, 시나리오마다 따로면 시나리오마다) */
+  reports?: ReportFile[]
+  /** 끝난 수행의 결과서 첫 파일 */
   report?: string
+  /** 기록을 남겼나 — false 면 앱 밖 실행(DB 없음) 또는 기록 저장 실패 */
+  recorded?: boolean
   error?: string
 }
 
-export interface RunArgs {
-  suite: string
-  scenarios?: string[] | 'failed'
+export interface RunArgs extends Selector {
+  /** 여러 개를 실행할 때 결과서 방식 — 시나리오 하나면 묻지 않고 하나로 */
+  report?: ReportMode
   headed?: boolean
 }
 
+/** 결과서 · 가이드가 시나리오 원문 · 파일 위치를 보이는 데 쓰는 것 */
+export type Located = Pick<ScenarioInfo, 'scenario' | 'file' | 'specFile'>
+
 export interface RunOutcome {
   run: RunRecord
+  mode: ReportMode
+  title: string
+  reports: ReportFile[]
+  /** 기록을 남겼나 */
+  recorded: boolean
+  recordError?: string
   /** 결과서 폴더가 프로젝트 안인데 .gitignore 에 없고, 처음 만든 결과서 */
   suggestGitignore?: string
-  /** 코드가 낡은 채로 돌린 시나리오 */
+  /** 코드가 낡은 채로 실행한 시나리오 */
   stale?: string[]
+  /** 결과서 · 가이드를 다시 쓸 때 쓰는 시나리오 위치 */
+  located: Map<string, Located>
 }
 
 /** 시작한 수행 — done 은 끝나면 풀린다 */
 export interface Started {
   runId: string
-  suite: string
+  title: string
   total: number
   stale: string[]
   done: Promise<RunOutcome>
@@ -93,10 +131,20 @@ export interface Waited {
   error?: string
 }
 
-const SPEC_SUFFIX = '.spec.mjs'
+const DB_UNAVAILABLE = 'db-unavailable'
+
+export const selectorEmpty = (sel: Selector): boolean => !sel.scenarios?.length && !sel.screen && !sel.request && !sel.failed
+
+const same = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((item, index) => item === b[index])
+
+/** 결과 문서 → 결과서가 그리는 케이스 */
+export function caseOf(doc: ResultDoc): CaseResult {
+  return { id: doc.scenario, title: doc.title, status: doc.status, durationMs: doc.durationMs, steps: doc.steps, ...(doc.error !== undefined && { error: doc.error }), ...(doc.failKind && { failKind: doc.failKind }), ...(doc.rows && { rows: doc.rows }) }
+}
 
 export class Workspace {
-  readonly history: History
+  readonly files: DataFiles
+  readonly store: Store | undefined
   private progress: Progress = { running: false, cases: [] }
   private stopRequested = false
   private driver: Driver | undefined
@@ -108,8 +156,10 @@ export class Workspace {
   constructor(
     readonly config: Config,
     private readonly launch?: Launch,
+    db?: Db,
   ) {
-    this.history = new History(config.dataDir, config.project)
+    this.files = new DataFiles(config.dataDir, config.project)
+    this.store = db ? openStore(db) : undefined
   }
 
   rel(file: string): string {
@@ -117,45 +167,86 @@ export class Workspace {
     return relative.startsWith('..') || path.isAbsolute(relative) ? file : relative.split(path.sep).join('/')
   }
 
-  /** 테스트 폴더의 묶음 — `_` · `.` 로 시작하는 폴더(결과서 등)는 뺀다 */
-  async suiteIds(): Promise<string[]> {
-    const entries = await fs.readdir(this.config.testDir, { withFileTypes: true }).catch(() => [])
-    return entries.filter((entry) => entry.isDirectory() && !/^[_.]/.test(entry.name) && existsSync(path.join(this.config.testDir, entry.name, 'suite.md'))).map((entry) => entry.name).sort()
+  /** 기록 저장소 — 앱 밖 실행(DB 없음)이면 db-unavailable */
+  needStore(): Store {
+    if (!this.store) throw new StoreError(DB_UNAVAILABLE)
+    return this.store
   }
 
-  async suite(id: string): Promise<SuiteInfo> {
-    if (!id || /[\\/]/.test(id) || id.startsWith('.') || id.startsWith('_')) throw new Error(`묶음 이름이 틀렸습니다: ${id}`)
-    const dir = path.join(this.config.testDir, id)
-    const suiteFile = path.join(dir, 'suite.md')
-    if (!existsSync(suiteFile)) throw new Error(`묶음이 없습니다: ${this.rel(suiteFile)}`)
-    const suite = parseSuite(id, await fs.readFile(suiteFile, 'utf8'))
-    const files = (await fs.readdir(dir)).filter((name) => name.endsWith('.md') && name !== 'suite.md')
-    const ordered = [...suite.order.filter((name) => files.includes(name)), ...files.filter((name) => !suite.order.includes(name)).sort()]
-    const scenarios = await Promise.all(
-      ordered.map(async (name) => {
-        const file = path.join(dir, name)
-        const stem = name.replace(/\.md$/, '')
-        const specFile = path.join(dir, stem + SPEC_SUFFIX)
-        const scenario = parseScenario(stem, await fs.readFile(file, 'utf8'))
-        const code = await fs.readFile(specFile, 'utf8').catch(() => undefined)
-        const codeFingerprint = code === undefined ? undefined : specHeader(code).fingerprint
-        return {
-          scenario,
-          file,
-          specFile,
-          hasCode: code !== undefined,
-          ...(codeFingerprint && { codeFingerprint }),
-          stale: code !== undefined && codeFingerprint !== scenario.fingerprint,
-          changed: await this.sourceChanges(scenario),
-        }
-      }),
-    )
-    const runs = await this.history.runs(id)
-    const last = runs[0]
-    // 최근 수행부터 거슬러 올라가며 시나리오마다 처음 만나는 "돈" 결과를 잡는다
-    const lastCases = new Map<string, CaseResult>()
-    for (const run of runs) for (const item of run.cases) if ((item.status === 'passed' || item.status === 'failed') && !lastCases.has(item.id)) lastCases.set(item.id, item)
-    return { suite, scenarios, lastCases, ...(last && { last }) }
+  // ── 시나리오 읽기 ──
+
+  /** 시나리오 한 개의 파일 상태 — md · 생성 코드 · 코드 낡음 · 코드 바뀜 */
+  private async locate(id: string, file: string, doc?: ScenarioDoc, parsed?: Scenario): Promise<ScenarioInfo> {
+    const abs = path.resolve(this.config.project, file)
+    const specFile = specOf(abs)
+    const scenario = parsed ?? parseScenario(id, await fs.readFile(abs, 'utf8'))
+    const code = await fs.readFile(specFile, 'utf8').catch(() => undefined)
+    const codeFingerprint = code === undefined ? undefined : specHeader(code).fingerprint
+    return {
+      id,
+      scenario,
+      file: abs,
+      specFile,
+      hasCode: code !== undefined,
+      ...(codeFingerprint && { codeFingerprint }),
+      stale: code !== undefined && codeFingerprint !== scenario.fingerprint,
+      changed: await this.sourceChanges(scenario),
+      ...(doc && { doc }),
+    }
+  }
+
+  /** 저장소의 줄들을 파일 상태와 함께 — 파일이 사라졌으면(reindex 전) 건너뛴다 */
+  async infosOf(items: { id: string; doc: ScenarioDoc }[]): Promise<ScenarioInfo[]> {
+    const out = await Promise.all(items.map((item) => this.locate(item.id, item.doc.file, item.doc).catch(() => undefined)))
+    return out.filter((item): item is ScenarioInfo => item !== undefined)
+  }
+
+  private async scanInfos(): Promise<ScenarioInfo[]> {
+    const found: Found[] = await scanScenarios(this.config.project, this.config.testDir).catch(() => [])
+    return Promise.all(found.map((item) => this.locate(item.id, item.file, undefined, item.scenario)))
+  }
+
+  /** 고른 시나리오의 저장소 줄 — 파일 이름 순 */
+  async selectDocs(sel: Selector): Promise<{ items: { id: string; doc: ScenarioDoc }[]; target: RunTarget }> {
+    const store = this.needStore()
+    let items = await store.listScenarios()
+    const names = new Map((await store.listScreens()).map((item) => [item.doc.name, item.doc.route]))
+    let target: RunTarget = { kind: 'scenarios' }
+    if (sel.scenarios?.length) {
+      const matches = (id: string, doc: ScenarioDoc, want: string): boolean => {
+        const bare = want.replace(/\.(md|spec\.mjs)$/, '')
+        return id === want || id === bare || doc.title === want || doc.file.slice(doc.file.lastIndexOf('/') + 1).replace(/\.md$/, '') === bare
+      }
+      const missing = sel.scenarios.filter((want) => !items.some((item) => matches(item.id, item.doc, want)))
+      if (missing.length) throw new Error(`없는 시나리오: ${missing.join(', ')}`)
+      items = items.filter((item) => sel.scenarios!.some((want) => matches(item.id, item.doc, want)))
+    }
+    if (sel.screen) {
+      const route = names.get(sel.screen) ?? normalizeRoute(sel.screen)
+      items = items.filter((item) => item.doc.screens.includes(route))
+      target = { kind: 'screen', value: route }
+    }
+    if (sel.request) {
+      items = items.filter((item) => item.doc.request === sel.request)
+      target = { kind: 'request', value: sel.request }
+    }
+    if (sel.failed) items = items.filter((item) => item.doc.last?.status === 'failed')
+    return { items: items.sort((a, b) => (a.doc.file < b.doc.file ? -1 : a.doc.file > b.doc.file ? 1 : 0)), target }
+  }
+
+  /** 고른 시나리오 — 앱 밖 실행(DB 없음)이면 파일에서 직접(시나리오 이름만 고를 수 있다) */
+  async select(sel: Selector): Promise<{ infos: ScenarioInfo[]; target: RunTarget }> {
+    if (!this.store) {
+      if (sel.screen || sel.request || sel.failed) throw new StoreError(DB_UNAVAILABLE)
+      const all = await this.scanInfos()
+      const want = sel.scenarios ?? []
+      const hit = (item: ScenarioInfo, name: string): boolean => item.id === name.replace(/\.(md|spec\.mjs)$/, '') || item.scenario.name === name || path.basename(item.file, '.md') === name.replace(/\.(md|spec\.mjs)$/, '')
+      const missing = want.filter((name) => !all.some((item) => hit(item, name)))
+      if (missing.length) throw new Error(`없는 시나리오: ${missing.join(', ')}`)
+      return { infos: want.length ? all.filter((item) => want.some((name) => hit(item, name))) : all, target: { kind: 'scenarios' } }
+    }
+    const { items, target } = await this.selectDocs(sel)
+    return { infos: await this.infosOf(items), target }
   }
 
   /** sources 의 파일 지문을 지금 내용과 견준다 — 프로젝트 · 백엔드 코드 폴더 밖 · 없는 파일은 missing, 지문 없이 적힌 것은 보지 않는다 */
@@ -191,11 +282,13 @@ export class Workspace {
     return `sources: [${refs.join(', ')}]`
   }
 
+  // ── 진행 · 멈춤 ──
+
   current(): Progress {
     return this.progress
   }
 
-  /** 중단 — 대화가 도구 호출을 멈췄거나 서버가 내려갈 때. 브라우저를 닫고, 돈 데까지 결과서 · 이력을 "중단됨" 으로 남긴다(ms 까지 기다림) */
+  /** 중단 — 대화가 도구 호출을 멈췄거나 서버가 내려갈 때. 브라우저를 닫고, 실행한 데까지 결과서 · 기록을 "중단됨" 으로 남긴다(ms 까지 기다림) */
   async interrupt(reason: string, ms = 15_000): Promise<boolean> {
     const started = this.started
     if (!this.progress.running || !started) return false
@@ -208,6 +301,11 @@ export class Workspace {
   /** 지금 수행의 id (없으면 undefined) */
   runningId(): string | undefined {
     return this.progress.running ? this.started?.runId : undefined
+  }
+
+  /** 지금 수행 중인 시나리오 id */
+  private runningScenarios(): string[] {
+    return this.progress.running ? this.progress.cases.map((item) => item.id) : []
   }
 
   /** 수행 하나를 ms 까지 기다린다 — 끝났으면 결과, 아직이면 빈 것. 모르는 id 면 undefined */
@@ -236,51 +334,55 @@ export class Workspace {
     return true
   }
 
-  /** 고를 시나리오 — 없으면 전부, "failed" 면 지난 수행의 실패, 목록이면 id · 번호(01) · 제목 */
-  async pick(info: SuiteInfo, wanted: RunArgs['scenarios']): Promise<SuiteInfo['scenarios']> {
-    if (!wanted || (Array.isArray(wanted) && wanted.length === 0)) return info.scenarios
-    if (wanted === 'failed') {
-      const failed = new Set([...info.lastCases.values()].filter((item) => item.status === 'failed').map((item) => item.id))
-      return info.scenarios.filter((item) => failed.has(item.scenario.id))
-    }
-    const picked = info.scenarios.filter((item) => wanted.some((want) => item.scenario.id === want || item.scenario.name === want || item.scenario.id.split('-')[0] === want || item.scenario.id === want.replace(/\.(md|spec\.mjs)$/, '')))
-    const missing = wanted.filter((want) => !picked.some((item) => item.scenario.id === want || item.scenario.name === want || item.scenario.id.split('-')[0] === want || item.scenario.id === want.replace(/\.(md|spec\.mjs)$/, '')))
-    if (missing.length) throw new Error(`묶음에 없는 시나리오: ${missing.join(', ')}`)
-    return picked
-  }
+  // ── 실행 ──
 
   /** 끝날 때까지 — CLI · 시험 */
   async run(args: RunArgs): Promise<RunOutcome> {
     return (await this.start(args)).done
   }
 
-  /** 수행을 시작하고 바로 돌아온다 — 묶음 · 시나리오 확인과 "이미 수행 중" 은 여기서 던진다 */
+  /** 결과서 · 가이드 제목 — 화면 · 요청 이름, 아니면 시나리오 이름 */
+  private async titleOf(target: RunTarget, infos: ScenarioInfo[]): Promise<string> {
+    if (target.kind === 'screen') return (await this.store?.getScreen(target.value))?.name || target.value
+    if (target.kind === 'request') {
+      const text = (await this.store?.getRequest(target.value))?.text ?? target.value
+      return text.length > 40 ? `${text.slice(0, 40)}…` : text
+    }
+    return infos.length === 1 ? infos[0]!.scenario.name : `시나리오 ${infos.length}개`
+  }
+
+  /** 수행을 시작하고 바로 돌아온다 — 시나리오 선택과 "이미 수행 중" 은 여기서 던진다 */
   async start(args: RunArgs): Promise<Started> {
-    if (this.progress.running) throw new Error(`이미 수행 중입니다 — ${this.progress.suite}`)
-    const info = await this.suite(args.suite)
-    const picked = await this.pick(info, args.scenarios)
-    if (picked.length === 0) throw new Error(args.scenarios === 'failed' ? '지난 수행에서 실패한 시나리오가 없습니다' : '돌릴 시나리오가 없습니다')
-    if (this.progress.running) throw new Error(`이미 수행 중입니다 — ${this.progress.suite}`)
-    const driver = driverFor(info.suite.target, { channel: this.config.channel }, this.launch)
+    if (this.progress.running) throw new Error(`이미 수행 중입니다 — ${this.progress.title}`)
+    // 방금 AI 가 쓴 시나리오 파일(과 사용자가 지운 것)을 저장소에 맞춘다
+    if (this.store) await this.reindex()
+    const { infos, target } = await this.select(args)
+    if (infos.length === 0) throw new Error(args.failed ? '마지막 실행이 실패인 시나리오가 없습니다' : '실행할 시나리오가 없습니다')
+    if (this.progress.running) throw new Error(`이미 수행 중입니다 — ${this.progress.title}`)
+    const driver = driverFor('web', { channel: this.config.channel }, this.launch)
     const startedAt = Date.now()
-    const runId = stamp(new Date(startedAt))
+    const runId = this.store ? await this.store.newRunId() : timeId(new Date(startedAt))
     const headed = args.headed ?? false
-    const stale = picked.filter((item) => item.stale).map((item) => item.scenario.id)
+    const mode: ReportMode = infos.length === 1 ? 'one' : (args.report ?? 'one')
+    const title = await this.titleOf(target, infos)
+    const stale = infos.filter((item) => item.stale).map((item) => item.id)
     this.driver = driver
     this.stopRequested = false
     this.interruptReason = undefined
     this.progress = {
       running: true,
-      suite: args.suite,
+      title,
+      target,
       runId,
       startedAt,
       headed,
       browser: driver.browserName(),
-      cases: picked.map(({ scenario }) => ({ id: scenario.id, title: scenario.name, status: 'waiting', steps: [] })),
+      mode,
+      cases: infos.map((item) => ({ id: item.id, title: item.scenario.name, status: 'waiting', steps: [] })),
       ...(stale.length && { stale }),
     }
-    const done = this.execute(args, info, picked, driver, runId, startedAt, headed, stale)
-    const started: Started = { runId, suite: args.suite, total: picked.length, stale, done }
+    const done = this.execute(infos, target, driver, runId, startedAt, headed, mode, title, stale)
+    const started: Started = { runId, title, total: infos.length, stale, done }
     this.started = started
     done.then(
       (outcome) => this.remember(runId, { outcome }),
@@ -294,17 +396,28 @@ export class Workspace {
     for (const key of [...this.finished.keys()].slice(0, -5)) this.finished.delete(key)
   }
 
-  private async execute(args: RunArgs, info: SuiteInfo, picked: ScenarioInfo[], driver: Driver, runId: string, startedAt: number, headed: boolean, stale: string[]): Promise<RunOutcome> {
-    const shotsDir = this.history.shotsDir(args.suite, runId)
+  /** 수행의 결과서 파일들 — 하나로 같이는 수행 폴더 하나, 시나리오마다 따로는 시나리오 폴더마다 */
+  reportFiles(runId: string, mode: ReportMode, ids: string[]): ReportFile[] {
+    if (!isRunId(runId)) throw new Error(`수행 id 가 틀렸습니다: ${runId}`)
+    const base = path.join(this.config.reportDir, runId)
+    if (mode === 'one') return [{ file: path.join(base, 'index.html') }]
+    return ids.map((id) => {
+      if (!isValidId(id)) throw new Error(`시나리오 id 가 틀렸습니다: ${id}`)
+      return { scenario: id, file: path.join(base, id, 'index.html') }
+    })
+  }
+
+  private async execute(infos: ScenarioInfo[], target: RunTarget, driver: Driver, runId: string, startedAt: number, headed: boolean, mode: ReportMode, title: string, stale: string[]): Promise<RunOutcome> {
+    const shotsDir = this.files.shotsDir(runId)
     const secrets = [this.config.password]
     try {
       await fs.mkdir(shotsDir, { recursive: true })
-      const withCode = picked.filter((item) => item.hasCode)
+      const withCode = infos.filter((item) => item.hasCode)
       const ran = await driver.run(
-        withCode.map(({ scenario, specFile }) => ({ id: scenario.id, title: scenario.name, steps: scenario.steps, specFile, ...(scenario.data && { data: scenario.data }) })),
+        withCode.map(({ id, scenario, specFile }) => ({ id, title: scenario.name, steps: scenario.steps, specFile, ...(scenario.data && { data: scenario.data }) })),
         {
           headed,
-          baseUrl: info.suite.url || this.config.baseUrl,
+          baseUrl: this.config.baseUrl,
           account: { name: 'default', user: this.config.user, password: this.config.password },
           secrets,
           stopped: () => this.stopRequested,
@@ -313,7 +426,7 @@ export class Workspace {
             return name
           },
           onCase: (index, partial) => {
-            const id = withCode[index]?.scenario.id
+            const id = withCode[index]?.id
             const row = this.progress.cases.find((item) => item.id === id)
             if (!row) return
             row.steps = [...partial.steps]
@@ -323,17 +436,26 @@ export class Workspace {
           },
         },
       )
-      const cases: CaseResult[] = picked.map(({ scenario, hasCode }) => ran.find((item) => item.id === scenario.id) ?? { id: scenario.id, title: scenario.name, status: hasCode ? 'stopped' : 'no-code', durationMs: 0, steps: [] })
-      const earlier = await this.history.runs(args.suite)
-      const previous = earlier[0]
-      const reportFile = path.join(this.config.reportDir, args.suite, runId, 'index.html')
-      const compare = compareRuns(previous, cases, earlier.slice(1))
-      const run: RunRecord = { id: runId, suite: args.suite, startedAt, durationMs: Date.now() - startedAt, headed, browser: driver.browserName(), baseUrl: info.suite.url || this.config.baseUrl, cases, report: reportFile, ...(compare && { compare }), ...(this.interruptReason && { interrupted: this.interruptReason }) }
-      await this.writeReport(run, info, shotsDir)
-      await this.history.add(run)
-      this.progress = { ...this.progress, running: false, report: reportFile, cases: cases.map((item) => ({ ...item })) }
+      const cases: CaseResult[] = infos.map(({ id, scenario, hasCode }) => ran.find((item) => item.id === id) ?? { id, title: scenario.name, status: hasCode ? 'stopped' : 'no-code', durationMs: 0, steps: [] })
+      const { before, previousId } = await this.lastResults(infos)
+      const compare = compareWithLast(before, previousId, cases)
+      const reports = this.reportFiles(runId, mode, cases.map((item) => item.id))
+      const run: RunRecord = { id: runId, startedAt, durationMs: Date.now() - startedAt, headed, browser: driver.browserName(), baseUrl: this.config.baseUrl, cases, report: reports[0]!.file, ...(compare && { compare }), ...(this.interruptReason && { interrupted: this.interruptReason }) }
+      const located = new Map(infos.map((item) => [item.id, item] as const))
+      await this.writeDocs('report', run, mode, title, located)
+      let recorded = false
+      let recordError: string | undefined
+      if (this.store) {
+        try {
+          await this.record(run, target, mode, title, infos)
+          recorded = true
+        } catch (error) {
+          recordError = scrub(error instanceof Error ? error.message : String(error), secrets)
+        }
+      }
+      this.progress = { ...this.progress, running: false, reports, report: reports[0]!.file, recorded, cases: cases.map((item) => ({ ...item })) }
       const suggestGitignore = await this.gitignoreHint()
-      return { run, ...(suggestGitignore && { suggestGitignore }), ...(stale.length && { stale }) }
+      return { run, mode, title, reports, recorded, ...(recordError && { recordError }), ...(suggestGitignore && { suggestGitignore }), ...(stale.length && { stale }), located }
     } catch (error) {
       this.progress = { ...this.progress, running: false, error: scrub(error instanceof Error ? error.message : String(error), secrets) }
       throw error
@@ -342,44 +464,124 @@ export class Workspace {
     }
   }
 
-  /** 시나리오 삭제 — 파일 · 수행 이력의 그 시나리오 결과 · 스크린샷까지 지우고, 남은 시나리오로 결과서(와 있던 가이드)를 다시 쓴다 */
-  async removeScenario(suite: string, scenario: string): Promise<Removed> {
-    this.refuseWhileRunning(suite)
-    const done = await removeScenario(this.config.testDir, suite, scenario)
-    const { changed } = await this.history.dropScenario(suite, scenario)
-    if (changed.length) {
-      const info = await this.suite(suite)
-      for (const run of changed) {
-        const hadGuide = existsSync(path.join(path.dirname(run.report), 'guide.html'))
-        await this.writeReport(run, info, this.history.shotsDir(suite, run.id))
-        if (hadGuide) await this.writeGuide(run, info)
-      }
+  /** 시나리오마다 마지막으로 실제 실행한(성공 · 실패) 결과 — 비교의 기준. 데이터 표 시나리오는 행마다 */
+  private async lastResults(infos: ScenarioInfo[]): Promise<{ before: Map<string, 'passed' | 'failed'>; previousId?: string }> {
+    const before = new Map<string, 'passed' | 'failed'>()
+    let previousId: string | undefined
+    if (!this.store) return { before }
+    for (const { id, doc } of infos) {
+      const last = doc?.last
+      if (!last) continue
+      before.set(id, last.status as 'passed' | 'failed')
+      if (!previousId || last.run > previousId) previousId = last.run
+      const result = await this.store.getResult(id, last.run)
+      for (const row of result?.rows ?? []) if (row.status === 'passed' || row.status === 'failed') before.set(`${id}#${row.row}`, row.status)
     }
-    return done
+    return { before, ...(previousId && { previousId }) }
   }
 
-  /** 묶음 삭제 — 파일 · 결과서 · 가이드 · 스크린샷 · 수행 이력까지 전부 지운다 */
-  async removeSuite(suite: string): Promise<Removed> {
-    this.refuseWhileRunning(suite)
-    const done = await removeSuite(this.config.testDir, suite)
-    await fs.rm(path.join(this.config.reportDir, suite), { recursive: true, force: true })
-    await this.history.purge(suite)
-    return done
+  /** 수행 한 번을 저장소에 — runs · results · 시나리오의 마지막 결과 · 화면 태그 · 그룹의 마지막 수행, 그리고 넘친 결과 정리(파일까지) */
+  private async record(run: RunRecord, target: RunTarget, mode: ReportMode, title: string, infos: ScenarioInfo[]): Promise<void> {
+    const store = this.needStore()
+    const passed = run.cases.filter((item) => item.status === 'passed').length
+    const failed = run.cases.filter((item) => item.status === 'failed').length
+    const doc: RunDoc = {
+      at: run.startedAt,
+      durationMs: run.durationMs,
+      target,
+      scenarios: run.cases.map((item) => item.id),
+      totals: { passed, failed, other: run.cases.length - passed - failed },
+      ...(run.compare && { compare: run.compare }),
+      report: mode,
+      title,
+      headed: run.headed,
+      browser: run.browser,
+      baseUrl: run.baseUrl,
+      ...(run.interrupted && { interrupted: run.interrupted }),
+    }
+    const results = run.cases.map((item) => toResultDoc(run.id, run.startedAt, item))
+    await store.recordRun(run.id, doc, results)
+    const known = new Map(infos.map((item) => [item.id, item.doc]))
+    for (const result of results) {
+      if (result.status !== 'passed' && result.status !== 'failed') continue
+      const routes = routesOf(result.urls)
+      // 성공이면 이번에 본 화면이 곧 화면 태그, 실패면 거기까지 본 것을 더한다(확인 단계에 닿기 전에 실패하면 태그가 줄어들지 않게)
+      const current = known.get(result.scenario)?.screens ?? []
+      const screens = routes.length ? (result.status === 'passed' ? routes : [...new Set([...current, ...routes])]) : current
+      await store.upsertScenario(result.scenario, { last: { status: result.status, at: run.startedAt, run: run.id }, ...(routes.length > 0 && !same(screens, current) && { screens }), ...(routes.length > 0 && { observed: true }) })
+    }
+    await store.markGroupRun(target, run.id)
+    await this.cleanup(await store.pruneResults(run.cases.map((item) => item.id)))
   }
 
-  private refuseWhileRunning(suite: string): void {
-    if (this.runningId() && this.current().suite === suite) throw new Error('이 묶음이 수행 중입니다 — 끝난 뒤(또는 멈춘 뒤) 지워 주세요')
+  // ── 파일 정리 ──
+
+  /** 지워진 결과의 스크린샷 · 결과서를 치운다 — 결과가 모두 없어진 수행은 결과서 폴더째, 하나로 같이 낸 수행은 남은 시나리오로 다시 쓴다, 시나리오마다 따로 낸 것은 그 폴더만 */
+  async cleanup(dropped: Dropped): Promise<void> {
+    const store = this.store
+    const gone = new Set(dropped.runs.filter(isRunId))
+    const rewrite = new Set<string>()
+    for (const result of dropped.results) {
+      if (!isRunId(result.run)) continue
+      const dir = this.files.shotsDir(result.run)
+      for (const name of result.shots) await fs.rm(path.join(dir, path.basename(name)), { force: true })
+      if (gone.has(result.run) || !store) continue
+      const run = await store.getRun(result.run)
+      if (!run) continue
+      if (run.report === 'each' && isValidId(result.scenario)) await fs.rm(path.join(this.config.reportDir, result.run, result.scenario), { recursive: true, force: true })
+      else rewrite.add(result.run)
+    }
+    for (const runId of gone) {
+      await fs.rm(path.join(this.config.reportDir, runId), { recursive: true, force: true })
+      await fs.rm(this.files.shotsDir(runId), { recursive: true, force: true })
+    }
+    for (const runId of rewrite) await this.rewriteRun(runId)
   }
+
+  /** 저장소의 수행 하나를 결과서 · 가이드 입력으로 되돌린다 — 정리로 일부 시나리오 결과가 빠진 수행도 남은 것으로 */
+  async loadRun(runId: string): Promise<{ run: RunRecord; mode: ReportMode; title: string; located: Map<string, Located> } | undefined> {
+    if (!isRunId(runId)) return undefined
+    const store = this.needStore()
+    const doc = await store.getRun(runId)
+    if (!doc) return undefined
+    const results = await store.resultsOfRun(doc, runId)
+    const order = new Map(doc.scenarios.map((id, index) => [id, index] as const))
+    const cases = results.sort((a, b) => (order.get(a.scenario) ?? 0) - (order.get(b.scenario) ?? 0)).map(caseOf)
+    const mode = doc.report
+    const reports = this.reportFiles(runId, mode, cases.map((item) => item.id))
+    const compare = doc.compare
+    const run: RunRecord = { id: runId, startedAt: doc.at, durationMs: doc.durationMs, headed: doc.headed ?? false, browser: doc.browser ?? '', baseUrl: doc.baseUrl ?? '', cases, report: reports[0]?.file ?? path.join(this.config.reportDir, runId, 'index.html'), ...(compare && { compare }), ...(doc.interrupted && { interrupted: doc.interrupted }) }
+    const located = new Map<string, Located>()
+    for (const item of cases) {
+      const scenario = await store.getScenario(item.id)
+      const info = scenario && (await this.locate(item.id, scenario.file).catch(() => undefined))
+      if (info) located.set(item.id, info)
+    }
+    return { run, mode, title: doc.title ?? '', located }
+  }
+
+  /** 지난 수행 하나의 결과서를 다시 쓴다(하나로 같이 낸 수행에서 시나리오가 빠졌을 때) — 가이드가 있었으면 같이 */
+  private async rewriteRun(runId: string): Promise<void> {
+    const loaded = await this.loadRun(runId)
+    if (!loaded || loaded.mode !== 'one' || loaded.run.cases.length === 0) return
+    const hadGuide = existsSync(path.join(path.dirname(loaded.run.report), 'guide.html'))
+    await this.writeDocs('report', loaded.run, 'one', loaded.title, loaded.located)
+    if (hadGuide) await this.writeDocs('guide', loaded.run, 'one', loaded.title, loaded.located)
+  }
+
+  // ── 결과서 · 가이드 ──
 
   /** 결과서 · 가이드가 같이 쓰는 입력 — 수행 기록 · 시나리오 원문 · 남아 있는 스크린샷 */
-  private reportInput(run: RunRecord, info: SuiteInfo, shotsDir: string): ReportInput {
+  private reportInput(run: RunRecord, title: string, located: Map<string, Located>): ReportInput {
+    const shotsDir = this.files.shotsDir(run.id)
+    const here = run.cases.map((item) => located.get(item.id)).filter((item): item is Located => item !== undefined)
     return {
       run,
       project: path.basename(this.config.project),
-      suiteName: info.suite.name,
+      title,
       user: os.userInfo().username,
-      scenarios: new Map(info.scenarios.map(({ scenario }) => [scenario.id, scenario])),
-      files: info.scenarios.filter(({ scenario }) => run.cases.some((item) => item.id === scenario.id)).map(({ file, specFile }) => ({ scenario: this.rel(file), spec: this.rel(specFile) })),
+      scenarios: new Map(here.map(({ scenario }) => [scenario.id, scenario])),
+      files: here.map(({ file, specFile }) => ({ scenario: this.rel(file), spec: this.rel(specFile) })),
       image: (shot) => {
         const file = path.join(shotsDir, path.basename(shot))
         return existsSync(file) ? readFileSync(file) : undefined
@@ -388,18 +590,78 @@ export class Workspace {
     }
   }
 
-  /** 지난 수행 하나의 결과서를 다시 쓴다 (스크린샷이 남아 있을 때) — run 이 쓰고, 이력에서 다시 만들 때도 */
-  async writeReport(run: RunRecord, info: SuiteInfo, shotsDir: string): Promise<void> {
-    await fs.mkdir(path.dirname(run.report), { recursive: true })
-    await fs.writeFile(run.report, renderReport(this.reportInput(run, info, shotsDir)))
+  /** 결과서(index.html) 또는 가이드(guide.html)를 수행 방식대로 쓴다 — 하나로 같이는 수행 폴더에 하나, 시나리오마다 따로는 시나리오 폴더마다. 쓴 파일들을 돌려준다 */
+  async writeDocs(kind: 'report' | 'guide', run: RunRecord, mode: ReportMode, title: string, located: Map<string, Located>): Promise<ReportFile[]> {
+    const name = kind === 'report' ? 'index.html' : 'guide.html'
+    const render = kind === 'report' ? renderReport : renderGuide
+    const targets = this.reportFiles(run.id, mode, run.cases.map((item) => item.id)).map((item) => ({ ...item, file: path.join(path.dirname(item.file), name) }))
+    for (const target of targets) {
+      const subset: RunRecord = target.scenario ? { ...run, cases: run.cases.filter((item) => item.id === target.scenario), compare: compareFor(run.compare, target.scenario), report: target.file } : { ...run, report: target.file }
+      const input = this.reportInput(subset, target.scenario ? (subset.cases[0]?.title ?? title) : title, located)
+      await fs.mkdir(path.dirname(target.file), { recursive: true })
+      await fs.writeFile(target.file, render(input))
+    }
+    return targets
   }
 
-  /** 가이드형 결과물(guide.html)을 그 수행의 결과서 옆에 쓴다 — 스크린샷은 이력(데이터 폴더)에 남아 있는 것만 들어간다. 파일 경로를 돌려준다 */
-  async writeGuide(run: RunRecord, info: SuiteInfo): Promise<string> {
-    const file = path.join(path.dirname(run.report), 'guide.html')
-    await fs.mkdir(path.dirname(file), { recursive: true })
-    await fs.writeFile(file, renderGuide(this.reportInput(run, info, this.history.shotsDir(run.suite, run.id))))
-    return file
+  /** 가이드형 결과물(guide.html)을 그 수행의 결과서 옆에 쓴다 — 스크린샷은 데이터 폴더에 남아 있는 것만 들어간다. 이 서버가 방금 끝낸 수행이면 그 기록으로, 아니면 저장소에서 */
+  async writeGuide(runId: string): Promise<ReportFile[]> {
+    const outcome = this.finished.get(runId)?.outcome
+    if (outcome) return this.writeDocs('guide', outcome.run, outcome.mode, outcome.title, outcome.located)
+    const loaded = await this.loadRun(runId)
+    if (!loaded) throw new Error(`수행 기록이 없습니다: ${runId}`)
+    if (loaded.run.cases.length === 0) throw new Error(`이 수행의 결과가 남아 있지 않습니다: ${runId}`)
+    return this.writeDocs('guide', loaded.run, loaded.mode, loaded.title, loaded.located)
+  }
+
+  /** 수행 하나의 기록 — 이 서버가 방금 끝낸 수행이면 그것, 아니면 저장소 */
+  async runOf(runId: string): Promise<{ run: RunRecord; mode: ReportMode; title: string; reports: ReportFile[]; recorded: boolean; located: Map<string, Located> } | undefined> {
+    const outcome = this.finished.get(runId)?.outcome
+    if (outcome) return { run: outcome.run, mode: outcome.mode, title: outcome.title, reports: outcome.reports, recorded: outcome.recorded, located: outcome.located }
+    if (!this.store) return undefined
+    const loaded = await this.loadRun(runId)
+    return loaded && { ...loaded, reports: this.reportFiles(runId, loaded.mode, loaded.run.cases.map((item) => item.id)), recorded: true }
+  }
+
+  /** 결과 한 건(시나리오 × 수행)의 결과서 · 가이드 — 있는 파일만. 하나로 같이 낸 결과서는 그 시나리오 절의 앵커로 */
+  documentsOf(runId: string, mode: ReportMode, scenarioId: string): { report?: { file: string; anchor?: string }; guide?: { file: string } } {
+    if (!isRunId(runId) || !isValidId(scenarioId)) return {}
+    const dir = mode === 'each' ? path.join(this.config.reportDir, runId, scenarioId) : path.join(this.config.reportDir, runId)
+    const report = path.join(dir, 'index.html')
+    const guide = path.join(dir, 'guide.html')
+    return {
+      ...(existsSync(report) && { report: { file: this.rel(report), ...(mode === 'one' && { anchor: anchorOf(scenarioId) }) } }),
+      ...(existsSync(guide) && { guide: { file: this.rel(guide) } }),
+    }
+  }
+
+  // ── 저장소 맞추기 · 삭제 ──
+
+  /** 테스트 폴더의 시나리오 파일로 저장소를 맞춘다 — 사용자가 지운 파일의 줄 · 기록 · 스크린샷 · 결과서 절도 같이 지운다 */
+  async reindex(): Promise<ReindexResult> {
+    const result = await reindex(this.needStore(), { project: this.config.project, testDir: this.config.testDir })
+    await this.cleanup(result.dropped)
+    return result
+  }
+
+  /** 시나리오 삭제 — 하나 · 여럿 · 화면/요청 그룹(그 태그의 시나리오 전부, 여러 화면에 걸친 것도). 파일(md · 생성 코드) · 저장소 줄 · 결과 · 스크린샷 · 결과서(그 시나리오만 남은 수행은 통째로)까지 */
+  async remove(sel: Selector): Promise<{ scenarios: string[]; files: string[]; runs: number }> {
+    const store = this.needStore()
+    if (selectorEmpty(sel)) throw new Error('지울 시나리오를 골라 주세요 (scenarios · screen · request · failed)')
+    const { items } = await this.selectDocs(sel)
+    const busy = new Set(this.runningScenarios())
+    const hit = items.filter((item) => busy.has(item.id)).map((item) => item.id)
+    if (hit.length) throw new Error(`수행 중인 시나리오입니다 — 끝난 뒤(또는 멈춘 뒤) 지워 주세요: ${hit.join(', ')}`)
+    const files: string[] = []
+    const dropped: Dropped = { results: [], runs: [] }
+    for (const { id, doc } of items) {
+      files.push(...(await removeScenarioFiles(this.config.project, this.config.testDir, doc.file)).files)
+      const part = await store.deleteScenario(id)
+      dropped.results.push(...part.results)
+      dropped.runs.push(...part.runs)
+    }
+    await this.cleanup(dropped)
+    return { scenarios: items.map((item) => item.id), files, runs: new Set(dropped.runs).size }
   }
 
   /** 결과서 폴더가 프로젝트 안이고 .gitignore 에 없으면, 처음 한 번만 제안 글 — 플러그인은 .gitignore 를 고치지 않는다 */
@@ -409,13 +671,13 @@ export class Workspace {
     const entry = relative.split(path.sep).join('/') + '/'
     const ignore = await fs.readFile(path.join(this.config.project, '.gitignore'), 'utf8').catch(() => '')
     const listed = ignore.split(/\r?\n/).some((line) => line.trim().replace(/^\//, '').replace(/\/?$/, '/') === entry)
-    if (listed || !(await this.history.firstTime('gitignore-asked'))) return undefined
+    if (listed || !(await this.files.firstTime('gitignore-asked'))) return undefined
     return entry
   }
 
   /** 스크린샷 하나 (패널 썸네일) — 수행 폴더 밖은 거절 */
-  async shot(suite: string, runId: string, name: string): Promise<Uint8Array> {
-    if (!/^\d{8}-\d{6}$/.test(runId) || !/^[\w.-]+\.jpg$/.test(name)) throw new Error('스크린샷 이름이 틀렸습니다')
-    return fs.readFile(path.join(this.history.shotsDir(suite, runId), name))
+  async shot(runId: string, name: string): Promise<Uint8Array> {
+    if (!isRunId(runId) || !/^[\w.-]+\.jpg$/.test(name)) throw new Error('스크린샷 이름이 틀렸습니다')
+    return fs.readFile(path.join(this.files.shotsDir(runId), name))
   }
 }
