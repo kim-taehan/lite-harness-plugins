@@ -10,7 +10,12 @@ import { redact } from './guard.ts'
 /** 글 하나(SQL · 실행계획)의 상한 — 넘으면 잘라 표시하고 알린다 */
 export const MAX_TEXT = 200 * 1024
 const MAX_SHORT = 2000
-export const REPORT_DIR = 'sql-tuning-reports'
+/** 프로젝트 안에 남기는 파일은 모두 이 폴더 아래 — 앱이 플러그인을 지울 때 통째로 지운다(docs/guides/data-storage.md). 폴더 이름은 플러그인 id 그대로 */
+export const PLUGIN_DIR = '.litecode/plugins/sql-tuning'
+/** 새 결과서가 쌓이는 폴더(프로젝트 기준) — service/index.mjs 의 REPORTS_FOLDER · index.html 의 REPORTS 와 같다 */
+export const REPORT_DIR = `${PLUGIN_DIR}/reports`
+/** 0.13 까지 결과서를 쓰던 옛 폴더 — 읽기 · 삭제만 하고 새로 쓰지 않는다 */
+export const LEGACY_REPORT_DIR = 'sql-tuning-reports'
 
 export type Verdict = 'ok' | 'hold'
 export type Level = 'low' | 'medium' | 'high' | 'unknown'
@@ -816,7 +821,6 @@ const inside = (root: string, target: string): boolean => {
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
 }
 
-/** 프로젝트 폴더 아래 sql-tuning-reports/<시각>/index.html 로 쓰고 프로젝트 기준 경로를 돌려준다. 실제 경로(심볼릭 링크 풀어서)가 프로젝트 밖이면 거절한다 */
 /** 결과서 폴더에 같이 쓰는 작은 요약(meta.json) — 패널의 튜닝 이력 목록이 이것만 읽는다. 비밀 · 접속 정보 · 데이터 행 없음(결과서와 같은 scrub) */
 export interface ReportMeta {
   v: 1
@@ -855,11 +859,45 @@ export function buildMeta(input: ReportInput, id: string, at: Date, hide: string
   }
 }
 
-export async function writeReport(cwd: string, html: string, now: Date, meta?: (id: string) => ReportMeta): Promise<string> {
+/** 목록 색인(host.db 의 reports 컬렉션, id = 결과서 폴더 이름) — 문서는 meta.json 의 요약 + 어느 폴더에 있는지(legacy) · meta 가 있는지(hasMeta). 파일이 정본이고 이것은 다시 만들 수 있다(service/index.mjs 의 reindex) */
+export const REPORTS_COLLECTION = 'reports'
+export type ReportDoc = ReportMeta & { legacy: boolean; hasMeta: true }
+export const reportDoc = (meta: ReportMeta, legacy: boolean): ReportDoc => ({ ...meta, legacy, hasMeta: true })
+
+/** 색인에 쓰고 지우는 데 필요한 것만 — createDbClient() 의 결과(서버) · 가짜 host 의 db(시험)가 맞는다. 없으면(앱 밖 · 옛 앱) 색인은 건너뛰고 패널이 열릴 때 서비스가 따라잡는다 */
+export interface ReportIndex {
+  set(collection: string, id: string, doc: Record<string, unknown>): Promise<void>
+  delete(collection: string, id: string): Promise<void>
+}
+
+/** target 에서 가장 가까운 존재하는 위쪽 경로가 링크로 다른 데로 빠지지 않고 allowed 안(또는 그 위쪽 제자리)인지 — 폴더를 만들기 전에 본다 */
+async function assertInside(allowed: string, target: string, message: string): Promise<void> {
+  let at = target
+  for (;;) {
+    let real: string
+    try {
+      real = await realpath(at)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      const up = path.dirname(at)
+      if (up === at) throw error
+      at = up
+      continue
+    }
+    if (real !== at && real !== allowed && !inside(allowed, real)) throw new Error(message)
+    return
+  }
+}
+
+/** 새 결과서 폴더(<프로젝트>/.litecode/plugins/sql-tuning/reports/<시각>/index.html)에 쓰고 프로젝트 기준 경로를 돌려준다.
+ *  쓰기 전에 실제 경로(심볼릭 링크 풀어서)가 <프로젝트>/.litecode/plugins/sql-tuning 안인지 확인하고 밖이면 거절한다. 색인(index)은 덤이라 실패해도 결과서는 남는다 */
+export async function writeReport(cwd: string, html: string, now: Date, meta?: (id: string) => ReportMeta, index?: ReportIndex): Promise<string> {
   const root = await realpath(cwd)
+  const allowed = path.join(root, PLUGIN_DIR)
   const base = path.join(root, REPORT_DIR)
+  const outside = `${REPORT_DIR} resolves outside ${PLUGIN_DIR} — refusing to write there.`
+  await assertInside(allowed, base, outside)
   await mkdir(base, { recursive: true })
-  if (!inside(root, await realpath(base))) throw new Error(`${REPORT_DIR} resolves outside the project folder — refusing to write there.`)
   for (let attempt = 0; attempt < 100; attempt++) {
     const dir = path.join(base, attempt ? `${stamp(now)}-${attempt + 1}` : stamp(now))
     try {
@@ -869,9 +907,14 @@ export async function writeReport(cwd: string, html: string, now: Date, meta?: (
       throw error
     }
     const file = path.join(dir, 'index.html')
-    if (!inside(root, await realpath(dir))) throw new Error('The report folder resolves outside the project folder.')
+    await assertInside(allowed, dir, outside)
     await writeFile(file, html, 'utf8')
-    if (meta) await writeFile(path.join(dir, 'meta.json'), `${JSON.stringify(meta(path.basename(dir)), null, 1)}\n`, 'utf8')
+    if (meta) {
+      const id = path.basename(dir)
+      const written = meta(id)
+      await writeFile(path.join(dir, 'meta.json'), `${JSON.stringify(written, null, 1)}\n`, 'utf8')
+      await index?.set(REPORTS_COLLECTION, id, reportDoc(written, false)).catch(() => undefined)
+    }
     return path.relative(root, file).split(path.sep).join('/')
   }
   throw new Error('Could not pick a free report folder name.')
@@ -880,25 +923,36 @@ export async function writeReport(cwd: string, html: string, now: Date, meta?: (
 /** 결과서 폴더 이름(<날짜>-<시각>[-n]) — 삭제는 이 모양의 폴더만 지운다 */
 export const REPORT_ID = /^\d{8}-\d{6}(-\d+)?$/
 
-/** 결과서 하나(폴더째)를 지운다 — 패널의 [삭제]. 실패는 `코드: 설명` 글로 던진다(bad-id · not-found · unsafe).
- *  이름이 REPORT_ID 모양이어야 하고, 링크를 따라 프로젝트 밖으로 나가면 지우지 않는다. 다른 결과서 · .gitignore-asked 는 건드리지 않는다 */
-export async function removeReport(cwd: string, id: string): Promise<string[]> {
+/** 결과서 하나(폴더째)를 지운다 — 패널의 [삭제]. 새 위치(.litecode/plugins/sql-tuning/reports)를 먼저 보고 없으면 옛 위치(sql-tuning-reports)를 본다.
+ *  실패는 `코드: 설명` 글로 던진다(bad-id · not-found · unsafe). 이름이 REPORT_ID 모양이어야 하고, 링크를 따라 허용 범위(새 위치는 플러그인 폴더, 옛 위치는 프로젝트) 밖으로
+ *  나가면 지우지 않는다. 다른 결과서 · .gitignore-asked 는 건드리지 않는다. 짝인 색인 줄도 지운다(폴더가 이미 없어도 남은 줄은 정리) */
+export async function removeReport(cwd: string, id: string, index?: ReportIndex): Promise<string[]> {
   if (typeof id !== 'string' || !REPORT_ID.test(id)) throw new Error('bad-id: the report id must look like 20261110-090333.')
   const root = await realpath(cwd)
-  const base = path.join(root, REPORT_DIR)
+  let names: string[] | undefined
+  for (const [folder, allowed] of [[REPORT_DIR, path.join(root, PLUGIN_DIR)], [LEGACY_REPORT_DIR, root]] as const) {
+    names = await removeFrom(root, folder, allowed, id)
+    if (names) break
+  }
+  await index?.delete(REPORTS_COLLECTION, id).catch(() => undefined)
+  if (!names) throw new Error(`not-found: report ${id} does not exist.`)
+  return names
+}
+
+async function removeFrom(root: string, folder: string, allowed: string, id: string): Promise<string[] | undefined> {
   let baseReal: string
   try {
-    baseReal = await realpath(base)
+    baseReal = await realpath(path.join(root, folder))
   } catch {
-    throw new Error(`not-found: there is no ${REPORT_DIR} folder.`)
+    return undefined
   }
-  if (!inside(root, baseReal)) throw new Error(`unsafe: ${REPORT_DIR} resolves outside the project folder.`)
+  if (!inside(allowed, baseReal)) throw new Error(`unsafe: ${folder} resolves outside ${allowed === root ? 'the project folder' : PLUGIN_DIR}.`)
   const dir = path.join(baseReal, id)
   let info
   try {
     info = await lstat(dir)
   } catch {
-    throw new Error(`not-found: report ${id} does not exist.`)
+    return undefined
   }
   if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`unsafe: ${id} is not a plain report folder.`)
   const names = await readdir(dir)
@@ -906,13 +960,13 @@ export async function removeReport(cwd: string, id: string): Promise<string[]> {
   return names
 }
 
-/** 결과서 폴더가 .gitignore 에 없고 처음이면 제안 글 — 플러그인은 .gitignore 를 고치지 않는다 (ui-test 와 같은 방식). 물어 본 표시는 폴더 안 .gitignore-asked */
+/** 플러그인 폴더가 .gitignore 에 없고 처음이면 제안 글 — 플러그인은 .gitignore 를 고치지 않는다 (ui-test 와 같은 방식). 물어 본 표시는 플러그인 폴더 안 .gitignore-asked */
 export async function gitignoreHint(cwd: string): Promise<string | undefined> {
   const root = await realpath(cwd)
   const ignore = await readFile(path.join(root, '.gitignore'), 'utf8').catch(() => '')
-  if (ignore.split(/\r?\n/).some((line) => line.trim().replace(/^\//, '').replace(/\/?$/, '/') === `${REPORT_DIR}/`)) return undefined
-  const marker = path.join(root, REPORT_DIR, '.gitignore-asked')
+  if (ignore.split(/\r?\n/).some((line) => line.trim().replace(/^\//, '').replace(/\/?$/, '/') === `${PLUGIN_DIR}/`)) return undefined
+  const marker = path.join(root, PLUGIN_DIR, '.gitignore-asked')
   if (await readFile(marker, 'utf8').then(() => true, () => false)) return undefined
   await writeFile(marker, 'asked\n', 'utf8').catch(() => undefined)
-  return `${REPORT_DIR}/`
+  return `${PLUGIN_DIR}/`
 }

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -104,10 +104,10 @@ describe('결과서 렌더러', () => {
     dirs.push(dir)
     const a = await writeReport(dir, '<html>a</html>', new Date(2026, 10, 9, 14, 32, 5), (id) => buildMeta(win, id, at, []))
     const b = await writeReport(dir, '<html>b</html>', new Date(2026, 10, 10, 9, 3, 33), (id) => buildMeta(win, id, at, []))
-    writeFileSync(path.join(dir, 'sql-tuning-reports', '.gitignore-asked'), '')
+    writeFileSync(path.join(dir, '.litecode/plugins/sql-tuning/reports', '.gitignore-asked'), '')
     const idA = path.basename(path.dirname(a))
     expect(await removeReport(dir, idA)).toEqual(expect.arrayContaining(['index.html', 'meta.json']))
-    expect(readdirSync(path.join(dir, 'sql-tuning-reports')).sort()).toEqual(['.gitignore-asked', path.basename(path.dirname(b))].sort())
+    expect(readdirSync(path.join(dir, '.litecode/plugins/sql-tuning/reports')).sort()).toEqual(['.gitignore-asked', path.basename(path.dirname(b))].sort())
   })
 
   it('removeReport — 모양이 틀린 이름 · 없는 결과서 · 링크는 거절하고 아무것도 지우지 않는다', async () => {
@@ -120,10 +120,10 @@ describe('결과서 렌더러', () => {
     const outside = mkdtempSync(path.join(tmpdir(), 'sqlt-out-'))
     dirs.push(outside)
     writeFileSync(path.join(outside, 'keep.txt'), 'x')
-    symlinkSync(outside, path.join(dir, 'sql-tuning-reports', '20261111-111111'))
+    symlinkSync(outside, path.join(dir, '.litecode/plugins/sql-tuning/reports', '20261111-111111'))
     await expect(removeReport(dir, '20261111-111111')).rejects.toThrow(/^unsafe/)
     expect(readFileSync(path.join(outside, 'keep.txt'), 'utf8')).toBe('x')
-    expect(readdirSync(path.join(dir, 'sql-tuning-reports'))).toContain(id)
+    expect(readdirSync(path.join(dir, '.litecode/plugins/sql-tuning/reports'))).toContain(id)
     await expect(removeReport(path.join(dir, 'nothing-here'), id)).rejects.toThrow()
   })
 
@@ -133,12 +133,12 @@ describe('결과서 렌더러', () => {
     const adapter = { async query() { throw new Error('no') } } as unknown as Adapter
     const tools = createTools(async () => adapter, { rowLimit: 5, timeoutMs: 1000, report: { cwd: dir, now: () => at } } as never)
     const made = await tools.find((tool) => tool.name === 'report')!.run({ ...win })
-    const id = /sql-tuning-reports\/([^/\s]+)\//.exec(made.text)![1]!
+    const id = /reports\/([^/\s]+)\//.exec(made.text)![1]!
     const del = tools.find((tool) => tool.name === 'delete_report')!
     const ok = await del.run({ id })
     expect(ok.isError).toBeUndefined()
     expect(ok.text).toContain(`Deleted report ${id}`)
-    expect(readdirSync(path.join(dir, 'sql-tuning-reports')).filter((name) => /^\d/.test(name))).toEqual([])
+    expect(readdirSync(path.join(dir, '.litecode/plugins/sql-tuning/reports')).filter((name) => /^\d/.test(name))).toEqual([])
     expect((await del.run({ id })).isError).toBe(true)
     expect((await del.run({ id: '../x' })).text).toMatch(/^bad-id/)
   })
@@ -240,18 +240,19 @@ describe('입력 검사', () => {
 })
 
 describe('파일 쓰기', () => {
-  it('프로젝트 폴더 아래 sql-tuning-reports/<시각>/index.html 로 쓰고 같은 초면 번호를 붙인다', async () => {
+  it('프로젝트 폴더 아래 <플러그인 폴더>/reports/<시각>/index.html 로 쓰고 같은 초면 번호를 붙인다', async () => {
     const cwd = temp()
-    expect(await writeReport(cwd, 'a', at)).toBe('sql-tuning-reports/20261109-143205/index.html')
-    expect(await writeReport(cwd, 'b', at)).toBe('sql-tuning-reports/20261109-143205-2/index.html')
-    expect(readFileSync(path.join(cwd, 'sql-tuning-reports/20261109-143205/index.html'), 'utf8')).toBe('a')
+    expect(await writeReport(cwd, 'a', at)).toBe('.litecode/plugins/sql-tuning/reports/20261109-143205/index.html')
+    expect(await writeReport(cwd, 'b', at)).toBe('.litecode/plugins/sql-tuning/reports/20261109-143205-2/index.html')
+    expect(readFileSync(path.join(cwd, '.litecode/plugins/sql-tuning/reports/20261109-143205/index.html'), 'utf8')).toBe('a')
   })
 
   it('결과서 폴더가 프로젝트 밖을 가리키면(심볼릭 링크) 쓰지 않는다', async () => {
     const cwd = temp()
     const outside = temp()
-    symlinkSync(outside, path.join(cwd, 'sql-tuning-reports'))
-    await expect(writeReport(cwd, 'x', at)).rejects.toThrow('outside the project folder')
+    mkdirSync(path.join(cwd, '.litecode/plugins/sql-tuning'), { recursive: true })
+    symlinkSync(outside, path.join(cwd, '.litecode/plugins/sql-tuning/reports'))
+    await expect(writeReport(cwd, 'x', at)).rejects.toThrow('resolves outside .litecode/plugins/sql-tuning')
     expect(readdirSync(outside)).toEqual([])
   })
 })
@@ -264,8 +265,8 @@ describe('report 도구', () => {
     const cwd = temp()
     const result = await reportTool(cwd).run(win as unknown as Record<string, unknown>)
     expect(result.isError).toBeUndefined()
-    expect(result.text).toContain('Report written: sql-tuning-reports/20261109-143205/index.html')
-    expect(readFileSync(path.join(cwd, 'sql-tuning-reports/20261109-143205/index.html'), 'utf8')).toContain('SQL 튜닝 최종 결과서')
+    expect(result.text).toContain('Report written: .litecode/plugins/sql-tuning/reports/20261109-143205/index.html')
+    expect(readFileSync(path.join(cwd, '.litecode/plugins/sql-tuning/reports/20261109-143205/index.html'), 'utf8')).toContain('SQL 튜닝 최종 결과서')
   })
 
   it('.gitignore 에 폴더가 없으면 제안만 한 번 하고 파일은 고치지 않는다', async () => {
@@ -279,14 +280,14 @@ describe('report 도구', () => {
 
   it('.gitignore 에 이미 있으면 제안하지 않는다', async () => {
     const cwd = temp()
-    writeFileSync(path.join(cwd, '.gitignore'), 'node_modules/\n/sql-tuning-reports/\n')
+    writeFileSync(path.join(cwd, '.gitignore'), 'node_modules/\n/.litecode/plugins/sql-tuning/\n')
     expect((await reportTool(cwd).run(win as unknown as Record<string, unknown>)).text).not.toContain('.gitignore')
   })
 
   it('접속 주소의 비밀번호 · 호스트가 결과서 파일에 없다', async () => {
     const cwd = temp()
     await reportTool(cwd, { databaseUrl: 'postgres://dev_ro:Pw0rd-xyz@pg.internal.example:5432/shop' }).run({ ...win, source: { file: 'pg.internal.example/Pw0rd-xyz' } } as unknown as Record<string, unknown>)
-    const html = readFileSync(path.join(cwd, 'sql-tuning-reports/20261109-143205/index.html'), 'utf8')
+    const html = readFileSync(path.join(cwd, '.litecode/plugins/sql-tuning/reports/20261109-143205/index.html'), 'utf8')
     for (const secret of ['Pw0rd-xyz', 'pg.internal.example', 'dev_ro']) expect(html).not.toContain(secret)
   })
 

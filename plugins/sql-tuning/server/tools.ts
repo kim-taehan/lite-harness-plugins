@@ -2,7 +2,7 @@
 // 실제 데이터 행은 query 만 돌려준다(승인은 엔진 권한 규칙이 매번 묻는다 — README)
 
 import { bindsFor, checkReadOnly } from './guard.ts'
-import { buildMeta, gitignoreHint, hiddenValues, parseReport, removeReport, renderReport, writeReport } from './report.ts'
+import { buildMeta, gitignoreHint, hiddenValues, parseReport, removeReport, renderReport, writeReport, type ReportIndex } from './report.ts'
 import type { Adapter, Binds, CapturedSql, ImpactInfo, Plan, PlanStep, RunStats, TableInfo, TopBy, TopQuery } from './types.ts'
 
 export interface ToolResult {
@@ -28,8 +28,8 @@ export interface ToolOptions {
   serial?: boolean
   /** compare 가 한 번 실행에서 읽을 최대 행 수 */
   compareRows?: number
-  /** report 도구 — 결과서를 쓸 프로젝트 폴더(기본 작업 폴더) · 접속 주소(결과서에서 비밀번호 · 호스트 · 계정을 지우는 데) · 시계(시험용) */
-  report?: { cwd?: string; databaseUrl?: string; now?: () => Date }
+  /** report 도구 — 결과서를 쓸 프로젝트 폴더(기본 작업 폴더) · 접속 주소(결과서에서 비밀번호 · 호스트 · 계정을 지우는 데) · 시계(시험용) · 목록 색인(host.db 클라이언트 — 없으면 파일만) */
+  report?: { cwd?: string; databaseUrl?: string; now?: () => Date; index?: ReportIndex }
 }
 
 /** compare 한 번에 넣을 수 있는 바인드 묶음 수 */
@@ -389,7 +389,7 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
     {
       name: 'report',
       description:
-        'Write the final tuning report as one HTML file in the project folder (sql-tuning-reports/<time>/index.html) and return its path. Call it only after tuning is finished and the user asked for a report. Fill it only with values from explain, compare and impact_check; label estimates. It never contains passwords, connection details or data rows, and string bind values are reduced to their length.',
+        'Write the final tuning report as one HTML file in the project folder (.litecode/plugins/sql-tuning/reports/<time>/index.html) and return its path. Call it only after tuning is finished and the user asked for a report. Fill it only with values from explain, compare and impact_check; label estimates. It never contains passwords, connection details or data rows, and string bind values are reduced to their length.',
       inputSchema: REPORT_SCHEMA,
       async run(args) {
         const parsed = parseReport(args)
@@ -398,7 +398,7 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
         const now = options.report?.now?.() ?? new Date()
         const hide = hiddenValues(options.report?.databaseUrl ?? '', parsed.input.schema)
         const html = renderReport(parsed.input, { at: now, hide })
-        const file = await writeReport(cwd, html, now, (id) => buildMeta(parsed.input, id, now, hide))
+        const file = await writeReport(cwd, html, now, (id) => buildMeta(parsed.input, id, now, hide), options.report?.index)
         const lines = [`Report written: ${file}`, 'Tell the user this path. It is a local file; open it in a browser (print to PDF if needed).']
         if (parsed.notices.length) lines.push('', ...parsed.notices.map((notice) => `Note: ${notice}`))
         const hint = await gitignoreHint(cwd)
@@ -408,11 +408,11 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
     },
     {
       name: 'delete_report',
-      description: 'Panel only (after the user confirmed): delete one saved tuning report folder (sql-tuning-reports/<id>/). Not for the AI — never call it yourself.',
+      description: 'Panel only (after the user confirmed): delete one saved tuning report folder (.litecode/plugins/sql-tuning/reports/<id>/, or the older sql-tuning-reports/<id>/). Not for the AI — never call it yourself.',
       inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Report folder name, for example 20261110-090333.' } }, required: ['id'] },
       async run(args) {
         try {
-          const names = await removeReport(options.report?.cwd ?? process.cwd(), String(args['id'] ?? ''))
+          const names = await removeReport(options.report?.cwd ?? process.cwd(), String(args['id'] ?? ''), options.report?.index)
           return { text: `Deleted report ${String(args['id'])} (${names.join(', ') || 'empty'}).` }
         } catch (error) {
           return fail(error instanceof Error ? error.message : String(error))

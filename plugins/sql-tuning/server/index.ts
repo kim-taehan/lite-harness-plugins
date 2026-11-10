@@ -8,6 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { pathToFileURL } from 'node:url'
 import { adapterFor, connectionTarget, databaseUrlFromEnv, missingConnectionFields } from './connect.ts'
+import { createDbClient } from './db.ts'
 import { redact, sqlErrorHint } from './guard.ts'
 import { createTools } from './tools.ts'
 import { serverStatusTool } from './status.ts'
@@ -27,7 +28,7 @@ async function main(): Promise<void> {
   const idleMs = process.env['SQL_TUNING_IDLE_MS'] === '0' ? 0 : intEnv('SQL_TUNING_IDLE_MS', 300_000)
   // 연결 수 (기본 1) — 여럿이면 도구 호출이 연결을 하나씩 빌려 동시에 돈다
   const pool = Math.min(intEnv('SQL_TUNING_POOL', 1), 16)
-  const tools = createTools(async () => (adapter ??= adapterFor(url, { ...options, pool, ...(schema && { schema }) })), { ...options, idleMs, onIdle: async () => adapter?.close(), serial: pool <= 1, report: { databaseUrl: url } })
+  const tools = createTools(async () => (adapter ??= adapterFor(url, { ...options, pool, ...(schema && { schema }) })), { ...options, idleMs, onIdle: async () => adapter?.close(), serial: pool <= 1, report: { databaseUrl: url, index: createDbClient() } })
   // [연결 확인] — query 도구로 SELECT 1 한 번 (시간 제한 · 연결 빌리기를 같이 쓴다)
   const query = tools.find((tool) => tool.name === 'query')!
   tools.push(
