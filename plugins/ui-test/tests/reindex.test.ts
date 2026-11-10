@@ -97,6 +97,14 @@ describe('reindex', () => {
     expect((await store.listScenarios()).map((item) => item.id)).toEqual(['ok'])
   })
 
+  it('수행 기록(<id>.history.md)은 시나리오가 아니다 — 번호 줄이 있어도 목록에 안 나온다', async () => {
+    write('ok.md', md('x', 'OK'))
+    write('ok.history.md', '## 다음 수행 때 지킬 것\n1. 첫 번째로 본 것\n2. 두 번째로 본 것\n\n## 2026-11-10 16:20 — 통과\n- 수행: r1\n')
+    const { store } = setup()
+    expect(await reindex(store, cfg())).toMatchObject({ added: 1 })
+    expect((await store.listScenarios()).map((item) => item.id)).toEqual(['ok'])
+  })
+
   it('요청 태그 — 머리 request · requested 에서, 파일 이름이 <요청 id>-<번호> 면 그 앞이 요청 id', async () => {
     const head = (title: string) => `---\nname: ${title}\nrequest: "메뉴 관리 화면 진행해줘 #12"\nrequested: 2026-11-10T01:05:00.000Z\n---\n1. 연다\n2. 확인: 보인다\n`
     write('20261110T110500_01-01.md', head('목록'))

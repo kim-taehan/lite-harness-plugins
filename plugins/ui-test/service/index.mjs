@@ -38,8 +38,9 @@ export default (host) =>
         timeoutMs: 1_800_000,
         panelTools: ['progress', 'stop', 'shot', 'delete', 'detail', 'reindex', 'pdf'],
       })
-      // 스킬 — SKILL.md 와 references/ 가 통째로 올라간다(zip 의 skills/ui-test). 서비스가 켜진 프로젝트의 대화에서만 보인다
+      // 스킬 둘 — SKILL.md 와 references/ 가 통째로 올라간다(zip 의 skills/ui-test · skills/ui-test-run). ui-test 는 만들기 · 저장 · 보강, ui-test-run 은 실행 · 문제 해결 · 수행 기록(패널 [▶ 실행] 의 `/ui-test-run` 요청). 서비스가 켜진 프로젝트의 대화에서만 보인다
       host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })
+      host.skills.register({ name: 'ui-test-run', dir: 'skills/ui-test-run' })
       ctx.effect(() => () => {
         for (const timer of this.watchers.values()) clearTimeout(timer)
         this.watchers.clear()

@@ -20,7 +20,7 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   matches(row: Row, query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): boolean
   showGroups(groups: Group[], query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): Group[]
   sharedCount(rows: Row[]): number
-  runPrompt(rows: unknown[], dir: string): string
+  runPrompt(rows: unknown[]): string
   runCount(progress: unknown): { total: number; done: number; at: number; percent: number }
   finishNote(progress: unknown): { text: string; detail: string; report?: { file: string } }
   bareTitle(title: string): string
@@ -104,21 +104,25 @@ describe('패널 순수 로직', () => {
     expect(api.sharedCount([rows[0]!, rows[3]!])).toBe(0)
   })
 
-  it('실행 요청 글 — 시나리오 · 코드 경로와 run 지시, 코드 없는 것은 대상에서 뺀다', () => {
+  it('실행 요청 글 — 첫 줄 /ui-test-run, 시나리오마다 id · md · 코드 · 수행 기록 경로, 코드 없는 것은 대상에서 뺀다', () => {
     const text = api.runPrompt([
-      { id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true },
-      { id: 'a-02', title: '코드 없는 것', file: '.litecode/plugins/ui-test/scenarios/a-02.md', hasCode: false },
-    ], '.litecode/plugins/ui-test')
-    expect(text.split('\n')[0]).toBe('/ui-test 아래 시나리오를 실행하고 결과를 알려 주세요.')
-    expect(text).toContain('- 정상 로그인 (id a-01) — 시나리오 `.litecode/plugins/ui-test/scenarios/a-01.md` · 코드 `.litecode/plugins/ui-test/scenarios/a-01.spec.mjs`')
-    expect(text).toContain('- 코드 없는 것 (id a-02) — 코드 없음')
-    expect(text).toContain('litecode_ui-test_run')
-    expect(text).toContain('위 id(a-01)')
+      { id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true, hasHistory: false },
+      { id: 'a-03', title: '기록 있는 것', file: '.litecode/plugins/ui-test/scenarios/a-03.md', hasCode: true, hasHistory: true },
+      { id: 'a-02', title: '코드 없는 것', file: '.litecode/plugins/ui-test/scenarios/a-02.md', hasCode: false, hasHistory: false },
+    ])
+    expect(text.split('\n')[0]).toBe('/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.')
+    expect(text).toContain([
+      '- 정상 로그인 (id a-01)',
+      '  - 시나리오 `.litecode/plugins/ui-test/scenarios/a-01.md`',
+      '  - 코드 `.litecode/plugins/ui-test/scenarios/a-01.spec.mjs`',
+      '  - 수행 기록 `.litecode/plugins/ui-test/scenarios/a-01.history.md`(아직 없음)',
+    ].join('\n'))
+    expect(text).toContain('  - 수행 기록 `.litecode/plugins/ui-test/scenarios/a-03.history.md`\n')
+    expect(text).toContain('코드가 없어 실행 대상에서 뺀 것:\n- 코드 없는 것 (id a-02) — 코드 없음')
     expect(text).not.toContain('a-02.spec.mjs')
-    expect(text).toContain('오류를 추측하지 말고')
-    expect(text).toContain('`.litecode/plugins/ui-test/_prompt.md`')
-    expect(text).toContain('`.litecode/plugins/ui-test/errors.md`')
-    expect(text).toContain('날짜와 함께')
+    // 절차 · 정리 규칙 · 파일 내용은 글에 없다 — 스킬(ui-test-run)이 한다
+    expect(text.split('\n').length).toBeLessThan(15)
+    expect(text).not.toContain('다음 수행 때 지킬 것')
   })
 
   it('실행 배너 숫자와 완료 알림 글', () => {

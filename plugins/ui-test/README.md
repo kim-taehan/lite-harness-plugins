@@ -14,7 +14,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 | 수행 | 시나리오 N 개를 한 번에 실행한 일 — `runs` 한 줄 + 시나리오마다 `results` 한 줄. 결과서 · 화면 가이드는 수행 한 번의 결과 문서 |
 
 - **실행 단위**: 직접 고른 시나리오들 · 화면 그룹 · 요청 그룹 · 실패한 것만(`run { scenarios? , screen? , request? , failed? }` — 여럿이면 모두 맞는 것). 결과서는 **늘 시나리오마다 따로**(`.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html`) 낸다 — 묻지 않고 고르는 인자도 없다(시나리오가 1 개여도 같다). 옛 수행의 하나로 같이 낸 결과서(`…/<수행 id>/index.html`, 시나리오마다 절 `#s-<시나리오 id>`)는 읽기만 한다
-- **패널 [▶ 실행]**: 서버를 직접 부르지 않고 `ask`(`chat.compose`)로 새 대화를 열어, 실행할 시나리오 id · md · 생성 코드(`.spec.mjs`) 경로와 `run` 지시가 든 `/ui-test 아래 시나리오를 실행하고 결과를 알려 주세요.` 요청을 곧바로 보낸다(코드 없는 시나리오는 빼고, 하나도 없으면 안내만). 실행 · 실패 원인 확인은 AI 가 `run` 을 불러 하고, 진행 배너 · 결과는 AI 가 부른 `run` 의 소식으로 그대로 보인다
+- **패널 [▶ 실행]**: 서버를 직접 부르지 않고 `ask`(`chat.compose`)로 새 대화를 열어 짧은 요청 글을 곧바로 보낸다 — 첫 줄 `/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.`(앱이 `/ui-test-run` 으로 시작하는 글에 스킬 본문을 붙여 보낸다) + 시나리오마다 제목 · id · 시나리오 md · 생성 코드(`.spec.mjs`) · 수행 기록(`.history.md`, 없으면 `(아직 없음)`) 경로(코드 없는 시나리오는 빼고, 하나도 없으면 안내만). 파일 내용은 글에 싣지 않는다 — 절차는 스킬 `ui-test-run` 이 한다(읽기 → 지킬 것 따르기 → `run` → 문제 해결 → 수행 기록 · 지킬 것 정리 → 가이드 묻기). 처음 채팅에서 저장 뒤 "바로 실행할까요?" 에 답할 때도 같은 스킬을 쓴다. 진행 배너 · 결과는 AI 가 부른 `run` 의 소식으로 그대로 보인다
 - **비교**: 시나리오(· 데이터 표 행)마다 "마지막으로 실제 실행한"(성공 · 실패) 결과와 견준다 — 값은 `scenarios.last` · `results` 에서 읽는다(일부만 실행한 수행이 끼어도 맞고, 멈춤 · 코드 없음은 덮지 않는다)
 - **정리**: 시나리오마다 최근 20 개 결과만. 넘친 `results` · 스크린샷 · 결과가 모두 없어진 수행의 결과서를 지운다. 시나리오 파일을 사용자가 직접 지우면 reindex 가 DB 줄 · 기록 · 스크린샷 · 결과서 절을 같이 지운다
 - **삭제**(패널 전용): 시나리오 하나 · 여럿 · 화면/요청 그룹(그 태그의 시나리오 전부, 여러 화면에 걸친 것도). 파일(md · spec) · DB · 스크린샷 · 결과서(그 시나리오만 남은 수행은 통째로)까지 지운다
@@ -34,7 +34,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 | 패널 기본값(`headed` · `output`) | `storage` 칸 `prefs`(프로젝트별) | 서비스 | 플러그인을 지울 때 |
 | 시나리오 색인 `scenarios`(제목 · 종류 · 화면[] · 요청 id · 지문 · 마지막 결과 · 남은 수행 id[]) · 요청 `requests` · 수행 `runs` · 결과 `results`(단계별 상태 · 실패 이유 · 데이터 행 · 스크린샷 파일 이름[] · 본 주소[]) · 화면 `screens`(이름 · 마지막 그룹 수행) | `host.db`(프로젝트별) | 서버 | 플러그인을 지울 때(업데이트 · 재설치로는 안 지워짐). 깨져도 `reindex` 가 파일에서 시나리오 · 요청을 다시 채운다(수행 기록만 잃는다) |
 | 시나리오 `<id>.md` · 생성 코드 `<id>.spec.mjs` | `<프로젝트>/.litecode/plugins/ui-test/scenarios/` — 하위 폴더 없음, ASCII 이름 `<요청 id>-<번호>` | AI(서버는 읽기만 한다) | 패널 [삭제] · 파일을 직접 지우면 reindex 가 기록을 같이 정리. **플러그인을 지우면 `.litecode/plugins/ui-test/` 가 함께 지워진다(앱이 안내 후 삭제) — 사용자가 쓴 시나리오도 포함** |
-| 오류 기록 `errors.md` | `<프로젝트>/.litecode/plugins/ui-test/errors.md` — 확인된 오류 · 고친 것을 날짜와 함께 한두 줄 | AI(패널의 실행 요청이 먼저 읽고 실패 뒤 덧붙이게 한다 — 서버는 쓰지 않는다) | 없어도 된다. 플러그인 폴더와 함께 지워진다 |
+| 수행 기록 `<id>.history.md` | `<프로젝트>/.litecode/plugins/ui-test/scenarios/` — 시나리오 옆, 같은 이름. 맨 위 `## 다음 수행 때 지킬 것`(지침 한두 줄씩) + 실행할 때마다 한 건(`## 날짜 시각 — 통과 \| 실패 \| 중단` 아래 수행 id · (문제가 있었으면) 실패한 단계 · 오류 · 원인 · `해결(다른 방법)` · `해결(사용자 답변)` · 결과 · 정리). 모양은 `skills/ui-test-run/references/history.md` | AI(스킬 `ui-test-run` 이 먼저 읽고 지킬 것으로 시작하며, 실행이 끝나면 한 건 덧붙이고 지킬 것을 요약 · 해결된 건 없앰으로 다시 정리한다 — 서버는 쓰지 않는다) | 없어도 된다. 시나리오를 삭제하면 함께 지워지고(`remove.ts`), 훑을 때 시나리오로 세지 않는다. 플러그인을 지우면 폴더째 지워진다 |
 | 프로젝트 프롬프트 `_prompt.md` | `<프로젝트>/.litecode/plugins/ui-test/_prompt.md`(시나리오 폴더 밖) | AI | 플러그인 폴더와 함께 지워진다 |
 | 결과서 · 가이드 | `<프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html`(옛 수행은 `…/<수행 id>/index.html` 하나로 같이), 같은 폴더에 `guide.html` · [PDF 로 저장] 을 눌렀을 때 만든 `index.pdf` · `guide.pdf` | 서버 | 최근 20 개를 넘으면 서버가 지운다(수행 id · 시나리오 id 모양의 폴더만). 플러그인 폴더와 함께 지워진다. 처음 결과서를 만든 뒤 한 번 `.gitignore` 에 `.litecode/plugins/ui-test/reports/` 를 넣을지 묻는다(플러그인은 `.gitignore` 를 고치지 않는다) |
 | 스크린샷 | 앱 데이터 폴더 `projects/<프로젝트 해시>/shots/<수행 id>/` | 서버 | 정리 때 · 플러그인을 지울 때 |
@@ -44,7 +44,7 @@ id 규칙: 수행 id · 요청 id 는 `20261110T110500_01`(지역 시각 + 같�
 ## 구성
 
 - `plugin.json` — `service`(`service.mjs`, `api: 2`), 설정 칸(대상 주소 · 브라우저 Chrome/Edge · 테스트 계정 아이디 · 비밀번호(secret) · 백엔드 코드 폴더 — 옛 `testDir`(테스트 폴더) 칸은 없어졌고 저장돼 있던 값은 무시한다), `settingsPer: "project"` — "모든 프로젝트" 로 켜도 값은 프로젝트마다(설치 2 단계에 넣은 값은 그때 연 프로젝트 것), `settingsCheck: "check"`(대상 주소를 화면 없이 열어 HTTP 상태 · 제목 — 서비스가 올린 서버의 도구), 스킬, 패널. 이름에 "(베타)" — 앱에 플러그인 베타 표시가 아직 없다
-- `service/index.mjs` — 서비스 원본: 스킬 폴더를 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `panelTools`), 패널이 `service.call` 로 부르는 이름들(아래 "패널 ↔ 서비스")을 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `project.exportFile` · `chat.compose`)으로 넘기고, 실행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. `exportPdf` 는 서버의 `pdf` 도구로 PDF 를 만든 뒤 `project.exportFile` 을 부르고, 던지지 않고 값으로 돌려준다. **기록 저장소 클라이언트는 가져오지 않는다**(서버만 쓴다 — 서비스가 DB 를 읽어야 하면 서버 도구를 부른다). 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`)
+- `service/index.mjs` — 서비스 원본: 스킬 폴더 둘을 `host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })` · `({ name: 'ui-test-run', dir: 'skills/ui-test-run' })` 로 올리고, 실행기 서버를 `host.mcp.register` 로 올리고(env 의 `${storage:…}` · `${secret:password}` · `${dataDir}` · 패널 전용 도구 `panelTools`), 패널이 `service.call` 로 부르는 이름들(아래 "패널 ↔ 서비스")을 서버 도구(`mcp.call`) · 앱 기능(`project.openFile` · `project.exportFile` · `chat.compose`)으로 넘기고, 실행이 도는 동안 진행을 읽어 `service.progress` 로 밀어 보낸다. `run` 은 서버의 `run` 이 끝나기를 기다리지 않고 시작만 알린다. 실패하면 `service.runError`. `exportPdf` 는 서버의 `pdf` 도구로 PDF 를 만든 뒤 `project.exportFile` 을 부르고, 던지지 않고 값으로 돌려준다. **기록 저장소 클라이언트는 가져오지 않는다**(서버만 쓴다 — 서비스가 DB 를 읽어야 하면 서버 도구를 부른다). 비밀번호는 읽지 못한다(`host.call('secrets.get')` 은 서비스에서 `method-unknown`)
 - `build.mjs` — 서비스를 `service.mjs` 한 파일로, 서버를 `server/ui-test.mjs` 로 묶는다(`--dir` 지원). 기록 저장소 클라이언트(`sdk/litecode-db-client.mjs` — `server/db.ts` 가 가져온다)는 서버 번들에만 들어간다
 - `server/index.ts` — MCP 입구(stdio). 같은 파일이 CI 명령: `node ui-test.mjs run [<시나리오>…] [--failed] [--screen <라우트>] [--request <요청 id>] [--headed]`, 실패가 있으면 종료 코드 1. 앱 밖이면 기록 저장소가 없어 `--screen` · `--request` · `--failed` 는 `db-unavailable`
 - `server/db.ts` — `createDbClient` (`sdk/litecode-db-client.mjs` 재수출)
@@ -54,7 +54,7 @@ id 규칙: 수행 id · 요청 id 는 `20261110T110500_01`(지역 시각 + 같�
 - `server/reindex.ts` — 시나리오 폴더(바로 아래만, `_`·`.` 로 시작하는 파일 제외)의 시나리오 md 를 훑어 `scenarios` · `requests` · `screens` 이름을 파일에 맞춘다(추가 · 바뀌면 갱신 · 파일이 없어진 줄은 results 와 함께 삭제). 시나리오 폴더가 없으면 아무것도 지우지 않는다
 - `server/tag.ts` — 화면 태그: 주소 → 경로 → 라우트 패턴
 - `server/files.ts` — 앱 데이터 폴더의 스크린샷 자리 · 처음 한 번 플래그
-- `server/remove.ts` — 시나리오 파일(md · 생성 코드) 삭제. 시나리오 폴더 바로 아래가 아닌 것 · `_`·`.` 로 시작하는 이름 · md 가 아닌 것 · 실제 경로가 플러그인 폴더 밖인 것은 거절
+- `server/remove.ts` — 시나리오 파일(md · 생성 코드 · 수행 기록 `<id>.history.md`) 삭제. 시나리오 폴더 바로 아래가 아닌 것 · `_`·`.` 로 시작하는 이름 · md 가 아닌 것 · 실제 경로가 플러그인 폴더 밖인 것은 거절
 - `server/history.ts` — 지난 실행과 비교(새로 실패 · 고쳐짐 · 그대로 실패, 행 단위)
 - `server/scenario.ts` — 시나리오 읽기(머리 `request` · `requested` · `screens` · `screen-names` · `sources`), 지문(이 줄들은 지문에서 뺀다)
 - `server/steps.ts` — 생성 코드가 쓰는 단계 API(`step` · `page` · `expect` · `data` · `account` · `baseUrl`), 단계마다 스크린샷, "확인:" 단계의 주소 기록, page 호출(셀렉터 · 기다림)과 expect 를 적어 테스트 방법 재료로 돌려준다(입력 값은 적지 않는다)
@@ -63,6 +63,7 @@ id 규칙: 수행 id · 요청 id 는 `20261110T110500_01`(지역 시각 + 같�
 - `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 시나리오마다 `id="s-<id>"` 앵커
 - `server/guide.ts` — 가이드형 결과물 `guide.html` (결과서와 같은 입력)
 - `skills/ui-test/` — (서비스가 올린다 — manifest `skills` 선언은 없다) `_prompt.md` 를 먼저 읽고 따르는 흐름(소스 읽기 → 초안 → 여러 개 고르기 → `newRequest` → 저장 → 코드 → (멈춰서 보여 주기) → 실행 → 요약 → 테스트 방법). 묶음 이름 짓기 · "기존에 추가/새로" 질문은 없다. 번호로 수정 요청(합치기 · 보강 · 방향 변경 · 쪼개기 · 삭제)을 받고 저장된 것은 바꾸기 전 보여 주고 묻는다. `references/formats.md` · `references/step-api.md` · `references/prompt-format.md`
+- `skills/ui-test-run/` — (서비스가 올린다) 실행 스킬: `SKILL.md`(패널의 `/ui-test-run` 요청과 저장 뒤 "바로 실행할까요?" 승인에서 질문 없이 바로 — 읽기 → 지킬 것 따르기 → `run` → 문제 해결(재현 → 다른 방법 → 사용자에게 한 번에 한 가지씩) → 수행 기록 · 지킬 것 정리 → 요약 · 가이드 묻기) · `references/history.md`(`<id>.history.md` 의 지킬 것 절 + 수행 한 건의 모양 · 정리 규칙). 만들기 · 저장 · 보강은 `skills/ui-test/` 가 한다
 - `index.html` — 패널(승인된 시안 `uitest-tags-v2`). 머리(제목 · 프로젝트 · 시나리오 N개 · 톱니 [환경]) · 탭 전체 / 화면별 / 요청별 + 검색 · 아래 막대(전체 탭에서 체크한 것: 선택 해제 · 삭제 · ▶ 실행) · 그룹 머리(결과서 · ▶ 실행 · 삭제) · 질문 줄(삭제 확인 — 실행은 묻지 않고 바로) · 실행 중 배너 · 완료 알림 · 상세(단계 · 최근 결과) · 결과서/가이드 보기 자리([PDF 로 저장]) · [환경] 팝업. 패널이 부르는 `expose` 이름: `reindex` `list` `progress` `run` `stop` `detail` `delete` `shot` `guide` `exportPdf` `openFile` `ask` `prefs`(앱 통로는 `service.call` 외에 `events.subscribe` · `settings.open` 뿐). 서비스가 밀어 보내는 소식: `service.progress`(수행 진행) · `service.runError`(시작 · 진행 실패). 열 때 `reindex` → `list`(`cursor` 로 끝까지) → `progress`, 삭제 · 실행이 끝난 뒤에는 `list` 만 다시 읽는다. 순수 로직은 `// <pure>` 구간으로 나뉘어 `tests/panel.test.ts` 가 시험한다. 시안에 없어서 더한 것(최소한): 환경 팝업(톱니) · 상세의 [변경 요청] [보강] [AI 에게 맡기기](실패일 때) 글자 단추 · 코드 없음 · 낡음 · 바뀜 안내 · 실행 배너를 상세에도 · 최근 결과 5줄이 넘으면 [더 보기] · 태그 없는 시나리오의 끝 그룹(화면 미정 · 요청 없음)
 
 ### 패널 ↔ 서비스

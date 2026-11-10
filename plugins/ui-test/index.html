@@ -285,19 +285,21 @@ function showGroups(groups, query, screens, requests) {
 
 /** 삭제 확인 글에 쓰는 "다른 화면에도 걸친" 개수 */
 const sharedCount = (rows) => rows.filter((row) => row.screens.length > 1).length
-/** 실행 요청 글 — [▶ 실행] 이 새 대화에 곧바로 보낸다. 시나리오 md 와 생성 코드(.spec.mjs) 경로를 같이 적고, 코드 없는 것은 실행 대상에서 뺀다 */
-function runPrompt(rows, dir) {
+/** 실행 요청 글 — [▶ 실행] 이 새 대화에 곧바로 보낸다. 첫 줄이 `/ui-test-run` 이라서 앱이 스킬 본문(절차)을 붙여 보낸다 — 여기에는 시나리오마다 제목 · id · 경로 세 개만 적는다(md · 생성 코드 · 수행 기록). 코드 없는 것은 실행 대상에서 뺀다 */
+function runPrompt(rows) {
   const ready = rows.filter((row) => row.hasCode)
   const lacking = rows.filter((row) => !row.hasCode)
-  const line = (row) => `- ${row.title} (id ${row.id}) — 시나리오 \`${row.file}\` · 코드 \`${row.file.replace(/\.md$/, '.spec.mjs')}\``
+  const block = (row) => [
+    `- ${row.title} (id ${row.id})`,
+    `  - 시나리오 \`${row.file}\``,
+    `  - 코드 \`${row.file.replace(/\.md$/, '.spec.mjs')}\``,
+    `  - 수행 기록 \`${row.file.replace(/\.md$/, '.history.md')}\`${row.hasHistory ? '' : '(아직 없음)'}`,
+  ].join('\n')
   return [
-    '/ui-test 아래 시나리오를 실행하고 결과를 알려 주세요.',
+    '/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.',
     '',
-    ...ready.map(line),
+    ...ready.map(block),
     ...(lacking.length ? ['', '코드가 없어 실행 대상에서 뺀 것:', ...lacking.map((row) => `- ${row.title} (id ${row.id}) — 코드 없음`)] : []),
-    '',
-    `먼저 \`${dir}/_prompt.md\` 와 오류 기록 \`${dir}/errors.md\` 를 읽으세요(없으면 건너뜁니다). errors.md 에는 지난 실행에서 확인된 오류와 고친 것이 있습니다.`,
-    `\`litecode_ui-test_run\` 을 scenarios 로 위 id(${ready.map((row) => row.id).join(', ')}) 에 대해 선택 질문 없이 바로 부르세요. 결과서는 시나리오마다 따로 나옵니다. 실패하면 오류를 추측하지 말고 결과서 · 스크린샷 · 오류 글을 읽고 직접 재현해 확인한 뒤 원인을 말하세요. 확인된 원인 · 고친 것은 날짜와 함께 \`${dir}/errors.md\` 에 한두 줄 덧붙이세요(추측은 적지 않습니다). 끝나면 가이드를 만들지 한 번 물어 주세요.`,
   ].join('\n')
 }
 
@@ -574,7 +576,7 @@ async function askRun(rows) {
   state.picked.clear()
   state.dock = ''
   state.asking = undefined
-  await ask(runPrompt(rows, state.data.scenarioDir.replace(/\/scenarios$/, '')))
+  await ask(runPrompt(rows))
   render()
 }
 async function ask(text, send = true) {
@@ -588,12 +590,12 @@ async function ask(text, send = true) {
 function fixPrompt(row, detail) {
   const fail = detail?.results?.find((item) => item.failure)?.failure ?? {}
   return [
-    `UI 테스트 시나리오 ${row.id} "${row.title}"(${row.file}) 이 지난 실행에서 실패했습니다.`,
+    `/ui-test-run UI 테스트 시나리오 ${row.id} "${row.title}"(${row.file}) 이 지난 실행에서 실패했습니다.`,
     fail.row && `- 행: ${fail.row}`,
     fail.step && `- 실패 단계: ${fail.step}`,
     fail.error && `- 오류: ${fail.error}`,
     fail.kind && `- 갈래(어림): ${fail.kind}`,
-    `ui-test 스킬로 원인을 가려 주세요. 낡은 테스트(셀렉터 · 기다림 · 코드 오류)면 시나리오(${row.file})의 ## 테스트 방법을 먼저 읽고 .spec.mjs 를 고쳐 그 시나리오만 다시 실행해 주세요. 앱 결함으로 보이면 코드를 고치지 말고 근거(단계 · 오류 · 결과서 스크린샷)와 함께 보고해 주세요. 시나리오 md 는 제 확인 없이 고치지 마세요.`,
+    `ui-test-run 스킬의 순서대로 원인을 가려 주세요. 낡은 테스트(셀렉터 · 기다림 · 코드 오류)면 시나리오(${row.file})의 ## 테스트 방법을 먼저 읽고 .spec.mjs 를 고쳐 그 시나리오만 다시 실행해 주세요. 앱 결함으로 보이면 코드를 고치지 말고 근거(단계 · 오류 · 결과서 스크린샷)와 함께 보고해 주세요. 시나리오 md 는 제 확인 없이 고치지 마세요.`,
   ].filter(Boolean).join('\n')
 }
 const enrichPrompt = (row) => [

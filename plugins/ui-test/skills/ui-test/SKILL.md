@@ -1,17 +1,17 @@
 ---
 name: ui-test
-description: Build, run, maintain and enrich automated UI tests for a web screen with the ui-test MCP tools (list, run, report, guide, fingerprint, newRequest). Use when the user asks to set up, write, generate or automate tests for a screen or page ("가입설계 화면 테스트 구성해 줘", "aa.html 테스트 자동화해 줘"), to run saved scenarios again ("어제 가입설계 테스트 다시 실행해 줘", "실패한 것만 다시"), to fix a failing test, to enrich scenarios ("가입설계 시나리오 보강해 줘"), or asks for previous test results or reports.
+description: Create and maintain UI test scenarios for a web screen with the ui-test MCP tools — read the screen (and its server code), draft scenarios, save the ones the user picks together with generated Playwright code (`.spec.mjs`), enrich or change saved scenarios, and refresh stale or changed code. Use for "가입설계 화면 테스트 구성해 줘", "aa.html 테스트 자동화해 줘", "시나리오 보강해 줘", "3 번 시나리오 이렇게 바꿔 줘", "set up / write / automate UI tests for this page", the panel's [보강] and [변경 요청], or "프롬프트 다시 만들어 줘". Do NOT use it to run scenarios, fix a failing run or read earlier results — that is the `ui-test-run` skill (this skill hands the run over to it).
 ---
 
 # UI tests (beta)
 
-You turn a screen into **scenarios** the user picked, generate one test file per scenario, run them in the PC's own Chrome/Edge through the `ui-test` MCP tools, report the results, and keep the scenarios healthy (stale code, changed source code, failures, enrichment). The **scenario is the only unit** — there are no suites or folders to name. Scenarios are the source of truth; generated code is derived from them. Screens and requests are only **tags** the scenarios carry (see Where things live).
+You turn a screen into **scenarios** the user picked, generate one test file per scenario, and keep the scenarios healthy (stale code, changed source code, enrichment, change requests). Running them in the PC's own Chrome/Edge, solving failures and the run history are the **`ui-test-run`** skill. The **scenario is the only unit** — there are no suites or folders to name. Scenarios are the source of truth; generated code is derived from them. Screens and requests are only **tags** the scenarios carry (see Where things live).
 
 Answer only in the user's language (Korean for a Korean request). File names, code and selectors stay as they are.
 
 ## First: the tools must be there
 
-In this conversation the plugin's tools are named **`litecode_ui-test_list`**, **`litecode_ui-test_run`**, **`litecode_ui-test_report`**, **`litecode_ui-test_guide`**, **`litecode_ui-test_fingerprint`** and **`litecode_ui-test_newRequest`** (below: `list`, `run`, `report`, `guide`, `fingerprint`, `newRequest`). Deleting, the progress display and the other panel tools are not yours.
+In this conversation the plugin's tools are named **`litecode_ui-test_list`**, **`litecode_ui-test_newRequest`** and **`litecode_ui-test_fingerprint`** (used here; below: `list`, `newRequest`, `fingerprint`) and **`litecode_ui-test_run`**, **`litecode_ui-test_report`**, **`litecode_ui-test_guide`** (used by `ui-test-run`). Deleting, the progress display and the other panel tools are not yours.
 
 **If these tools are not available to you, stop immediately** and tell the user exactly this, then do nothing else:
 "UI 테스트 도구가 이 대화에 붙지 않았습니다 — 설정 › 기능 › 플러그인에서 UI 테스트가 이 프로젝트에 켜져 있는지 확인해 주세요."
@@ -40,6 +40,7 @@ Call `list` first. Its first line tells you the **scenario folder** (always `.li
 ```
 <scenario folder>/<request id>-01.md          scenario (+ ## 데이터, ## 테스트 방법)
 <scenario folder>/<request id>-01.spec.mjs    generated code, same stem, right next to its scenario
+<scenario folder>/<request id>-01.history.md   run history — written by the `ui-test-run` skill, not by you here; deleting the scenario in the panel deletes it too
 ```
 
 New scenarios go **directly in the scenario folder**, with an ASCII name `<request id>-<number>` (the id comes from `newRequest`, numbers start at 01); the title lives inside the file (`name:`). No sub-folders. Write these with your normal file tools. Deleting or renaming a scenario file by hand is fine too: the next `list`/`run` fixes the records. Never write passwords anywhere — the account password lives in the plugin settings and reaches the code as `account.password` at run time. If the target address is "(설정 안 됨)", ask the user to fill it in (설정 › 기능 › 플러그인 › UI 테스트 › [고치기], values are per project).
@@ -65,19 +66,12 @@ The panel groups scenarios by these tags, so a second request for the same scree
    - **sources**: call `fingerprint { files: [<the screen and server files you read — project-relative, or absolute for files in a back-end code folder>] }` and put the returned `sources: [...]` line into each scenario's front matter (the files that scenario depends on).
    - **screens**: add `screens: [<route pattern of the screen under test>]` (and `screen-names:` when the screen has a natural name) to each head — a first guess; the run replaces it with what the `확인:` steps actually saw.
 5. **Generate code**: one `<same stem>.spec.mjs` per scenario, following `references/step-api.md` — one `step()` per numbered scenario line, title copied exactly ("1. 로그인한다"), header comment with source file and the **fingerprint `list` shows for that scenario** (call `list` again after saving the md).
-6. **Stop here — do not run yet.** New scenarios are never run in the same turn they were written. Say in a short summary what was saved (scenario count, code written) and ask once: "바로 실행할까요? 고칠 시나리오가 있으면 번호와 함께 말씀해 주세요" — run only after the user says yes (or asks to run later from the panel's [실행]). If the answer is a change ("3 번에 70세 경계값 추가", "2, 4 합쳐 줘"), handle it as in **Change requests** on the saved files (md first, then regenerate the `.spec.mjs` and refresh the fingerprint), show what changed, and ask again — still without running. Skip this stop only when the user's request already said to run ("만들어서 바로 실행해 줘").
-7. **Run**: choose what to run with `run { … }` — all that match are run: `scenarios: ["<id or title>", …]` (ids from `list`), `screen: "/admin/menu"` (route or screen name — the whole screen group), `request: "<request id>"` (the group of one chat request), `failed: true` (only those whose last real run failed); no selector = every scenario; combined selectors must all match. Reports are **always written per scenario** (there is no `report` argument; never ask how to combine them). The browser runs hidden by default (화면 없이); the panel shows progress. Only when the user wants to watch the window ("보면서 실행해 줘") pass `headed: true`.
-   - `run` waits up to 2 minutes. If it is not done it answers "아직 실행 중 … 수행 id …" — then call `report { run: "<id>" }` until it answers "실행 끝" (each call waits up to 2 minutes). Don't start another run meanwhile.
-   - Every run is recorded (a **수행**) per scenario. The result text says "기록은 남기지 않았습니다(앱 밖 실행)" when the record store is not available — then nothing is compared or listed; tell the user.
-   - **A request that starts with `/ui-test 아래 시나리오를 실행…` comes from the panel's [▶ 실행]**: it lists the scenario ids and files. Call `run { scenarios: [<those ids>] }` right away — no selection question, no drafting.
-   - **Read `errors.md` first.** The panel's request names `<plugin folder>/errors.md` (the log of errors confirmed in earlier runs, with what fixed them) and `_prompt.md`: read both before running (skip a missing file). After a failure, append only **confirmed** causes and fixes to `errors.md`, one or two lines with the date — never a guess.
-   - **When a scenario fails, don't guess the cause.** Read the report, the screenshots and the error text, reproduce it yourself, and say the cause only after you confirmed it. Never blame a security product or the network unless you actually verified it.
-8. **Summarize** from the tool result: counts, comparison line, each failure with the failed step, error and its 갈래, and the report path. Offer next steps in one short line: 결과서 열기 (give the path; the panel's UI 테스트 tab has the 결과서 links) · 가이드 만들기 · 실패만 다시 · 고치기 · 보강.
-   - **The final result of a run comes in two forms**: the 결과서 (table of pass/fail, always written) and the **가이드** — the same run walked through in the order of use, step by step with its screenshot, failed steps in red with the cause, nothing left out. Don't write the guide yourself: call `guide { run }` (the run id from `run`/`report`) and give the returned path(s). Offer it in one line after the summary ("가이드로도 만들까요?") or when the user asks for a guide / user manual form of the result. If the panel's 환경 setting is "결과서 + 가이드" the panel creates it after each run itself — then don't call `guide` again unless asked.
-   - "확인(DB):" steps come back as "대화에서만 확인": check each with the DB tool now if one is enabled and report the result; if not, ask the user to check.
-   - If the result says the report folder is not in `.gitignore`, ask the user whether to add it. Edit `.gitignore` only if they say yes.
-   - The result shows "본 화면" per `확인:` step — those become the scenario's screen tags. If a tag looks wrong (a pass-through screen got tagged), tell the user which `확인:` line caused it.
-9. **Write `## 테스트 방법`** for every scenario that passed and has none yet (or whose way of testing changed in this round) — from the per-step "쓴 것" (selectors/waits/checks) and durations in the run result. Format in formats.md. No passwords; mask personal-looking data.
+6. **Stop here — do not run yet.** New scenarios are never run in the same turn they were written. Say in a short summary what was saved (scenario count, code written) and ask once: "바로 실행할까요? 고칠 시나리오가 있으면 번호와 함께 말씀해 주세요".
+   - **Yes** → step 7. **Run later from the panel's [▶ 실행]** → stop here.
+   - **A change** ("3 번에 70세 경계값 추가", "2, 4 합쳐 줘") → handle it as in **Change requests** on the saved files (md first, then regenerate the `.spec.mjs` and refresh the fingerprint), show what changed, and ask again — still without running.
+   - **Skip this stop** only when the user's request already said to run ("만들어서 바로 실행해 줘").
+7. **Run:** load the **`ui-test-run`** skill with the skill tool and follow it (see **Running** below).
+8. **Write `## 테스트 방법`** for every scenario that passed its first run and has none yet (or whose way of testing changed in this round) — from the per-step "쓴 것" (selectors/waits/checks) and durations in the run result. Format in `references/formats.md`. No passwords; mask personal-looking data.
 
 ## Keeping it healthy
 
@@ -86,29 +80,6 @@ The panel groups scenarios by these tags, so a second request for the same scree
   - **Steps, "확인:" lines, columns the code uses, or the head changed**: regenerate the `.spec.mjs` keeping the selectors/waits that still fit, and write the new fingerprint into the header.
   Never run stale code and trust the result without one of the two.
 - **코드 바뀜**: a file in the scenario's `sources:` changed (or is gone). Read the changed file(s) (and `git diff` of them if available), then propose concrete updates to the scenario — expected messages, error codes, new required fields, flow — as an enrichment (below, kind 코드 바뀜). When the user accepted (or there is nothing to change), refresh the `sources:` line with `fingerprint` so the mark goes away. Refreshing `sources:` alone does not make the code stale.
-
-## When a case fails
-
-Each failure carries a **갈래** (rough guess from the error): 셀렉터 못 찾음 · 기다림 시간 초과 · 확인 값 다름 · 이동 오류 · 코드 오류. The result also prints a hint per 갈래. Look at the error and the screenshot in the report, then decide and say which it is:
-- **The test is stale** (usually 셀렉터 못 찾음 · 기다림 시간 초과 · 코드 오류 — a renamed button, a changed URL, a typo in the spec): read `## 테스트 방법` and `## 시행착오` first (don't repeat an approach that already failed), fix the `.spec.mjs`, and run that scenario again (`scenarios: ["<id>"]`) — **do this on your own, without asking the user** (self-repair): at most **2 fix-and-rerun tries per case per round**. If it passes, keep the fix, tell the user in one line what you changed, and keep going. If it still fails after the second try, stop and report (it may be an app defect or a data problem, see below). Never self-repair a failure that looks like the app (확인 값 다름 on a 확인 line) or the data. Keep the scenario's steps, data and "확인:" lines as they are. Once the case passes, add one `## 시행착오` bullet (symptom → cause → fix, tagged with the step; format and size rules in formats.md) when the lesson will help next time — no bullet for a typo or a one-off error.
-- **The app is probably wrong** (usually 확인 값 다름 — the element is there but the value or message differs from the scenario): do not change the test. Report it as a probable app defect with the evidence (step, data row, error, screenshot in the report). If the source code changed on purpose (코드 바뀜), propose a scenario change instead.
-- **The data is probably the cause** (the record the case uses is expired, closed, gone or no longer qualifies — typically 확인 값 다름 / 기다림 시간 초과 right after a lookup, or a screen message like 만료 · 종료 · 조회 결과 없음): check this **before** calling it an app defect — follow **Data problems** below.
-- **Environment** (이동 오류): the target server is down or the address is wrong — tell the user.
-- Never change a scenario's steps or "확인:" lines without the user's OK — propose the change and ask. The same for data, except replacing an unusable **input value** as described in Data problems.
-- After a failure that revealed an untested case, offer: "이 경우도 시나리오로 남길까요?" (→ enrichment).
-
-The panel's [AI 에게 맡기기] opens a new conversation with the failed case, step, error and 갈래 — handle it with this section.
-
-## Data problems (데이터 막힘)
-
-When a case is blocked because its test data no longer works (an expired policy number, a closed contract, a record that was deleted), find a usable replacement instead of reporting an app defect. The conditions come from the **back-end code**, never from a guess.
-
-1. **Confirm it is the data.** If a DB query tool is enabled in this conversation, read the record the case uses (the key is in `## 데이터` or the "입력 데이터" line of `## 테스트 방법`) — **SELECT only** — and compare its state with what the code requires. No DB tool → say so in one line and go to step 5 (ask the user for another value).
-2. **Derive the conditions from the code.** Find the code that decides a record is usable for this screen (use `_prompt.md` "서버 규칙 찾는 법": validators, services, mappers): status codes, expiry or date comparisons, product/channel limits, one-time-use limits. Take table and column names from the entity or mapper SQL in the code. If the rule lives outside the code (procedures, views, batch-updated flags) or you cannot find it, **don't guess** — say what you could not confirm and go to step 5.
-3. **Query for candidates**, read-only, a few rows, only the key and the columns you need. Test or development database only — if the connection looks like production, stop and ask the user. Prefer records the code or `_prompt.md` marks as test data; if a record could be used by other people or tests, ask instead of taking it.
-4. **Replace when it is clear.** If there is exactly one fitting candidate and the case **passes when re-run** with it (`run { scenarios: ["<id>"] }`), replace the input value in `## 데이터` (or the step text), refresh the code header's fingerprint with the one `list` shows if only the data changed, and tell the user in one line afterwards what changed (masked). Replace only the input value — never the steps, the "확인:" lines, or an expected column unless the new record changes the expected result, and then say so. At most **two replacement tries per case per round**; if it still fails with fresh data, treat it as a real failure (test or app) and report.
-5. **Ask when it is not clear** — several candidates, conditions you could not confirm, no DB tool, or no candidate. One question with the question tool: the candidates (masked) as options, plus "직접 입력" (the user types a value) and "이 시나리오 건너뛰기". Apply the choice and re-run that scenario. A value the user types always wins.
-6. **Record it** so the next time is faster: in `## 테스트 방법` write the 입력 데이터 line with the **conditions**, their **source** (file and line) and the **SELECT** you used (no personal data; mask keys like 900101-1******); add that code file to `sources:` (get the line from `fingerprint { files }`) so a later change of the rule shows as 코드 바뀜 and the conditions are derived again; add a `## 시행착오` bullet (`증권번호 P123 만료 → P456 · 조건: …`). Next time the same data is blocked, start from those recorded conditions and re-check them against the code only if the file shows 코드 바뀜.
 
 ## Change requests (수정 요청)
 
@@ -142,12 +113,12 @@ Triggered by "…시나리오 보강해 줘", the panel's [보강] on a scenario
 4. Apply **only the picked ones**: changes to existing scenarios go into their md files in place; each new scenario is a new file named with a fresh `newRequest` id (request text: the user's enrichment request) and gets `screens:` like any new scenario. Refresh `sources:` with `fingerprint` where you handled a 코드 바뀜.
 5. Every changed scenario is now 코드 낡음 — regenerate its code (see "Keeping it healthy") before the next run, and offer to run it.
 
-## Running saved scenarios again
+## Running
 
-"어제 가입설계 테스트 다시 실행해 줘" → `list`, find the scenarios (by title or by the screen/request group; ask if several groups match), then `run { screen }` / `run { request }` / `run { scenarios }`. "실패만" → `failed: true` (alone for every failed scenario, or with `screen`). One scenario → `scenarios: ["<id>"]`. "보면서" → `headed: true` (the default is 화면 없이).
-If `list` shows 코드 낡음 for any scenario you are about to run, regenerate it first.
-Before you regenerate or fix any spec, **read the scenario's `## 테스트 방법` and `## 시행착오` first** and keep the code consistent with it — same selectors, waits and data — unless they are what fails. If a fix changes how the scenario is tested, update 테스트 방법 after it passes.
-Always report the comparison with the last real run of each scenario (새로 실패 · 고쳐짐 · 그대로 실패 — data-table scenarios compare per row, "<id> 2행") — it is the point of a re-run. For older results use `report { run: "<id>" }`, or `report { scenario: "<id>" }` for the last run of one scenario.
+- **When**: right after saving new scenarios, ask once (step 6). When the user asks to run — the panel's [▶ 실행] request (`/ui-test-run …`), "어제 가입설계 테스트 다시 실행해 줘", "실패한 것만 다시" — run **without asking**.
+- **How**: load the **`ui-test-run`** skill with the skill tool and follow it — don't call `litecode_ui-test_run` first. It holds the steps, solving failures, the per-scenario run history (`<id>.history.md`), the summary and the 가이드; none of that is repeated here.
+- **The `litecode_ui-test_run` tool in short**: `scenarios: ["<id>", …]` (also `screen`, `request`, `failed: true`), `headed: true` only to watch; reports are always written per scenario; the result is read with `litecode_ui-test_report { run }`.
+- **After a result**: a failure → `ui-test-run`'s problem solving. 코드 낡음 or 코드 바뀜 → regenerate or enrich here ("Keeping it healthy", "Enrichment").
 
 ## Rules for the code
 

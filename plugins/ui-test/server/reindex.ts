@@ -6,6 +6,7 @@
 
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { HISTORY_SUFFIX } from './remove.ts'
 import { parseScenario } from './scenario.ts'
 import { requestIdFor, scenarioIdForFile, type Dropped, type RequestDoc, type Store } from './store.ts'
 import type { Scenario } from './types.ts'
@@ -27,7 +28,7 @@ export interface Found {
 
 async function markdownIn(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
-  return entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md') && !/^[_.]/.test(entry.name)).map((entry) => entry.name).sort()
+  return entries.filter((entry) => entry.isFile() && entry.name.endsWith('.md') && !entry.name.endsWith(HISTORY_SUFFIX) && !/^[_.]/.test(entry.name)).map((entry) => entry.name).sort()
 }
 
 const posix = (project: string, abs: string): string => path.relative(project, abs).split(path.sep).join('/')

@@ -12,6 +12,7 @@ import type { Driver } from './driver.ts'
 import { FAIL_HINT, FAIL_LABEL } from './failure.ts'
 import { compareLine, unitLabel } from './history.ts'
 import { seconds, when } from './report.ts'
+import { historyOf } from './remove.ts'
 import { caseOf, selectorEmpty, type Progress, type RunOutcome, type ScenarioInfo, type Selector, type Workspace } from './runner.ts'
 import { StoreError, timeId, type ResultDoc } from './store.ts'
 import type { CaseResult, RunRecord, StepResult } from './types.ts'
@@ -223,6 +224,7 @@ export function createTools(deps: ToolDeps): Tool[] {
             lastAt: item.doc?.last?.at ?? null,
             lastRun: item.doc?.last?.run ?? null,
             hasCode: item.hasCode,
+            hasHistory: existsSync(historyOf(item.file)),
             stale: item.stale,
             changed: item.changed,
             steps: item.scenario.steps.length,

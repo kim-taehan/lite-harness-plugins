@@ -2,11 +2,11 @@
 // 서비스는 서버(MCP)를 host.mcp.register 로 올리고 도구를 mcp.call 로 부르는 껍데기라 서버 쪽 동작은 workspace.test.ts 가 본다. 여기서는 중계 · 진행 밀어 보내기 · 감시 정리를 본다.
 // 서비스 번들은 기록 저장소(host.db) 클라이언트를 가져오지 않는다 — 서버만 쓴다.
 // 앱이 서비스를 올리고 패널이 service.call · service.progress 로 주고받는 것, 진짜 서버를 띄우는 것은 앱에서 확인한다(여기서 못 본다).
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { build } from 'esbuild'
-import { PANEL_TOOLS } from '../server/tools.ts'
+import { PANEL_TOOLS, TOOL_NAMES } from '../server/tools.ts'
 import { createFakeHost } from '../../../sdk/litecode-service-testing.mjs'
 
 const here = path.resolve(import.meta.dirname, '..')
@@ -63,10 +63,13 @@ describe('service', () => {
 
   it('스킬 폴더를 올린다 — 이름은 SKILL.md 의 name 과 같고 manifest 에는 skills 선언이 없다', () => {
     const { fake } = start({})
-    expect(fake.skills()).toEqual([{ name: 'ui-test', dir: 'skills/ui-test' }])
+    expect(fake.skills()).toEqual([{ name: 'ui-test', dir: 'skills/ui-test' }, { name: 'ui-test-run', dir: 'skills/ui-test-run' }])
     const skill = readFileSync(path.join(here, 'skills/ui-test/SKILL.md'), 'utf8')
     expect(/^name:\s*ui-test\s*$/m.test(skill)).toBe(true)
     expect(existsSync(path.join(here, 'skills/ui-test/references'))).toBe(true)
+    const run = readFileSync(path.join(here, 'skills/ui-test-run/SKILL.md'), 'utf8')
+    expect(/^name:\s*ui-test-run\s*$/m.test(run)).toBe(true)
+    expect(existsSync(path.join(here, 'skills/ui-test-run/references/history.md'))).toBe(true)
     const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')) as Record<string, unknown>
     expect(manifest.skills).toBeUndefined()
     // 서버(mcp) · 스킬을 서비스가 올리므로 manifest 에 tools · mcp · lsp 선언과 권한이 없다. 비밀번호는 secret 설정 칸 + 서버 env 라 secrets 권한도 필요 없다
@@ -228,8 +231,66 @@ describe('service', () => {
     const all = ['list', 'run', 'report', 'guide', 'fingerprint', 'newRequest']
     for (const name of all) expect(skill, name).toContain(`litecode_ui-test_${name}`)
     for (const name of PANEL_TOOLS) expect(skill, name).not.toContain(`litecode_ui-test_${name}`)
-    const text = [skill, ...['formats.md', 'prompt-format.md', 'step-api.md'].map((file) => readFileSync(path.join(here, 'skills/ui-test/references', file), 'utf8'))].join('\n')
+    const run = readFileSync(path.join(here, 'skills/ui-test-run/SKILL.md'), 'utf8')
+    for (const name of ['list', 'run', 'report', 'guide']) expect(run, name).toContain(`litecode_ui-test_${name}`)
+    for (const name of PANEL_TOOLS) expect(run, name).not.toContain(`litecode_ui-test_${name}`)
+    const text = [skill, run, ...['formats.md', 'prompt-format.md', 'step-api.md'].map((file) => readFileSync(path.join(here, 'skills/ui-test/references', file), 'utf8')), readFileSync(path.join(here, 'skills/ui-test-run/references/history.md'), 'utf8')].join('\n')
     expect(text).not.toMatch(/suite\.md|묶음|돌려 줘|돌릴까요|\bsuite\b/)
+  })
+
+  it('실행 스킬을 따로 둔다 — ui-test 는 만들기 · 보강, 실행은 ui-test-run 으로 넘기고, ui-test-run 에 절차 · 수행 기록 규칙이 있다', () => {
+    const skill = readFileSync(path.join(here, 'skills/ui-test/SKILL.md'), 'utf8')
+    const run = readFileSync(path.join(here, 'skills/ui-test-run/SKILL.md'), 'utf8')
+    // 실행: ui-test 는 언제 · 어떻게 넘기는지만, 절차는 ui-test-run 에만
+    for (const phrase of ['## Running', '**without asking**', 'load the **`ui-test-run`** skill', 'don\'t call `litecode_ui-test_run` first']) expect(skill, phrase).toContain(phrase)
+    expect(skill).not.toContain('Reproduce it yourself')
+    expect(skill).not.toContain('## Data problems')
+    for (const phrase of ['Go straight through, ask nothing', '/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.', '다음 수행 때 지킬 것', 'Reproduce it yourself', 'Solve it another way', 'ask the user with the question tool, one thing at a time', 'The user does not answer', '해결(다른 방법)', '해결(사용자 답변)', '가이드로도 만들까요?', 'always written per scenario', 'references/failures.md', 'references/history.md']) expect(run, phrase).toContain(phrase)
+    const history = readFileSync(path.join(here, 'skills/ui-test-run/references/history.md'), 'utf8')
+    for (const phrase of ['## 다음 수행 때 지킬 것', 'Summarize', 'Remove what no longer matters', '- 정리:', 'about **1500 characters**', '- 해결(다른 방법):', '- 해결(사용자 답변):']) expect(history, phrase).toContain(phrase)
+    const failures = readFileSync(path.join(here, 'skills/ui-test-run/references/failures.md'), 'utf8')
+    for (const phrase of ['at most 2 fix-and-rerun tries', 'The app is probably wrong', '데이터 막힘', 'SELECT only', 'The environment']) expect(failures, phrase).toContain(phrase)
+  })
+
+  it('스킬 머리(frontmatter) — name 은 폴더 이름, description 은 한 줄·트리거 문구·"Do NOT use" 가 있고, 두 스킬이 서로를 정확한 이름으로 가리킨다', () => {
+    const read = (name: string) => readFileSync(path.join(here, 'skills', name, 'SKILL.md'), 'utf8')
+    const head = (text: string) => {
+      const match = /^---\nname: (.+)\ndescription: (.+)\n---\n/.exec(text)
+      expect(match, '머리는 --- name · description ---').not.toBeNull()
+      return { name: match![1]!, description: match![2]! }
+    }
+    const make = head(read('ui-test'))
+    const run = head(read('ui-test-run'))
+    expect(make.name).toBe('ui-test')
+    expect(run.name).toBe('ui-test-run')
+    for (const { description } of [make, run]) {
+      expect(description.length).toBeGreaterThan(200)
+      expect(description).toContain('Use ')
+      expect(description).toContain('Do NOT use')
+      expect(description).toMatch(/[가-힣]/) // 한국어 트리거 문구
+    }
+    expect(make.description).toContain('that is the `ui-test-run` skill')
+    expect(run.description).toContain('that is the `ui-test` skill')
+    expect(run.description).toContain('/ui-test-run') // 패널 요청이 이 이름으로 시작한다
+    expect(make.description).not.toContain('/ui-test-run')
+    expect(read('ui-test')).toContain('`ui-test-run`')
+    expect(read('ui-test-run')).toContain('`ui-test` skill')
+  })
+
+  it('스킬이 부르는 도구 이름은 모두 TOOL_NAMES 에 있고 패널 전용이 아니며, 적어 둔 references 파일이 있다', () => {
+    const dirs = ['ui-test', 'ui-test-run']
+    const files = dirs.flatMap((dir) => [path.join('skills', dir, 'SKILL.md'), ...readdirSync(path.join(here, 'skills', dir, 'references')).map((name) => path.join('skills', dir, 'references', name))])
+    for (const file of files) {
+      const text = readFileSync(path.join(here, file), 'utf8')
+      for (const match of text.matchAll(/litecode_ui-test_([A-Za-z]+)/g)) {
+        expect(TOOL_NAMES, `${file}: ${match[0]}`).toContain(match[1])
+        expect(PANEL_TOOLS, `${file}: ${match[0]}`).not.toContain(match[1])
+      }
+    }
+    for (const dir of dirs) {
+      const text = readFileSync(path.join(here, 'skills', dir, 'SKILL.md'), 'utf8')
+      for (const match of text.matchAll(/references\/([A-Za-z-]+\.md)/g)) expect(existsSync(path.join(here, 'skills', dir, 'references', match[1]!)), `${dir}: ${match[0]}`).toBe(true)
+    }
   })
 
   it('서비스 번들은 기록 저장소 클라이언트(서버 전용)를 가져오지 않는다', () => {
