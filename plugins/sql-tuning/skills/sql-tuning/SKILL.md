@@ -128,6 +128,7 @@ When a tuning is finished, call `report` once **on your own, without asking** (t
 - Skip it only if the user said not to make reports ("결과서 만들지 마"); remember that for the rest of the conversation.
 
 - Fill it only with values you got from tool output: `compare` (every bind set you ran, with rows, checksum and ms exactly as printed), `explain` (plan lines, costs, the full plan texts), `impact_check` (the index impact). Pass the original and the rewritten SQL as they were tuned; the server builds the diff.
+- Fill `overview` from your own answer, for a reader who was not in the conversation: `summary` (what was asked, why it was slow, what you changed, the result — 2-4 sentences) and `sections` that mirror your answer — Cause (put the plan lines that show it in `code`), ① SQL rewrite (works / not enough / not applicable, and why it is equivalent), ② Hint, ③ Index (proposal), ④ Other. Same facts and numbers as the tool output; no new claims; label estimates.
 - Put anything you estimated, not measured, in `estimates` with the reason. An index that does not exist cannot be measured, so `index.effect_verified` is normally `false`. Put what you could not check in `unknown`.
 - `verdict` is `ok` only when every compare set returned the same result. Otherwise use `hold` and fill `cause` honestly, including what you could not check. Never leave out a failed compare set.
 - Fill `standard` and `rules` only from the standard you actually read; if none is installed, omit both.

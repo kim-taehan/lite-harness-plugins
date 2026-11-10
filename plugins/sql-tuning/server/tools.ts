@@ -58,6 +58,27 @@ const REPORT_SCHEMA = {
     source: { type: 'object', description: 'Where the SQL came from, project-relative.', properties: { file: { type: 'string' }, line: { type: 'number' } }, required: ['file'] },
     original_sql: { type: 'string', description: 'The original SQL, exactly as tuned. The report shows it; the server builds the line diff.' },
     candidate_sql: { type: 'string', description: 'The rewritten (or hinted) SQL. Use bind variables, not literals with personal data — SQL text is shown as is.' },
+    overview: {
+      type: 'object',
+      description: 'Shown first in the report. Your own account of this tuning for a reader who was not in the conversation — the same content as your answer: a short summary, then sections such as Cause (with the plan excerpt as code), ① SQL rewrite (works / not enough / not applicable and why), ② Hint, ③ Index, ④ Other. Numbers must match the tool results below; label estimates.',
+      properties: {
+        summary: { type: 'string', description: '2-4 sentences: what was asked, why it was slow, what you changed, the result.' },
+        sections: {
+          type: 'array',
+          maxItems: 10,
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'For example "원인", "① SQL 리라이트 — 등가성 확인됨", "③ 인덱스 (제안)".' },
+              text: { type: 'string', description: 'Paragraphs separated by a blank line; `backticks` mark code inside text.' },
+              code: { type: 'string', description: 'Optional code block, for example the plan lines that show the cause.' },
+            },
+            required: ['title', 'text'],
+          },
+        },
+      },
+      required: ['summary'],
+    },
     diff_note: { type: 'string', description: 'One or two sentences: what changed and why it is the same condition.' },
     cost: { type: 'object', description: 'Estimated plan cost from explain (reference only).', properties: { before: { type: 'number' }, after: { type: 'number' } }, required: ['before', 'after'] },
     plan: { type: 'array', description: 'Key plan lines before/after from explain.', items: { type: 'object', properties: { what: { type: 'string', description: 'e.g. "how orders is read"' }, before: PLAN_SIDE, after: PLAN_SIDE, changed: { type: 'boolean', description: 'Default: true when before and after differ.' } }, required: ['what', 'before', 'after'] } },

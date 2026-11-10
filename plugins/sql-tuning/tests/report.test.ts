@@ -99,6 +99,34 @@ describe('결과서 렌더러', () => {
     expect(html).not.toContain('kim@example.com')
   })
 
+  it('개요 — 맨 앞에 요약 · 절 · 코드 블록으로 나오고, 문단 · `코드` 를 살리되 이스케이프한다', () => {
+    const html = render({
+      ...win,
+      overview: {
+        summary: '주소록 건수 조회가 OR 조건 때문에 전체 스캔이었습니다. UNION 으로 나눠 같은 결과를 확인했습니다.',
+        sections: [
+          { title: '원인', text: '최대 비용 단계는 `TABLE ACCESS FULL` 입니다.\n\n조건이 서로 다른 열을 OR 로 묶어 인덱스를 못 씁니다. <script>alert(1)</script>', code: '2. TABLE ACCESS FULL COMTNADBKMANAGE  cost=2' },
+          { title: '① SQL 리라이트 — 등가성 확인됨', text: '중복 제거가 필요해 UNION ALL 이 아니라 UNION 입니다.' },
+        ],
+      },
+    })
+    expect(html.indexOf('id="s0"')).toBeGreaterThan(0)
+    expect(html.indexOf('id="s0"')).toBeLessThan(html.indexOf('class="verdict"'))
+    expect(html).toContain('<h3>원인</h3>')
+    expect(html).toContain('<code>TABLE ACCESS FULL</code>')
+    expect(html).toContain('<p>조건이 서로 다른 열을')
+    expect(html).toContain('<pre class="raw">2. TABLE ACCESS FULL COMTNADBKMANAGE  cost=2</pre>')
+    expect(html).not.toContain('<script>alert(1)</script>')
+    expect(html).toContain('&lt;script&gt;')
+  })
+
+  it('개요가 없으면 절을 그리지 않고, 틀린 모양은 알아듣게 거절한다', () => {
+    expect(render(win)).not.toContain('id="s0"')
+    const bad = parseReport({ ...win, overview: { sections: [{ title: '원인' }] } })
+    expect(bad.ok).toBe(false)
+    if (!bad.ok) expect(bad.error).toContain('overview.summary')
+  })
+
   it('바인드 값 — 문자열은 길이만, 숫자 · 불리언 · NULL 은 그대로', () => {
     expect(maskBinds({ days: 7, email: 'kim@example.com', ok: true, n: null })).toBe('days=7 email=‹문자열 15자› ok=true n=NULL')
     expect(maskBinds([30, '홍길동'])).toBe('#1=30 #2=‹문자열 3자›')
