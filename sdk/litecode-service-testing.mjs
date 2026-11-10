@@ -1,4 +1,4 @@
-// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
+// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · serviceDb.ts · dbClient.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
 // 앱 없이 서비스 번들을 시험하는 가짜 host — 사용법은 docs/plugin-sdk/README.md. Node 도 cordis 도 쓰지 않는다.
 
 // --- shared/extensions/channel.ts
@@ -165,8 +165,9 @@ const EXTENSION_LIMITS = {
 // --- shared/extensions/serviceApi.ts
 // shared/extensions/ 의 조각 — 설치형 서비스의 호스트 API 허용 목록 (#1614, 설계 5·6장). 설치 검사 · 호스트 · 계약 테스트가 모두 이 파일 하나를 본다.
 // 같은 프로세스에서 앱과 같은 권한으로 도는 코드라 이 목록은 실수를 막는 가드레일이지 보안 경계가 아니다(보안은 출처 확인 · 기본 꺼짐 · 동의 · 해시)
-/** 이 앱이 아는 호스트 API 버전 — manifest `service.api` 는 1 이상 이 값 이하의 정수. 큰 값이면 설치를 거절한다(service-incompatible) */
-const SERVICE_API_LATEST = 1;
+/** 이 앱이 아는 호스트 API 버전 — manifest `service.api` 는 1 이상 이 값 이하의 정수. 큰 값이면 설치를 거절한다(service-incompatible).
+ *  2: host.db(문서 저장소, db.* 호출) 가 더해졌다 — 옛 앱(api 1)의 host 에는 db 가 없다 */
+const SERVICE_API_LATEST = 2;
 /** 서비스가 `inject` · `ctx.get` 으로 받을 수 있는 앱 서비스 키 (api 1) — 바탕 서비스 중 읽기용만.
  *  넣지 않는 것: 기능 묶음 서비스(꺼지면 사라진다 — 규칙 27 과 같은 이유) · settings · providers · engine · sso · account(키·토큰에 닿는다 — 규칙 15) · remote · extensions · 다른 플러그인의 ext_* */
 const SERVICE_INJECT_ALLOWLIST = ['projects', 'usage'];
@@ -195,6 +196,7 @@ function isAppOnlyServiceEvent(event) {
 }
 /** 서비스가 host.call 로 부를 수 있는 통로 메서드 — 앱의 호출 표(CALL_TABLE)와 같은 이름이고, 권한 검사도 그 표가 한다(manifest permissions).
  *  llm.ask { prompt } → { text } 는 앱의 기본 모델에 한 번 묻는다(llm 권한 필요, 위 LLM_ASK_* 제한 — 횟수·동시 수 넘으면 llm-limit).
+ *  db.get · set · delete · list · query · batch · usage 는 플러그인 하나의 문서 저장소(host.db, 권한 없이 — storage 와 같은 급, 아래 SERVICE_DB_LIMITS 한도). 서비스 전용이라 패널은 부르지 못한다(PANEL_CALL_METHODS 에 없다).
  *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
  *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · panel.open · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
  *  호출 표에 메서드가 늘면 여기에 넣을지 빼놓을지 정해야 한다 — tests/unit/arch/pluginServiceApi.test.ts */
@@ -234,6 +236,13 @@ const SERVICE_CALL_METHODS = [
     'panel.open',
     'settings.open',
     'llm.ask',
+    'db.get',
+    'db.set',
+    'db.delete',
+    'db.list',
+    'db.query',
+    'db.batch',
+    'db.usage',
 ];
 /** 호출이 통과하면 그 프로젝트의 창이 해야 끝나는 것 — 메인이 화면 동작(ExtensionUiAction)을 보내고 창의 답을 기다린다. 답이 없으면(창이 없다) no-window.
  *  new 대화 · 대화 열기 · 파일 열기는 null, chat.current · project.openTabs 는 화면이 준 값을 돌려준다 */
@@ -257,6 +266,452 @@ const LLM_ASK_MAX_PER_WINDOW = 10;
 const LLM_ASK_WINDOW_MS = 60_000;
 /** 근거: 한 번이 최대 1분 가므로 횟수 제한만으로는 임시 세션이 열 개까지 겹친다 — 둘이면 "하나 돌리며 다음 준비"에 충분하고, 사용자 대화 턴이 엔진·게이트웨이에서 밀리지 않는다 */
 const LLM_ASK_MAX_CONCURRENT = 2;
+// host.db (db.* 호출) — 서비스 하나의 문서 저장소. 새 권한 없이 storage 와 같은 급이라 자기 이름 공간만 만지고, 대신 아래 한도가 남용을 막는다. 써 보며 조정한다(베타)
+/** 근거: 256KB — plugins 가 알려 준 지금 meta.json 파일 한도와 같다. 결과서 HTML 같은 산출물은 넣지 않는 원칙(목록·조회용 작은 기록) */
+const DOC_BYTES = 256 * 1024;
+/** 근거: 200MB — storage 64KB 의 3,000배. 문서 10만 개(각 ~1KB, 약 100MB)가 한 컬렉션에 들어가고도 남는다. 플러그인 하나가 모든 프로젝트에서 쓰는 문서 바이트 합 */
+const TOTAL_BYTES = 200 * 1024 * 1024;
+const SERVICE_DB_LIMITS = {
+    /** 문서 하나(JSON 글자의 UTF-8 바이트) */
+    docBytes: DOC_BYTES,
+    /** 플러그인·프로젝트당 컬렉션 수 — 근거: 이력·요약·상태 같은 종류 몇 개면 충분하다 */
+    collections: 20,
+    /** 컬렉션당 문서 수 — 근거(동봉 Electron 실측, 문서 ~1KB·정렬 필드 색인 없음 — 정렬·조건 query 는 컬렉션을 훑는다):
+     *  1만 개 조건+정렬 query 7ms · 5만 개 34ms(다음 쪽 58ms) · 10만 개 66ms(다음 쪽 135ms). 문서가 ~2KB 면 5만 개 105ms(다음 쪽 200ms), 10만 개 213ms(다음 쪽 440ms)라
+     *  ~2KB 문서까지 쪽당 약 200ms 안에 드는 5만 개로 둔다. id 순 list 와 정렬 없는 query 는 기본키 색인을 타서 10만 개에서도 1ms 안쪽이다 */
+    docsPerCollection: 50_000,
+    /** 플러그인 하나가 모든 프로젝트에서 쓰는 문서 바이트 합 */
+    totalBytes: TOTAL_BYTES,
+    /** list·query 한 번에 돌려주는 문서 수 — 근거: 패널 한 화면. 더 보려면 cursor(마지막으로 본 정렬 값 · id 에서 이어 읽는다) */
+    pageDefault: 50,
+    pageMax: 200,
+    /** batch 한 번의 연산 수 — 근거: 한 트랜잭션을 짧게 */
+    batchOps: 50,
+    /** query 한 번의 조건 수 — 근거: 색인 없는 훑기라 조건이 많아야 소용없다 */
+    conditions: 10,
+    /** where 의 `in` 값 수 */
+    inValues: 100,
+};
+
+// --- shared/extensions/docQuery.ts
+// host.db 의 이름 · 조건 검사와 조건 계산 (참조 평가기) — Node 도 SQLite 도 모른다.
+// 가짜 host(메모리)가 이 함수로 조건을 계산하고, 진짜 저장소(src/lib/docStore)는 같은 조건을 SQL 로 번역한다. 둘이 어긋나지 않게
+// 같은 사례 표를 양쪽에 돌려 확인한다(tests/unit/lib/docStore/sqliteDocStore.test.ts). 그래서 여기의 규칙이 "정답"이다:
+//  · 필드가 없거나 null · 객체 · 배열이면 어떤 조건에도 맞지 않는다(`!=` 도). 값의 종류(글 · 숫자 · 참거짓)가 조건 값과 다르면 맞지 않는다.
+//  · 글은 코드 포인트 순(SQLite 의 BINARY 비교와 같다)으로, 숫자는 크기로 비교한다. 참거짓은 `=` `!=` `in` 만 쓴다.
+//  · 정렬: 값이 없는 문서(없음 · null · 객체 · 배열) → 숫자·참거짓(거짓 < 참) → 글 순이고, 같으면 id 순. 내림차순은 통째로 뒤집는다.
+/** 근거: 컬렉션 이름은 사람이 읽는 몇 마디(runs · tuning.history) — 64자면 넉넉하다 */
+const DOC_COLLECTION_MAX_LENGTH = 64;
+/** 근거: id 는 UUID · 시각 · 해시 같은 키 — 128자면 넉넉하다 */
+const DOC_ID_MAX_LENGTH = 128;
+/** 근거: 점 경로 깊이 5 — `meta.size` 같은 한두 단이 보통이다 */
+const FIELD_MAX_DEPTH = 5;
+const NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
+// 마디는 글자나 _ 로 시작한다 — 숫자만 있는 마디(`a.0`)는 SQLite JSON 경로에서 배열 순번과 헷갈린다
+const FIELD_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+/** 근거: cursor 는 마지막 문서의 정렬 값(글이면 글 그대로)과 id 를 담는다 — 정렬 값이 긴 글이면 커진다. 4096자면 정렬 필드로 쓰는 글(이름 · 시각 · 상태)에 넘치고, 넘는 문서는 이어 보기를 못 하므로 params-invalid 로 알린다 */
+const DOC_CURSOR_MAX_LENGTH = 4096;
+const DOC_OPS = ['=', '!=', '<', '<=', '>', '>=', 'in', 'prefix'];
+const isDocCollection = (value) => typeof value === 'string' && value.length <= DOC_COLLECTION_MAX_LENGTH && NAME_PATTERN.test(value);
+const isDocId = (value) => typeof value === 'string' && value.length <= DOC_ID_MAX_LENGTH && NAME_PATTERN.test(value);
+const isDocField = (value) => typeof value === 'string' && FIELD_PATTERN.test(value) && value.split('.').length <= FIELD_MAX_DEPTH;
+function isJsonObject(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+/** 값의 종류 — 조건에 쓰는 것(글 · 숫자 · 참거짓)만. 나머지(없음 · null · 객체 · 배열 · 무한대)는 undefined */
+function scalarKind(value) {
+    if (typeof value === 'string')
+        return 'string';
+    if (typeof value === 'boolean')
+        return 'boolean';
+    return typeof value === 'number' && Number.isFinite(value) ? 'number' : undefined;
+}
+const isScalar = (value) => scalarKind(value) !== undefined;
+/** 문서를 JSON 글로 — JSON 으로 못 바꾸는 값(순환 · BigInt · 함수만 있는 값)이면 undefined. 객체여야 한다 */
+function docJson(doc) {
+    if (!isJsonObject(doc))
+        return undefined;
+    try {
+        return JSON.stringify(doc);
+    }
+    catch {
+        return undefined;
+    }
+}
+/** 점 경로를 따라 읽는다 — 자기 속성만(상속된 constructor 같은 것은 없는 것) */
+function readField(doc, field) {
+    let current = doc;
+    for (const part of field.split('.')) {
+        if (!isJsonObject(current) || !Object.hasOwn(current, part))
+            return undefined;
+        current = current[part];
+    }
+    return current;
+}
+/** 코드 포인트 순 비교 — UTF-16 순서(`<`)는 이모지와 U+E000 이상 글자에서 UTF-8 순서와 갈린다 */
+function compareText(a, b) {
+    const left = Array.from(a, (char) => char.codePointAt(0) ?? 0);
+    const right = Array.from(b, (char) => char.codePointAt(0) ?? 0);
+    for (let at = 0; at < left.length && at < right.length; at++) {
+        const diff = (left[at] ?? 0) - (right[at] ?? 0);
+        if (diff !== 0)
+            return diff;
+    }
+    return left.length - right.length;
+}
+function compareScalar(a, b) {
+    if (typeof a === 'string' && typeof b === 'string')
+        return compareText(a, b);
+    return Number(a) - Number(b);
+}
+function conditionHolds(doc, condition) {
+    const actual = readField(doc, condition.field);
+    const kind = scalarKind(actual);
+    if (kind === undefined || !isScalar(actual))
+        return false;
+    const { op, value } = condition;
+    if (op === 'in')
+        return Array.isArray(value) && value.some((item) => scalarKind(item) === kind && compareScalar(actual, item) === 0);
+    if (Array.isArray(value) || scalarKind(value) !== kind)
+        return false;
+    if (op === 'prefix')
+        return typeof actual === 'string' && typeof value === 'string' && actual.startsWith(value);
+    const diff = compareScalar(actual, value);
+    if (op === '=')
+        return diff === 0;
+    if (op === '!=')
+        return diff !== 0;
+    if (op === '<')
+        return diff < 0;
+    if (op === '<=')
+        return diff <= 0;
+    if (op === '>')
+        return diff > 0;
+    return diff >= 0;
+}
+/** 조건이 모두 맞나 (AND) */
+function docMatches(doc, where) {
+    return where.every((condition) => conditionHolds(doc, condition));
+}
+/** 정렬 값 — rank 0: 값 없음, 1: 숫자 · 참거짓(거짓 0 · 참 1), 2: 글 */
+function sortKey(doc, field) {
+    const actual = readField(doc, field);
+    const kind = scalarKind(actual);
+    if (kind === 'string' && typeof actual === 'string')
+        return { rank: 2, value: actual };
+    if (kind === 'number' && typeof actual === 'number')
+        return { rank: 1, value: actual };
+    if (kind === 'boolean')
+        return { rank: 1, value: actual === true ? 1 : 0 };
+    return { rank: 0, value: 0 };
+}
+/** 문서의 정렬 위치 — 이어 보기 cursor 에 담는다. 정렬이 없으면 id 만 */
+function docPosition(entry, field) {
+    const key = field === undefined ? { rank: 0, value: 0 } : sortKey(entry.doc, field);
+    return { ...key, id: entry.id };
+}
+function comparePosition(a, b) {
+    return a.rank - b.rank || (a.rank === 0 ? 0 : compareScalar(a.value, b.value)) || compareText(a.id, b.id);
+}
+/** 위치 → cursor 글 (JSON 을 URL 글자로) — 너무 길면 undefined */
+function encodeDocCursor(position) {
+    const text = encodeURIComponent(JSON.stringify([position.rank, position.value, position.id]));
+    return text.length <= DOC_CURSOR_MAX_LENGTH ? text : undefined;
+}
+function decodeDocCursor(cursor) {
+    if (cursor.length > DOC_CURSOR_MAX_LENGTH)
+        return undefined;
+    try {
+        const raw = JSON.parse(decodeURIComponent(cursor));
+        if (!Array.isArray(raw) || raw.length !== 3)
+            return undefined;
+        const [rank, value, id] = raw;
+        if (!isDocId(id))
+            return undefined;
+        if (rank === 0 && value === 0)
+            return { rank, value, id };
+        if (rank === 1 && typeof value === 'number' && Number.isFinite(value))
+            return { rank, value, id };
+        if (rank === 2 && typeof value === 'string')
+            return { rank, value, id };
+        return undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+/** 조건 · 정렬 · 쪽 나누기 — 참조 평가기. 정렬이 없으면 id 순. more: limit 뒤에 문서가 더 있다 */
+function queryDocEntries(entries, query) {
+    const field = query.orderBy?.field;
+    const sign = query.orderBy?.dir === 'desc' ? -1 : 1;
+    const keyed = entries.filter((entry) => docMatches(entry.doc, query.where)).map((entry) => ({ entry, position: docPosition(entry, field) }));
+    keyed.sort((a, b) => sign * comparePosition(a.position, b.position));
+    const { after } = query;
+    const rest = after ? keyed.filter((item) => sign * comparePosition(item.position, after) > 0) : keyed;
+    const page = rest.slice(0, query.limit + 1);
+    return { docs: page.slice(0, query.limit).map((item) => item.entry), more: page.length > query.limit };
+}
+const bad = { ok: false };
+function parseCondition(raw, limits) {
+    if (!isJsonObject(raw) || !isDocField(raw.field))
+        return bad;
+    const op = DOC_OPS.find((candidate) => candidate === raw.op);
+    if (op === undefined)
+        return bad;
+    const field = raw.field;
+    const value = raw.value;
+    if (op === 'in') {
+        if (!Array.isArray(value) || value.length === 0 || value.length > limits.inValues)
+            return bad;
+        const first = scalarKind(value[0]);
+        const items = value.filter(isScalar);
+        // 한 종류만 — 섞으면 SQL 쪽 비교 규칙(종류가 다르면 절대 같지 않음)과 설명이 길어진다
+        return first !== undefined && items.length === value.length && items.every((item) => scalarKind(item) === first) ? { ok: true, value: { field, op, value: items } } : bad;
+    }
+    if (!isScalar(value))
+        return bad;
+    if (op === 'prefix' && typeof value !== 'string')
+        return bad;
+    if (typeof value === 'boolean' && op !== '=' && op !== '!=')
+        return bad;
+    return { ok: true, value: { field, op, value } };
+}
+function parseOrderBy(raw) {
+    if (raw === undefined)
+        return { ok: true, value: undefined };
+    if (!isJsonObject(raw) || !isDocField(raw.field))
+        return bad;
+    if (raw.dir !== undefined && raw.dir !== 'asc' && raw.dir !== 'desc')
+        return bad;
+    return { ok: true, value: { field: raw.field, dir: raw.dir ?? 'asc' } };
+}
+/** list · query 의 인자 — where · orderBy 는 filters 일 때만(list 는 조건이 없다). 모양이 틀리면 ok: false */
+function parseDocQuery(params, limits, filters) {
+    const { limit = limits.pageDefault, cursor, where = [], orderBy } = params;
+    if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > limits.pageMax)
+        return bad;
+    const after = cursor === undefined ? undefined : typeof cursor === 'string' ? decodeDocCursor(cursor) : undefined;
+    if (cursor !== undefined && !after)
+        return bad;
+    if (!filters)
+        return { ok: true, value: { where: [], limit, ...(after && { after }) } };
+    if (!Array.isArray(where) || where.length > limits.conditions)
+        return bad;
+    const conditions = [];
+    for (const raw of where) {
+        const parsed = parseCondition(raw, limits);
+        if (!parsed.ok)
+            return bad;
+        conditions.push(parsed.value);
+    }
+    const order = parseOrderBy(orderBy);
+    if (!order.ok)
+        return bad;
+    return { ok: true, value: { where: conditions, ...(order.value && { orderBy: order.value }), limit, ...(after && { after }) } };
+}
+
+// --- shared/extensions/docStore.ts
+/** set 이 한도에 걸리는가 — 컬렉션은 문서가 있을 때만 있으므로 빈 컬렉션에 처음 쓰면 컬렉션이 늘어난다. 총 용량은 늘어나는 쓰기만 막는다(줄이는 쓰기는 가득 차도 된다) */
+function setFailure(limits, facts, newBytes) {
+    if (newBytes > limits.docBytes)
+        return 'doc-too-big';
+    const grows = newBytes - (facts.oldBytes ?? 0);
+    if (facts.oldBytes === undefined) {
+        if (facts.collectionDocs === 0 && facts.scopeCollections >= limits.collections)
+            return 'collection-limit';
+        if (facts.collectionDocs >= limits.docsPerCollection)
+            return 'collection-full';
+    }
+    if (grows > 0 && facts.totalBytes + grows > limits.totalBytes)
+        return 'db-full';
+    return undefined;
+}
+const utf8Bytes = (text) => new TextEncoder().encode(text).length;
+
+// --- shared/extensions/docMemory.ts
+const keyOf = (scope, collection, id) => JSON.stringify([scope, collection, id]);
+class MemoryDocStore {
+    limits;
+    rows = new Map();
+    constructor(limits = SERVICE_DB_LIMITS) {
+        this.limits = limits;
+    }
+    get(scope, collection, id) {
+        const row = this.rows.get(keyOf(scope, collection, id));
+        return row ? parse(row.json) : null;
+    }
+    query(scope, collection, query) {
+        const entries = [];
+        for (const row of this.rows.values())
+            if (row.scope === scope && row.collection === collection)
+                entries.push({ id: row.id, doc: parse(row.json) });
+        return queryDocEntries(entries, query);
+    }
+    apply(scope, ops) {
+        const before = new Map(this.rows);
+        for (const op of ops) {
+            const failure = this.applyOne(scope, op);
+            if (failure) {
+                this.rows.clear();
+                for (const [key, row] of before)
+                    this.rows.set(key, row);
+                return { ok: false, error: failure };
+            }
+        }
+        return { ok: true };
+    }
+    usage(scope) {
+        let bytes = 0;
+        let docs = 0;
+        const collections = new Set();
+        for (const row of this.rows.values()) {
+            bytes += row.bytes;
+            if (row.scope === scope) {
+                docs++;
+                collections.add(row.collection);
+            }
+        }
+        return { bytes, docs, collections: collections.size };
+    }
+    applyOne(scope, op) {
+        const key = keyOf(scope, op.collection, op.id);
+        if (op.op === 'delete') {
+            this.rows.delete(key);
+            return undefined;
+        }
+        const bytes = utf8Bytes(op.json);
+        const usage = this.usage(scope);
+        let collectionDocs = 0;
+        for (const row of this.rows.values())
+            if (row.scope === scope && row.collection === op.collection)
+                collectionDocs++;
+        const failure = setFailure(this.limits, { oldBytes: this.rows.get(key)?.bytes, collectionDocs, scopeCollections: usage.collections, totalBytes: usage.bytes }, bytes);
+        if (failure === undefined)
+            this.rows.set(key, { scope, collection: op.collection, id: op.id, json: op.json, bytes });
+        return failure;
+    }
+}
+function parse(json) {
+    const value = JSON.parse(json);
+    return isJsonObject(value) ? value : {};
+}
+
+// --- shared/extensions/docCall.ts
+// db.* 호출의 인자 검사와 실행 — 진짜 앱의 처리기(src/services/extensions/calls/db.ts)와 가짜 host 가 같이 쓴다. 그래서 인자 규칙 · 결과 모양 · 오류 코드가 갈라지지 않는다.
+// 이름 공간(scope)과 켜짐(not-on · no-project)은 부르는 쪽이 정한다 — 여기는 저장소와 scope 를 받아 처리만 한다
+const DB_CALL_METHODS = ['db.get', 'db.set', 'db.delete', 'db.list', 'db.query', 'db.batch', 'db.usage'];
+const isDbCallMethod = (method) => DB_CALL_METHODS.some((name) => name === method);
+function opOf(raw) {
+    if (!isJsonObject(raw) || !isDocCollection(raw.collection) || !isDocId(raw.id))
+        return undefined;
+    if (raw.op === 'delete')
+        return { op: 'delete', collection: raw.collection, id: raw.id };
+    if (raw.op !== 'set')
+        return undefined;
+    const json = docJson(raw.doc);
+    return json === undefined ? undefined : { op: 'set', collection: raw.collection, id: raw.id, json };
+}
+/** 인자를 검사해 처리할 일로 — 모양이 틀리면 undefined(params-invalid) */
+function parseDbCall(method, params, limits) {
+    if (method === 'db.usage')
+        return { kind: 'usage' };
+    if (!isJsonObject(params))
+        return undefined;
+    if (method === 'db.batch') {
+        const { ops } = params;
+        if (!Array.isArray(ops) || ops.length === 0 || ops.length > limits.batchOps)
+            return undefined;
+        const parsed = ops.map(opOf);
+        return parsed.every((op) => op !== undefined) ? { kind: 'write', ops: parsed.filter((op) => op !== undefined) } : undefined;
+    }
+    if (!isDocCollection(params.collection))
+        return undefined;
+    const collection = params.collection;
+    if (method === 'db.list' || method === 'db.query') {
+        const query = parseDocQuery(params, limits, method === 'db.query');
+        return query.ok ? { kind: 'query', collection, query: query.value } : undefined;
+    }
+    if (!isDocId(params.id))
+        return undefined;
+    const id = params.id;
+    if (method === 'db.get')
+        return { kind: 'get', collection, id };
+    const op = opOf({ ...params, op: method === 'db.set' ? 'set' : 'delete' });
+    return op ? { kind: 'write', ops: [op] } : undefined;
+}
+function runDbCall(store, scope, call, limits) {
+    if (call.kind === 'get')
+        return { ok: true, result: store.get(scope, call.collection, call.id) };
+    if (call.kind === 'usage')
+        return { ok: true, result: { ...store.usage(scope), limits: { ...limits } } };
+    if (call.kind === 'write') {
+        const written = store.apply(scope, call.ops);
+        return written.ok ? { ok: true, result: null } : written;
+    }
+    const page = store.query(scope, call.collection, call.query);
+    const last = page.docs.at(-1);
+    if (!page.more || !last)
+        return { ok: true, result: { docs: page.docs } };
+    // 마지막으로 본 문서의 정렬 값 · id 가 다음 쪽의 출발점이다 — 정렬 값이 너무 긴 글이라 cursor 가 안 만들어지면 이어 볼 수 없으니 조용히 자르지 않고 알린다
+    const cursor = encodeDocCursor(docPosition(last, call.query.orderBy?.field));
+    return cursor === undefined ? { ok: false, error: 'params-invalid' } : { ok: true, result: { docs: page.docs, cursor } };
+}
+
+// --- shared/extensions/serviceDb.ts
+function dbPage(result) {
+    if (!isJsonObject(result) || !Array.isArray(result.docs))
+        throw new Error('unexpected db reply');
+    const docs = result.docs.flatMap((item) => (isJsonObject(item) && typeof item.id === 'string' && isJsonObject(item.doc) ? [{ id: item.id, doc: item.doc }] : []));
+    return typeof result.cursor === 'string' ? { docs, cursor: result.cursor } : { docs };
+}
+function dbUsage(result) {
+    if (!isJsonObject(result) || typeof result.bytes !== 'number' || typeof result.docs !== 'number' || typeof result.collections !== 'number' || !isJsonObject(result.limits))
+        throw new Error('unexpected db reply');
+    const { limits } = result;
+    const field = (name) => {
+        const value = limits[name];
+        if (typeof value !== 'number')
+            throw new Error('unexpected db reply');
+        return value;
+    };
+    return {
+        bytes: result.bytes,
+        docs: result.docs,
+        collections: result.collections,
+        limits: { docBytes: field('docBytes'), collections: field('collections'), docsPerCollection: field('docsPerCollection'), totalBytes: field('totalBytes'), pageDefault: field('pageDefault'), pageMax: field('pageMax'), batchOps: field('batchOps'), conditions: field('conditions'), inValues: field('inValues') },
+    };
+}
+/** host.db — host.call('db.*') 를 서비스가 쓰기 좋게 감싼 것뿐이다. 진짜 호스트와 가짜 host 가 같이 쓴다 */
+function serviceDb(call) {
+    return {
+        async get(collection, id, options) {
+            const result = await call('db.get', { collection, id }, options?.directory);
+            if (result === null)
+                return null;
+            if (!isJsonObject(result))
+                throw new Error('unexpected db reply');
+            return result;
+        },
+        async set(collection, id, doc, options) {
+            await call('db.set', { collection, id, doc }, options?.directory);
+        },
+        async delete(collection, id, options) {
+            await call('db.delete', { collection, id }, options?.directory);
+        },
+        async list(collection, params = {}, options) {
+            return dbPage(await call('db.list', { collection, ...params }, options?.directory));
+        },
+        async query(collection, params, options) {
+            return dbPage(await call('db.query', { collection, ...params }, options?.directory));
+        },
+        async batch(ops, options) {
+            await call('db.batch', { ops }, options?.directory);
+        },
+        async usage(options) {
+            return dbUsage(await call('db.usage', {}, options?.directory));
+        },
+    };
+}
 
 // --- shared/extensions/serviceHostCore.ts
 /** 이 서비스가 받기로 한 소식의 받는 곳 — 호스트가 deliver 로 넣는다. 핸들러가 던져도(비동기 포함) 서비스 밖으로 새지 않는다 */
@@ -490,6 +945,8 @@ export function createFakeHost(options = {}) {
     const cleanups = [];
     const enabled = new Set();
     const allowedOrigins = options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
+    const dbLimits = { ...SERVICE_DB_LIMITS, ...options.dbLimits };
+    const memoryDb = new MemoryDocStore(dbLimits);
     let inner;
     let projectSet;
     const enabledIn = async (directory) => scope === 'app' || enabled.has(directory);
@@ -616,6 +1073,8 @@ export function createFakeHost(options = {}) {
                 throw new ServiceCallError('consent-required', origin);
             callLog.push({ method, params, ...(callOptions.directory !== undefined && { directory: callOptions.directory }) });
             const handler = isCallMethod(method) ? options.calls?.[method] : undefined;
+            if (!handler && isDbCallMethod(method))
+                return memoryDbCall(method, params, callOptions.directory);
             if (!handler)
                 throw new ServiceCallError('io-failed');
             return handler(params, callOptions);
@@ -661,7 +1120,18 @@ export function createFakeHost(options = {}) {
             },
         },
         fetch: serviceFetch((params, directory) => host.call('network.fetch', params, directory === undefined ? undefined : { directory })),
+        db: serviceDb((method, params, directory) => host.call(method, params, directory === undefined ? undefined : { directory })),
     };
+    /** db.* — 진짜 앱의 처리기(calls/db.ts)와 같은 검사 · 처리(docCall.ts). 이름 공간은 프로젝트 폴더(앱 전체 서비스는 하나) — 가짜는 실제 경로로 바꾸지 않는다 */
+    function memoryDbCall(method, params, directory) {
+        const call = parseDbCall(method, params, dbLimits);
+        if (!call)
+            throw new ServiceCallError('params-invalid');
+        const result = runDbCall(memoryDb, scope === 'app' ? '' : (directory ?? ''), call, dbLimits);
+        if (!result.ok)
+            throw new ServiceCallError(result.error);
+        return result.result;
+    }
     function running() {
         if (!inner)
             throw new Error('mount(factory) first');
