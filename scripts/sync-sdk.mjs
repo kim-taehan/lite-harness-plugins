@@ -6,7 +6,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
-export const SDK_FILES = ['README.md', 'litecode-service.d.ts', 'litecode-service-testing.mjs', 'litecode-service-testing.d.mts', 'plugin-service.schema.json']
+export const SDK_FILES = ['README.md', 'litecode-service.d.ts', 'litecode-service-testing.mjs', 'litecode-service-testing.d.mts', 'plugin-service.schema.json', 'litecode-db-client.mjs', 'litecode-db-client.d.mts']
 
 const root = path.resolve(import.meta.dirname, '..')
 const ownSdk = path.join(root, 'sdk')

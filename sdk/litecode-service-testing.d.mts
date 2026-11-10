@@ -1,5 +1,5 @@
-// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
-import type { ExposedCall, ServiceBase, ServiceGrammar, ServiceCallMethod, ServiceContext, ServiceEventMap, ServiceEventName, ServiceHost, ServiceInjectKey, ServiceMcpServer, ServiceToolCall } from './litecode-service.js'
+// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · serviceDb.ts · dbClient.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
+import type { ExposedCall, ServiceBase, ServiceGrammar, ServiceCallMethod, ServiceContext, ServiceDbUsage, ServiceEventMap, ServiceEventName, ServiceHost, ServiceInjectKey, ServiceMcpServer, ServiceToolCall } from './litecode-service.js'
 
 export interface FakeHostOptions {
   /** 기본 'project' — manifest scope 와 같다 */
@@ -17,6 +17,8 @@ export interface FakeHostOptions {
   /** 사용자가 허용한 주소(origin) — 주면 host.fetch(network.fetch)가 이 목록 밖 주소에 진짜 앱처럼 consent-required(ServiceCallError.origin 에 그 주소)로 던진다.
    *  안 주면 주소를 따지지 않는다. 시험 중 allowOrigin 으로 늘린다 */
   allowedOrigins?: readonly string[]
+  /** host.db 의 한도를 줄여 시험한다(예: totalBytes 를 작게 해 db-full 을 만든다) — 기본은 진짜 앱의 한도 */
+  dbLimits?: Partial<ServiceDbUsage['limits']>
   id?: string
   /** host.dir 이 돌려줄 플러그인 설치 폴더 경로 — 기본 '/fake/plugin' (시험용 폴더로) */
   dir?: string
