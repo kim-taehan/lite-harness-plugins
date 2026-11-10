@@ -68,9 +68,12 @@ export function browserEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && !entry[0].startsWith('LITECODE_DB_')))
 }
 
+/** 브라우저에 넘기는 옵션 — Chrome 의 HTTPS-First 자동 켜기를 끈다(빈 프로필로 뜨는 시험 브라우저가 IP 주소의 http:// 를 ERR_BLOCKED_BY_CLIENT 로 막는다) */
+export const BROWSER_ARGS = ['--disable-features=HttpsFirstBalancedModeAutoEnable']
+
 const playwrightLaunch: Launch = async ({ channel, headless }) => {
   const { chromium } = await import('playwright-core')
-  return (await chromium.launch({ channel, headless, env: browserEnv(process.env) })) as unknown as BrowserLike
+  return (await chromium.launch({ channel, headless, args: BROWSER_ARGS, env: browserEnv(process.env) })) as unknown as BrowserLike
 }
 
 /** 생성 코드 불러오기 — 고쳐 쓴 파일을 다시 읽게 주소에 시각을 붙인다 */

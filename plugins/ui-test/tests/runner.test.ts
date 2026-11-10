@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { browserEnv, driverFor, WebDriver, type BrowserLike, type Launch } from '../server/driver.ts'
+import { BROWSER_ARGS, browserEnv, driverFor, WebDriver, type BrowserLike, type Launch } from '../server/driver.ts'
 import { compareFor, compareLine, compareWithLast } from '../server/history.ts'
 import { renderReport } from '../server/report.ts'
 import { parseScenario } from '../server/scenario.ts'
@@ -46,6 +46,12 @@ describe('지난 실행과 비교', () => {
 describe('브라우저에 넘기는 환경변수', () => {
   it('기록 저장소 번호표(LITECODE_DB_*)는 넘기지 않는다', () => {
     expect(browserEnv({ PATH: '/bin', LITECODE_DB_URL: 'http://127.0.0.1:1', LITECODE_DB_TOKEN: 'tok', HOME: '/h' })).toEqual({ PATH: '/bin', HOME: '/h' })
+  })
+})
+
+describe('브라우저에 넘기는 옵션', () => {
+  it('Chrome 의 HTTPS-First 자동 켜기를 끈다 — IP 주소의 http:// 가 막히지 않게', () => {
+    expect(BROWSER_ARGS).toContain('--disable-features=HttpsFirstBalancedModeAutoEnable')
   })
 })
 
