@@ -156,13 +156,13 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--probe)}
 /* [환경] 팝업 — 규칙은 .interface-design/system.md. 위의 같은 토큰을 쓴다 */
 :where(.dialog) button{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;height:30px;padding:0 11px;border-radius:8px;white-space:nowrap}
 .scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto;z-index:5;color:var(--ink)}
-.dialog{width:100%;max-width:468px;background:var(--sheet);border-radius:20px;box-shadow:var(--lift);overflow:hidden}
-.dlg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 4px 22px}
+.dialog{width:100%;max-width:468px;min-width:0;background:var(--sheet);border-radius:20px;box-shadow:var(--lift);overflow:hidden}
+.dlg-head>div{min-width:0}.dlg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 4px 22px}
 .dlg-head h2{margin:0;font-size:19px;line-height:1.25;font-weight:700;letter-spacing:-.018em}
 .dlg-head p{margin:2px 0 0;color:var(--ink-2);font-size:12.5px}
 .dlg-close{flex:none;width:32px;height:32px;margin:-4px -6px 0 0;padding:0;justify-content:center;border:0;border-radius:10px;background:none;color:var(--ink-3);transition:background-color .15s,color .15s}
 .dlg-close:hover{background:var(--well);color:var(--ink)}
-.dlg-body{padding:14px 20px 20px;display:grid;gap:22px}
+.dlg-body{padding:14px 20px 20px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
 .dialog .addr{padding:6px 6px 6px 12px}
 .dialog .addr button{flex:none;height:30px;padding:0 12px;border:0;border-radius:8px;background:var(--sheet);color:var(--probe);font-weight:600;box-shadow:0 0 0 1px var(--rule-strong);transition:transform .12s var(--ease),box-shadow .15s}
 .dialog .addr button:hover{background:var(--sheet);box-shadow:0 0 0 1px var(--probe)}
@@ -174,7 +174,7 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--probe)}
 .pq{margin:0 2px 8px}
 .pq b{display:block;font-size:14px;font-weight:650;letter-spacing:-.005em}
 .pq span{display:block;color:var(--ink-2);font-size:12.5px;text-wrap:pretty}
-.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .tile{position:relative;display:grid;gap:10px;height:auto;padding:12px;text-align:left;border:0;border-radius:12px;background:var(--well);color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule);font-weight:400;white-space:normal;transition:transform .12s var(--ease),box-shadow .15s,background-color .15s}
 .tile:hover{background:var(--well);box-shadow:inset 0 0 0 1px var(--rule-strong)}
 .tile:active{transform:scale(.985)}
@@ -208,7 +208,7 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--probe)}
 <script>
 // UI 테스트 패널 (0.7.0) — 시나리오가 유일한 단위. 목록(전체 · 화면별 · 요청별 + 검색) → 시나리오 상세(단계 · 최근 결과). 머리의 톱니는 [환경] 팝업(연결 · 기본값 · 프로젝트 프롬프트).
 // 서비스(service.mjs)에 service.call 로만 묻는다(계약: README "패널 ↔ 서비스"): reindex · list · progress · run · stop · detail · delete · shot · guide · exportPdf · openFile · ask · prefs.
-// 실행 중의 진행은 서비스가 밀어 보낸다(service.progress · service.runError 소식) — 폴링하지 않는다.
+// 실행 중의 진행은 서비스가 밀어 보낸다(service.progress · service.runError 소식). 목록은 켜 둔 동안 15초마다 · 다시 보일 때 조용히 새로 읽는다(바뀐 게 있을 때만 다시 그림).
 // 결과서 · 화면 가이드는 앱의 오른쪽 패널 파일 미리보기로 연다(openFile). 앱의 project.openFile 은 path · line 만 받아 `#s-<시나리오>` 앵커로는 바로 가지 못한다.
 // 용어: 동작은 "실행", 한 번의 기록은 "수행". 사용자 글(제목 · 오류 · 요청 문장)은 늘 textContent 로만 넣는다(el 도우미).
 // 앱과는 통로로만 말한다: parent.postMessage({ litecode: 1, id, method, params }). 겉모습 규칙은 .interface-design/system.md.
@@ -402,7 +402,7 @@ const dot = (status) => el('span', { class: `dot ${dotOf(status)}`, role: 'img',
 // ── 불러오기 ──
 
 /** 파일에 맞추고(reindex) 목록을 끝까지 읽는다 — 열 때와 [다시 불러오기] 만 reindex, 삭제 · 실행 뒤에는 목록만 */
-async function load(reindex = false) {
+async function load(reindex = false, quiet = false) {
   try {
     let imported = 0
     if (reindex) imported = (await tool('reindex').catch(() => undefined))?.imported ?? 0
@@ -416,6 +416,9 @@ async function load(reindex = false) {
       cursor = part.cursor
       if (!cursor) break
     }
+    const sig = JSON.stringify([rows, first.screens, first.requests])
+    if (quiet && sig === state.sig) return
+    state.sig = sig
     const screens = new Map((first.screens ?? []).map((item) => [item.route, item]))
     const requests = new Map((first.requests ?? []).map((item) => [item.id, item]))
     state.data = { project: first.project ?? '', scenarioDir: first.scenarioDir, reportDir: first.reportDir, baseUrl: first.baseUrl, browser: first.browser, rows: sortRows(rows, requests), screens, requests }
@@ -426,6 +429,7 @@ async function load(reindex = false) {
     if (!state.picked.size) state.dock = ''
     if (state.screen.name === 'detail' && !ids.has(state.screen.id)) state.screen = { name: 'list' }
   } catch (error) {
+    if (quiet) return
     state.error = errorText(error)
   }
   render()
@@ -1069,6 +1073,17 @@ void (async () => {
   await load(true)
   await refreshProgress()
 })()
+
+// 켜 둔 동안 15초마다, 그리고 다시 보일 때 — 파일이 바깥에서 바뀐 것(AI 가 저장한 시나리오 등)을 조용히 반영한다.
+// 팝업 · 질문 줄이 열려 있거나 실행 중이거나 숨겨져 있으면 건너뛴다.
+let refreshing = false
+async function quietRefresh() {
+  if (refreshing || document.hidden || state.env || state.asking || state.progress?.running) return
+  refreshing = true
+  try { await load(true, true) } finally { refreshing = false }
+}
+setInterval(quietRefresh, 15000)
+document.addEventListener('visibilitychange', () => void quietRefresh())
 </script>
 </body>
 </html>
