@@ -364,6 +364,19 @@ describe('도구 — 패널 · AI', () => {
     expect(JSON.parse((await tool('list').run({ json: true, screen: '/admin/menu/:id' })).text).scenarios).toEqual([])
   })
 
+  it('list JSON — 최근 수행의 결과서 · 가이드 유무(lastReport · lastGuide)를 알려 준다 — 패널이 놓친 수행의 가이드를 맞추는 데 쓴다', async () => {
+    const { space, tool } = await setup()
+    await space.reindex()
+    await space.run({ screen: '/login' })
+    const find = async () => JSON.parse((await tool('list').run({ json: true })).text).scenarios.find((item: { id: string }) => item.id === 'q-01')
+    const row = await find()
+    expect(row).toMatchObject({ lastReport: true, lastGuide: false }) // 결과서만 만들어진 수행
+    const made = await tool('guide').run({ run: row.lastRun })
+    expect(made.isError, made.text).toBeFalsy()
+    expect(await find()).toMatchObject({ lastReport: true, lastGuide: true })
+    expect(JSON.parse((await tool('list').run({ json: true })).text).scenarios.find((item: { id: string }) => item.id === 'q-02')).toMatchObject({ lastReport: false, lastGuide: false }) // 아직 안 돈 시나리오
+  })
+
   it('list — _prompt.md 유무를 서버가 직접 알려 준다(JSON prompt · 글 머리) — 파일은 읽지 않는다', async () => {
     const { tool } = await setup()
     const file = '.litecode/plugins/ui-test/_prompt.md'

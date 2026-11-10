@@ -285,8 +285,24 @@ function showGroups(groups, query, screens, requests) {
 
 /** 삭제 확인 글에 쓰는 "다른 화면에도 걸친" 개수 */
 const sharedCount = (rows) => rows.filter((row) => row.screens.length > 1).length
+/** 패널이 켜져 있는 동안(openedAt 뒤) 끝났는데 패널이 끝나는 순간을 못 본 수행 — AI 가 서버 run 을 직접 불러 서비스의 진행 소식이 없었던 것. 수행 id 마다 한 번(seen 에 있으면 뺀다)
+ *  최근 결과가 결과서까지 만들어진 것만 센다. guide: 그 수행의 가이드가 이미 있는지(시나리오가 여럿이면 모두 있을 때만 true) */
+function missedRuns(rows, openedAt, seen) {
+  const byRun = new Map()
+  for (const row of rows) {
+    if (!row.lastRun || !row.lastReport || seen.has(row.lastRun) || (row.lastAt ?? 0) < openedAt) continue
+    const item = byRun.get(row.lastRun) ?? { run: row.lastRun, count: 0, failed: 0, guide: true }
+    item.count++
+    if (row.status === 'failed') item.failed++
+    if (!row.lastGuide) item.guide = false
+    byRun.set(row.lastRun, item)
+  }
+  return [...byRun.values()]
+}
+/** 산출물 기본값이 "결과서 + 가이드" 일 때 가이드를 만들 수행 id — 놓친 수행 중 가이드가 없는 것 */
+const missedGuides = (rows, openedAt, output, tried) => (output === 'both' ? missedRuns(rows, openedAt, tried).filter((item) => !item.guide).map((item) => item.run) : [])
 /** 실행 요청 글 — [▶ 실행] 이 새 대화에 곧바로 보낸다. 첫 줄이 `/ui-test-run` 이라서 앱이 스킬 본문(절차)을 붙여 보낸다 — 여기에는 시나리오마다 제목 · id · 경로 세 개만 적는다(md · 생성 코드 · 수행 기록). 코드 없는 것은 실행 대상에서 뺀다 */
-function runPrompt(rows, prompt) {
+function runPrompt(rows, prompt, output) {
   const ready = rows.filter((row) => row.hasCode)
   const lacking = rows.filter((row) => !row.hasCode)
   const block = (row) => [
@@ -298,6 +314,7 @@ function runPrompt(rows, prompt) {
   return [
     '/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.',
     ...(prompt ? [`프로젝트 프롬프트: \`${prompt.file}\` (${prompt.exists ? '있음' : '없음'})`] : []),
+    ...(output === 'both' || output === 'report' ? [`산출물: ${output === 'both' ? '결과서 + 화면 가이드' : '결과서만'}`] : []),
     '',
     ...ready.map(block),
     ...(lacking.length ? ['', '코드가 없어 실행 대상에서 뺀 것:', ...lacking.map((row) => `- ${row.title} (id ${row.id}) — 코드 없음`)] : []),
@@ -387,6 +404,9 @@ const state = {
   progress: undefined,
   notice: undefined, // { tone: 'ok' | 'err', text, detail?, report? }
   prefs: { headed: false, output: 'report', report: undefined },
+  prefsRead: false, // 저장된 기본값을 읽었는지 — 못 읽었으면 요청 글에 산출물 줄을 쓰지 않는다
+  openedAt: Date.now(), // 패널을 연 시각 — 이 뒤에 끝난 수행만 놓친 것으로 본다
+  seenRuns: new Set(), // 끝남을 알린 · 가이드를 시도한 수행 id (한 번만)
   env: undefined, // 환경 팝업 { saved, failed, focus }
   noPdf: false, // 앱이 PDF 저장을 모른다(옛 앱)
   pdfBusy: false,
@@ -428,6 +448,18 @@ const dot = (status) => el('span', { class: `dot ${dotOf(status)}`, role: 'img',
 
 // ── 불러오기 ──
 
+/** 놓친 수행 맞추기 — 패널이 켜져 있는 동안 AI 가 직접 돌려 끝난 수행(진행 소식 없음)을 목록에서 찾아 끝났다고 한 번 알리고, 산출물이 "결과서 + 가이드" 면 가이드도 만든다(수행 id 당 한 번, 실패해도 다시 하지 않는다) */
+function catchUp(rows) {
+  const found = missedRuns(rows, state.openedAt, state.seenRuns)
+  if (!found.length) return
+  const guides = missedGuides(rows, state.openedAt, state.prefs.output, state.seenRuns)
+  for (const item of found) state.seenRuns.add(item.run)
+  const last = found[found.length - 1]
+  if (!state.progress?.running) state.notice = { tone: 'ok', text: `${last.count}개 실행을 마쳤습니다${last.failed ? ` — 실패 ${last.failed}개` : ''}`, detail: guides.includes(last.run) ? '화면 가이드를 만들고 있습니다' : '', runId: last.run }
+  for (const run of guides) {
+    tool('guide', { run }).then(() => load(false, true), (error) => failNotice(error))
+  }
+}
 /** 파일에 맞추고(reindex) 목록을 끝까지 읽는다 — 열 때와 [다시 불러오기] 만 reindex, 삭제 · 실행 뒤에는 목록만 */
 async function load(reindex = false, quiet = false) {
   try {
@@ -453,6 +485,7 @@ async function load(reindex = false, quiet = false) {
     for (const id of [...state.picked]) if (!ids.has(id)) state.picked.delete(id)
     if (!state.picked.size) state.dock = ''
     if (state.screen.name === 'detail' && !ids.has(state.screen.id)) state.screen = { name: 'list' }
+    catchUp(rows)
   } catch (error) {
     if (quiet) return
     state.error = errorText(error)
@@ -506,6 +539,7 @@ function applyProgress(progress) {
   render()
 }
 function finishRun(progress) {
+  if (progress?.runId) state.seenRuns.add(progress.runId) // 이 길로 알리고 가이드도 만든다 — 목록 맞추기가 다시 하지 않게
   void load()
   if (state.screen.name === 'detail') void loadDetail(state.screen.id)
   if (!progress || progress.cases?.length === 0 || progress.error) {
@@ -618,7 +652,7 @@ async function askRun(rows) {
   state.picked.clear()
   state.dock = ''
   state.asking = undefined
-  await ask(runPrompt(rows, state.data?.prompt))
+  await ask(runPrompt(rows, state.data?.prompt, state.prefsRead ? state.prefs.output : undefined))
   render()
 }
 async function ask(text, send = true) {
@@ -942,6 +976,7 @@ async function savePref(key, value) {
   try {
     const prefs = await tool('prefs', { set: { [key]: value } })
     state.prefs = { ...state.prefs, headed: prefs.headed === true, output: prefs.output === 'both' ? 'both' : 'report' }
+    state.prefsRead = true
     if (!state.env) return
     state.env.failed = false
     state.env.saved = '저장했습니다'
@@ -1073,6 +1108,7 @@ void (async () => {
   try {
     const prefs = await tool('prefs')
     state.prefs = { headed: prefs.headed === true, output: prefs.output === 'both' ? 'both' : 'report' }
+    state.prefsRead = true
   } catch { /* 저장된 값 없음 — 화면 없이 · 결과서만 */ }
   await load(true)
   await refreshProgress()

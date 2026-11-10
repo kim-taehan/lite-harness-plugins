@@ -9,7 +9,7 @@ if (!source) throw new Error('index.html 에서 <pure> 구간을 찾지 못했�
 
 type Row = { id: string; title: string; screens: string[]; request: string | null; status: string | null; lastAt: number | null }
 type Group = { key: string; kind?: string; title: string; rows: Row[]; selector?: Record<string, string>; loose?: boolean; shown?: Row[]; lastRun?: { at: number } | null }
-const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, runCount, finishNote, bareTitle, docKey, docLabel, docChoices, promptOpenMessage }`)() as {
+const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, missedRuns, missedGuides, runCount, finishNote, bareTitle, docKey, docLabel, docChoices, promptOpenMessage }`)() as {
   whenText(ms: number, now?: number): string
   dayText(ms: number): string
   dotOf(status: string): string
@@ -20,7 +20,9 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   matches(row: Row, query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): boolean
   showGroups(groups: Group[], query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): Group[]
   sharedCount(rows: Row[]): number
-  runPrompt(rows: unknown[], prompt?: { file: string; exists: boolean }): string
+  runPrompt(rows: unknown[], prompt?: { file: string; exists: boolean }, output?: string): string
+  missedRuns(rows: unknown[], openedAt: number, seen: Set<string>): { run: string; count: number; failed: number; guide: boolean }[]
+  missedGuides(rows: unknown[], openedAt: number, output: string, tried: Set<string>): string[]
   runCount(progress: unknown): { total: number; done: number; at: number; percent: number }
   finishNote(progress: unknown): { text: string; detail: string; report?: { file: string } }
   bareTitle(title: string): string
@@ -139,6 +141,16 @@ describe('패널 순수 로직', () => {
     expect(api.runPrompt(rows)).not.toContain('프로젝트 프롬프트')
   })
 
+  it('실행 요청 글 — 산출물 한 줄(결과서 + 화면 가이드 · 결과서만), 값이 없으면 줄을 쓰지 않는다', () => {
+    const rows = [{ id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true, hasHistory: false }]
+    expect(api.runPrompt(rows, undefined, 'both').split('\n')[1]).toBe('산출물: 결과서 + 화면 가이드')
+    expect(api.runPrompt(rows, undefined, 'report')).toContain('산출물: 결과서만')
+    expect(api.runPrompt(rows)).not.toContain('산출물')
+    expect(api.runPrompt(rows, undefined, 'x')).not.toContain('산출물')
+    const file = '.litecode/plugins/ui-test/_prompt.md'
+    expect(api.runPrompt(rows, { file, exists: true }, 'both').split('\n').slice(0, 3)).toEqual(['/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.', `프로젝트 프롬프트: \`${file}\` (있음)`, '산출물: 결과서 + 화면 가이드'])
+  })
+
   it('실행 배너 숫자와 완료 알림 글', () => {
     const progress = { running: true, cases: [{ status: 'passed' }, { status: 'running' }, { status: 'waiting' }] }
     expect(api.runCount(progress)).toEqual({ total: 3, done: 1, at: 2, percent: 50 })
@@ -213,5 +225,26 @@ describe('_prompt.md 열기 실패 글', () => {
   it('빈 오류는 일반 문구', () => {
     expect(api.promptOpenMessage(new Error(''))).toBe('열지 못했습니다')
     expect(api.promptOpenMessage(undefined)).toBe('열지 못했습니다')
+  })
+})
+
+describe('놓친 수행 맞추기', () => {
+  const row = (id: string, run: string | null, over: Record<string, unknown> = {}) => ({ id, lastRun: run, lastAt: 2000, lastReport: true, lastGuide: false, status: 'passed', ...over })
+
+  it('패널을 연 뒤 끝난 수행만 — 열기 전 수행 · 결과서가 없는 것 · 이미 본 것은 뺀다', () => {
+    const rows = [row('a', 'r1'), row('b', 'r0', { lastAt: 500 }), row('c', 'r2', { lastReport: false }), row('d', 'r3'), row('e', null)]
+    expect(api.missedRuns(rows, 1000, new Set(['r3'])).map((item) => item.run)).toEqual(['r1'])
+  })
+
+  it('여러 시나리오가 한 수행이면 수행 id 로 한 번 — 개수 · 실패 수 · 가이드는 모두 있을 때만 있음', () => {
+    const rows = [row('a', 'r1', { lastGuide: true }), row('b', 'r1', { status: 'failed' }), row('c', 'r2', { lastGuide: true })]
+    expect(api.missedRuns(rows, 1000, new Set())).toEqual([{ run: 'r1', count: 2, failed: 1, guide: false }, { run: 'r2', count: 1, failed: 0, guide: true }])
+  })
+
+  it('가이드는 산출물이 "결과서 + 가이드" 일 때만 · 이미 있으면 · 이미 시도한 수행이면 만들지 않는다', () => {
+    const rows = [row('a', 'r1'), row('b', 'r2', { lastGuide: true }), row('c', 'r3')]
+    expect(api.missedGuides(rows, 1000, 'both', new Set(['r3']))).toEqual(['r1'])
+    expect(api.missedGuides(rows, 1000, 'report', new Set())).toEqual([])
+    expect(api.missedGuides([], 1000, 'both', new Set())).toEqual([])
   })
 })

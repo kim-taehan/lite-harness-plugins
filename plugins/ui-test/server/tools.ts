@@ -202,6 +202,13 @@ export function createTools(deps: ToolDeps): Tool[] {
   /** 프로젝트 프롬프트(_prompt.md)의 유무 — 서버가 직접 확인한다(읽지는 않는다). AI 가 짐작하지 않게 list 가 알려 준다 */
   const promptInfo = (): { file: string; exists: boolean } => ({ file: `${PLUGIN_DIR}/_prompt.md`, exists: existsSync(path.join(config.pluginDir, '_prompt.md')) })
 
+  /** 최근 수행의 결과서 · 가이드가 만들어져 있는지 — 합친 옛 기록(one)과 시나리오별(each) 둘 다 본다. 패널이 놓친 수행의 가이드를 맞추는 데 쓴다 */
+  const lastDocs = (run: string | undefined, id: string): { lastReport: boolean; lastGuide: boolean } => {
+    if (!run) return { lastReport: false, lastGuide: false }
+    const docs = [workspace.documentsOf(run, 'each', id), workspace.documentsOf(run, 'one', id)]
+    return { lastReport: docs.some((doc) => doc.report), lastGuide: docs.some((doc) => doc.guide) }
+  }
+
   const list: Tool = {
     name: 'list',
     description:
@@ -226,6 +233,7 @@ export function createTools(deps: ToolDeps): Tool[] {
             status: item.doc?.last?.status ?? null,
             lastAt: item.doc?.last?.at ?? null,
             lastRun: item.doc?.last?.run ?? null,
+            ...lastDocs(item.doc?.last?.run, item.id),
             hasCode: item.hasCode,
             hasHistory: existsSync(historyOf(item.file)),
             stale: item.stale,

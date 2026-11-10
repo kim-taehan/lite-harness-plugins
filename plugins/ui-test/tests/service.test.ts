@@ -75,6 +75,10 @@ describe('service', () => {
     expect(skill).toContain('프로젝트 프롬프트: <path> (있음|없음)')
     expect(run).toContain('prompt.exists')
     expect(run).toContain('프로젝트 프롬프트: … (있음)')
+    // 가이드는 요청 글의 산출물 줄을 따른다 — 정해져 있으면 묻지 않는다(설정을 AI 가 짐작하지 않는다)
+    expect(run).toContain('산출물: 결과서 + 화면 가이드')
+    expect(run).toContain('산출물: 결과서만')
+    expect(run).toContain('lastGuide')
     const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')) as Record<string, unknown>
     expect(manifest.skills).toBeUndefined()
     // 서버(mcp) · 스킬을 서비스가 올리므로 manifest 에 tools · mcp · lsp 선언과 권한이 없다. 비밀번호는 secret 설정 칸 + 서버 env 라 secrets 권한도 필요 없다
