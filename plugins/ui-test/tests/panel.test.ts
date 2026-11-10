@@ -9,7 +9,7 @@ if (!source) throw new Error('index.html 에서 <pure> 구간을 찾지 못했�
 
 type Row = { id: string; title: string; screens: string[]; request: string | null; status: string | null; lastAt: number | null }
 type Group = { key: string; kind?: string; title: string; rows: Row[]; selector?: Record<string, string>; loose?: boolean; shown?: Row[]; lastRun?: { at: number } | null }
-const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runCount, finishNote, bareTitle }`)() as {
+const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, runCount, finishNote, bareTitle }`)() as {
   whenText(ms: number, now?: number): string
   dayText(ms: number): string
   dotOf(status: string): string
@@ -20,6 +20,7 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   matches(row: Row, query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): boolean
   showGroups(groups: Group[], query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): Group[]
   sharedCount(rows: Row[]): number
+  runPrompt(rows: unknown[], dir: string): string
   runCount(progress: unknown): { total: number; done: number; at: number; percent: number }
   finishNote(progress: unknown): { text: string; detail: string; report?: { file: string } }
   bareTitle(title: string): string
@@ -103,6 +104,23 @@ describe('패널 순수 로직', () => {
     expect(api.sharedCount([rows[0]!, rows[3]!])).toBe(0)
   })
 
+  it('실행 요청 글 — 시나리오 · 코드 경로와 run 지시, 코드 없는 것은 대상에서 뺀다', () => {
+    const text = api.runPrompt([
+      { id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true },
+      { id: 'a-02', title: '코드 없는 것', file: '.litecode/plugins/ui-test/scenarios/a-02.md', hasCode: false },
+    ], '.litecode/plugins/ui-test')
+    expect(text.split('\n')[0]).toBe('/ui-test 아래 시나리오를 실행하고 결과를 알려 주세요.')
+    expect(text).toContain('- 정상 로그인 (id a-01) — 시나리오 `.litecode/plugins/ui-test/scenarios/a-01.md` · 코드 `.litecode/plugins/ui-test/scenarios/a-01.spec.mjs`')
+    expect(text).toContain('- 코드 없는 것 (id a-02) — 코드 없음')
+    expect(text).toContain('litecode_ui-test_run')
+    expect(text).toContain('위 id(a-01)')
+    expect(text).not.toContain('a-02.spec.mjs')
+    expect(text).toContain('오류를 추측하지 말고')
+    expect(text).toContain('`.litecode/plugins/ui-test/_prompt.md`')
+    expect(text).toContain('`.litecode/plugins/ui-test/errors.md`')
+    expect(text).toContain('날짜와 함께')
+  })
+
   it('실행 배너 숫자와 완료 알림 글', () => {
     const progress = { running: true, cases: [{ status: 'passed' }, { status: 'running' }, { status: 'waiting' }] }
     expect(api.runCount(progress)).toEqual({ total: 3, done: 1, at: 2, percent: 50 })
@@ -129,7 +147,7 @@ describe('패널 소스 규칙', () => {
     const direct = [...script.matchAll(/\bcall\('([a-z.]+)'/g)].map((match) => match[1])
     expect([...new Set(direct)].sort()).toEqual(['events.subscribe', 'service.call', 'settings.open'])
     const names = [...script.matchAll(/\btool\('([A-Za-z]+)'/g)].map((match) => match[1])
-    expect([...new Set(names)].sort()).toEqual(['ask', 'delete', 'detail', 'exportPdf', 'guide', 'list', 'openFile', 'prefs', 'progress', 'reindex', 'run', 'shot', 'stop'])
+    expect([...new Set(names)].sort()).toEqual(['ask', 'delete', 'detail', 'exportPdf', 'guide', 'list', 'openFile', 'prefs', 'progress', 'reindex', 'shot', 'stop'])
   })
 
   it('사용자 글은 innerHTML 로 넣지 않는다 — 고정 도판(svg)만, 바깥 리소스 · 하위 iframe 없음', () => {
