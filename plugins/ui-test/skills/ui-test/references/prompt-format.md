@@ -1,6 +1,6 @@
 # `_prompt.md` format
 
-One Markdown file at `<test folder>/_prompt.md` (default `ui-tests/_prompt.md`). The `list` tool ignores it (only folders with a `suite.md` are suites). It is a prompt **for you**: how UI testing is done in this project, already resolved, so you follow it instead of re-detecting the stack and re-searching the code on every request. Imperative, short, concrete (paths, patterns, commands) — under about 80 lines. Every line comes from files or tool output you saw; unknown → `확인 안 됨`, never a guess. No passwords.
+One Markdown file at `<test folder>/_prompt.md` (default `ui-tests/_prompt.md`). The `list` tool ignores it (files starting with `_` are not scenarios). It is a prompt **for you**: how UI testing is done in this project, already resolved, so you follow it instead of re-detecting the stack and re-searching the code on every request. Imperative, short, concrete (paths, patterns, commands) — under about 80 lines. Every line comes from files or tool output you saw; unknown → `확인 안 됨`, never a guess. No passwords.
 
 ```markdown
 ---
