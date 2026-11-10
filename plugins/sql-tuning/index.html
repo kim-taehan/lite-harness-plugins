@@ -207,6 +207,19 @@ textarea:focus{outline:0;box-shadow:0 0 0 1.5px var(--probe),0 0 0 4px var(--pro
 .ed-note{padding:12px 16px 0}
 .ed-foot{padding:12px 16px 16px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 
+.dpage{display:flex;flex-direction:column;gap:12px;padding:16px 16px 24px}
+.dtop{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px}
+.dtop .back{margin-left:-6px;padding:0 10px 0 6px}
+.dtop .acts{gap:6px}
+.dtitle{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px;min-width:0}
+.dtitle .tgt{font-size:15px}
+.dtitle .tgt.plain{font-size:15px}
+.dtitle .when{margin-left:0}
+.rep{display:block;min-width:0}
+.dpage .loading{border-top:0}
+.dpage .empty{border-top:0}
+.dpage .errbox .acts{margin-top:2px}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.spin{animation:none}}
 </style>
 </head>
@@ -256,6 +269,8 @@ const ERRORS = {
   'no-window': '이 플러그인 탭이 보이는 상태에서 다시 눌러 주세요',
   'service-off': 'SQL 튜닝 서비스가 켜져 있지 않습니다 — 설정 › 기능 › 플러그인에서 켜 주세요',
   'service-failed': '서비스가 요청을 처리하지 못했습니다',
+  'file-unreadable': '파일이 없거나 열 수 없는 상태입니다',
+  'not-found': '결과서 파일이 없습니다',
 }
 const errorText = (error) => ERRORS[error?.message] || error?.message || String(error)
 const isOff = (error) => error?.message === 'service-off'
@@ -335,6 +350,7 @@ const state = {
   marks: {}, // { 폴더이름: '새로' | '바뀜' } — 직전 읽기와 비교, 6초 뒤 사라진다
   markFade: false,
   openError: undefined,
+  view: undefined, // { id, token, phase: 'loading' | 'ready' | 'large' | 'error', slow, host?, text?, scrollY } — 열려 있는 결과서 상세 화면
   del: undefined, // { id, phase: 'ask' | 'busy' | 'error', text? } — 결과서 삭제 확인 · 진행 · 실패 (한 번에 한 줄)
 }
 
@@ -676,6 +692,13 @@ function cancelDelete() {
   render()
   document.querySelector(`[data-fk="del:${CSS.escape(id ?? '')}"]`)?.focus()
 }
+/** 상세 화면에서 지운 결과서 — 목록으로 돌아가며 그 줄을 바로 뺀다(뒤따르는 읽기가 끝나기 전에도 안 보이게) */
+function leaveDeleted(id) {
+  if (state.view?.id !== id) return
+  state.del = undefined
+  if (state.list) state.list = { ...state.list, rows: state.list.rows.filter((row) => row.id !== id) }
+  closeDetail(false)
+}
 async function confirmDelete() {
   const id = state.del?.id
   if (!id || state.del.phase === 'busy') return
@@ -684,6 +707,7 @@ async function confirmDelete() {
   try {
     await call('reports.delete', { id })
     toast('결과서를 삭제했습니다')
+    leaveDeleted(id)
   } catch (error) {
     if (isOff(error)) {
       state.load = 'off'
@@ -693,6 +717,7 @@ async function confirmDelete() {
     if (error?.message === 'not-found') {
       state.del = undefined
       toast('이미 없는 결과서입니다')
+      leaveDeleted(id)
     } else state.del = { id, phase: 'error', text: '다시 해 보세요' }
   }
   await readReports()
@@ -709,19 +734,136 @@ const deleteBox = (row, label, del) => {
   )
 }
 
+// --- 결과서 상세 화면 — 결과서(index.html)를 패널 안에 그린다. 패널 CSP 가 iframe 을 막아서(frame-src 'none') 글을 DOMParser 로 파싱한 뒤
+// <style> 과 본문을 Shadow DOM 에 직접 넣는다. 결과서는 스크립트가 없는 정적 HTML 이지만 파일을 누가 고쳤을 수 있어 위험한 요소 · 속성은 지운다 ---
+
+const REPORT_MAX = 256 * 1024
+const DROP_TAGS = new Set(['script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet', 'link', 'meta', 'base', 'form', 'style', 'foreignobject'])
+const URL_ATTRS = new Set(['href', 'src', 'xlink:href', 'action', 'formaction', 'srcset', 'srcdoc', 'poster', 'background', 'ping'])
+
+/** 결과서 CSS 를 Shadow 안에서 맞게 — :root · html → :host, body → .sqr-body, @import 제거, :host 를 block 으로. 순수 함수 */
+function scopeReportCss(css) {
+  const scoped = css
+    .replace(/@import[^;]*;?/gi, '')
+    .replace(/:root\b/g, ':host')
+    .replace(/(^|[{}\s,;])html(?=[\s,{.:[>+~])/g, '$1:host')
+    .replace(/(^|[{}\s,;])body(?=[\s,{.:[>+~])/g, '$1.sqr-body')
+  return `:host{display:block}\n${scoped}`
+}
+/** 결과서 HTML 글 → { css, body }. body 는 정리가 끝난 .sqr-body 요소(아직 어디에도 안 붙음). 파싱만 하고 실행하지 않는다. 순수 함수 */
+function parseReport(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/html')
+  const css = [...doc.querySelectorAll('style')].map((node) => node.textContent).join('\n')
+  const root = doc.body
+  for (const node of [...root.querySelectorAll('*')]) {
+    const tag = node.localName
+    if (DROP_TAGS.has(tag)) {
+      node.remove()
+      continue
+    }
+    if (tag === 'a') {
+      node.replaceWith(...node.childNodes)
+      continue
+    }
+    for (const attr of [...node.attributes]) {
+      const name = attr.name.toLowerCase()
+      const value = attr.value
+      if (name.startsWith('on')) node.removeAttribute(attr.name)
+      else if (URL_ATTRS.has(name) && !(name === 'href' && /^#/.test(value)) && !(tag === 'img' && name === 'src' && /^data:image\//i.test(value))) node.removeAttribute(attr.name)
+      else if (name === 'style' && /url\s*\(|expression\s*\(|@import/i.test(value)) node.removeAttribute(attr.name)
+    }
+  }
+  const body = doc.createElement('div')
+  body.className = 'sqr-body'
+  body.append(...root.childNodes)
+  return { css: scopeReportCss(css), body }
+}
+
+let viewSeq = 0
+function openInApp(id) {
+  state.openError = undefined
+  void call('project.openFile', { path: reportFile(id) }).catch((error) => {
+    if (isOff(error)) state.load = 'off'
+    else state.openError = { title: '결과서를 열지 못했습니다', text: errorText(error) }
+    render()
+  })
+}
+async function openDetail(id) {
+  const token = ++viewSeq
+  state.openError = undefined
+  state.view = { id, token, phase: 'loading', slow: false, scrollY: window.scrollY }
+  render()
+  window.scrollTo(0, 0)
+  document.querySelector('[data-fk=back]')?.focus()
+  const view = state.view
+  const slow = setTimeout(() => {
+    if (state.view !== view || view.phase !== 'loading') return
+    view.slow = true
+    render()
+  }, SLOW_MS)
+  try {
+    const text = await call('project.readFile', { path: reportFile(id) })
+    if (state.view !== view) return
+    if (typeof text !== 'string') throw new Error('file-unreadable')
+    if (text.length > REPORT_MAX) throw new Error('file-too-large')
+    const { css, body } = parseReport(text)
+    const host = el('div', { class: 'rep' })
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.append(el('style', {}, css), body)
+    view.host = host
+    view.phase = 'ready'
+  } catch (error) {
+    if (state.view !== view) return
+    if (isOff(error)) return render()
+    view.phase = error?.message === 'file-too-large' ? 'large' : 'error'
+    view.text = errorText(error)
+  }
+  clearTimeout(slow)
+  render()
+  if (document.activeElement === document.body) document.querySelector('[data-fk=back]')?.focus()
+}
+/** 목록으로 — 눌렀던 줄의 [결과서 보기] 로 포커스, 스크롤도 되돌린다 */
+function closeDetail(focusRow = true) {
+  const view = state.view
+  if (!view) return
+  state.view = undefined
+  state.openError = undefined
+  render()
+  window.scrollTo(0, view.scrollY)
+  if (focusRow) document.querySelector(`[data-fk="rep:${CSS.escape(view.id)}"]`)?.focus({ preventScroll: true })
+}
+function reportPage() {
+  const view = state.view
+  const row = state.list?.rows.find((item) => item.id === view.id)
+  const back = el('button', { type: 'button', class: 'btn ghost back', 'data-fk': 'back', onclick: () => closeDetail() }, icon('back'), '목록으로')
+  if (!row) return el('div', { class: 'dpage' }, el('div', { class: 'dtop' }, back), el('div', { class: 'card' }, el('div', { class: 'empty' }, el('b', {}, '이 결과서는 삭제되었습니다'), el('p', {}, '목록으로 돌아가 다른 결과서를 고르세요.'))))
+  const { meta } = row
+  const label = meta?.target ?? `${when(row.at)} 결과서`
+  const failed = view.phase === 'large' || view.phase === 'error'
+  const del = state.del?.id === row.id ? state.del : undefined
+  const openBtn = (kind = '') => el('button', { type: 'button', class: `btn out ${kind}`.trim(), 'data-fk': 'inapp', onclick: () => openInApp(row.id) }, '앱에서 열기', icon('out'))
+  const remove = el('button', { type: 'button', class: 'btn danger', 'data-fk': `del:${row.id}`, disabled: state.del?.phase === 'busy', 'aria-label': `${label} 결과서 삭제`, onclick: () => askDelete(row.id) }, '삭제')
+  let body
+  if (view.phase === 'loading') body = view.slow && el('div', { class: 'card' }, el('div', { class: 'loading', role: 'status' }, el('span', { class: 'spin', 'aria-hidden': 'true' }), '불러오는 중…'))
+  else if (view.phase === 'large') body = el('div', { class: 'card' }, el('div', { class: 'empty' }, el('b', {}, '결과서가 너무 커서 여기서 못 보여 줍니다'), el('p', {}, '앱의 파일 미리보기로 열어서 보세요.'), el('div', { class: 'acts' }, openBtn('tint'))))
+  else if (view.phase === 'error') body = el('div', { class: 'errbox', role: 'alert' }, el('b', {}, '결과서를 읽지 못했습니다'), el('p', {}, view.text), el('div', { class: 'acts' }, openBtn()))
+  else body = view.host
+  return el(
+    'div',
+    { class: 'dpage' },
+    el('div', { class: 'dtop' }, back, el('div', { class: 'acts' }, !failed && openBtn(), remove)),
+    el('div', { class: 'dtitle' }, el('b', { class: meta ? 'tgt' : 'tgt plain' }, meta ? meta.target : '이전 결과서'), el('span', { class: 'when' }, when(row.at))),
+    del && (del.phase === 'error' ? inlineError({ title: '삭제하지 못했습니다', text: del.text }) : deleteBox(row, label, del)),
+    state.openError && inlineError(state.openError),
+    body,
+  )
+}
+
 function reportRow(row) {
   const { meta } = row
   const mark = state.marks[row.id]
-  const open = () => {
-    state.openError = undefined
-    void call('project.openFile', { path: reportFile(row.id) }).catch((error) => {
-      if (isOff(error)) state.load = 'off'
-      else state.openError = { title: '결과서를 열지 못했습니다', text: errorText(error) }
-      render()
-    })
-  }
   const evidence = row.file
-    ? el('button', { type: 'button', class: 'btn', 'data-nav': '', 'data-fk': `rep:${row.id}`, 'aria-label': `${meta?.target ?? '이전 결과서'} 결과서 열기`, onclick: open }, '결과서 열기', icon('out'))
+    ? el('button', { type: 'button', class: 'btn', 'data-nav': '', 'data-fk': `rep:${row.id}`, 'aria-label': `${meta?.target ?? '이전 결과서'} 결과서 보기`, onclick: () => void openDetail(row.id) }, '결과서 보기')
     : el('span', { class: 'gone', title: `${reportFile(row.id)} 이 지워졌습니다` }, '결과서 파일 없음')
   const del = state.del?.id === row.id ? state.del : undefined
   const busyDel = del?.phase === 'busy'
@@ -802,7 +944,7 @@ function historyCard() {
   return el('section', { class: state.readFailed ? 'card stale' : 'card', 'aria-labelledby': 'hist-t' }, el('div', { class: 'ch' }, el('h2', { id: 'hist-t' }, '튜닝 이력'), sum), tools, body)
 }
 
-/** ↑↓ 는 위 · 아래 줄의 [결과서 열기] 로 */
+/** ↑↓ 는 위 · 아래 줄의 [결과서 보기] 로 */
 addEventListener('keydown', (event) => {
   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
   const here = event.target?.closest?.('[data-nav]')
@@ -1068,7 +1210,8 @@ function mainView() {
 function render() {
   const app = document.getElementById('app')
   const fk = document.activeElement?.dataset?.fk
-  app.replaceChildren(state.edit ? editView() : mainView())
+  if (state.load === 'off') state.view = undefined
+  app.replaceChildren(state.edit ? editView() : state.view ? reportPage() : mainView())
   if (state.confirm && fk !== 'cancel') app.querySelector('[data-fk=cancel]')?.focus()
   else if (fk) {
     const target = app.querySelector(`[data-fk="${CSS.escape(fk)}"]`)
@@ -1078,6 +1221,7 @@ function render() {
 addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && state.confirm) cancelConfirm()
   else if (event.key === 'Escape' && state.del?.phase === 'ask') cancelDelete()
+  else if (event.key === 'Escape' && state.view && !state.del) closeDetail()
 })
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return
