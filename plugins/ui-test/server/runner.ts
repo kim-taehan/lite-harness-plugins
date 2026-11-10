@@ -669,9 +669,9 @@ export class Workspace {
 
   // ── 저장소 맞추기 · 삭제 ──
 
-  /** 시나리오 폴더의 시나리오 파일로 저장소를 맞춘다(처음에는 옛 ui-tests/ 를 가져온다) — 사용자가 지운 파일의 줄 · 기록 · 스크린샷 · 결과서 절도 같이 지운다 */
+  /** 시나리오 폴더의 시나리오 파일로 저장소를 맞춘다— 사용자가 지운 파일의 줄 · 기록 · 스크린샷 · 결과서 절도 같이 지운다 */
   async reindex(): Promise<ReindexResult> {
-    const result = await reindex(this.needStore(), { project: this.config.project, pluginDir: this.config.pluginDir, scenarioDir: this.config.scenarioDir })
+    const result = await reindex(this.needStore(), { project: this.config.project, scenarioDir: this.config.scenarioDir })
     await this.cleanup(result.dropped)
     return result
   }

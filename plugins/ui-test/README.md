@@ -10,7 +10,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 |---|---|
 | 시나리오 | md(사람 · AI 가 읽는 원본) + spec(실행 코드). 하위 폴더 없음 |
 | 화면 태그 | **"확인:" 단계를 실행한 순간의 주소**(`page.url()` 의 경로)를 라우트 패턴(숫자 · uuid · 긴 해시 마디 → `:id`)으로 바꾼 것. 서버가 실행하며 단계마다 기록(`results.urls`)하고 `scenarios.screens` 에 반영 — 성공이면 이번에 본 것으로 바꾸고, 실패면 거기까지 본 것을 더한다. 거쳐 가는 로그인은 "확인:" 단계가 없으면 붙지 않는다. 한 번도 안 돈 시나리오는 md 머리 `screens: [/login]`(AI 가 쓴 값), 이름은 `screens` 컬렉션(머리 `screen-names: {/login: 로그인}` 또는 라우트 그대로) |
-| 요청 태그 | 그 시나리오를 만든 채팅 요청 하나 — md 머리 `request: "<원문>"` · `requested: <ISO>` 에서 reindex 가 `requests` 를 만든다(파일 이름이 `<요청 id>-<번호>.md` 면 그 앞이 요청 id, 아니면 요청 글 · 시각의 해시, 옛 `ui-tests/` 의 `suite.md` 묶음은 가져올 때 `imported.json` 에 남긴 폴더 이름 · `request:` 로 태그를 만든다). DB 가 비어도 파일에서 복구된다 |
+| 요청 태그 | 그 시나리오를 만든 채팅 요청 하나 — md 머리 `request: "<원문>"` · `requested: <ISO>` 에서 reindex 가 `requests` 를 만든다(파일 이름이 `<요청 id>-<번호>.md` 면 그 앞이 요청 id, 아니면 요청 글 · 시각의 해시). DB 가 비어도 파일에서 복구된다 |
 | 수행 | 시나리오 N 개를 한 번에 실행한 일 — `runs` 한 줄 + 시나리오마다 `results` 한 줄. 결과서 · 화면 가이드는 수행 한 번의 결과 문서 |
 
 - **실행 단위**: 직접 고른 시나리오들 · 화면 그룹 · 요청 그룹 · 실패한 것만(`run { scenarios? , screen? , request? , failed? }` — 여럿이면 모두 맞는 것). 여러 개를 실행하면 결과서를 **하나로 같이**(`.litecode/plugins/ui-test/reports/<수행 id>/index.html`, 시나리오마다 절 `#s-<시나리오 id>`) 또는 **시나리오마다 따로**(`.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html`) 낸다 — 시나리오가 1 개뿐이면 묻지 않고 하나로(묻는 것은 패널 몫, 서버는 `report: 'one' | 'each'` 인자만 받는다)
@@ -21,7 +21,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 - **PDF 저장**(패널 [PDF 로 저장] — 결과서 · 화면 가이드 보기 자리): 서버가 결과서 · 가이드 HTML 을 `file://` 로 열어 인쇄 모양으로 PDF 를 만들어 같은 폴더(`index.pdf` · `guide.pdf`)에 쓰고, 서비스가 `project.exportFile` 로 사용자가 저장 창에서 고른 곳에 복사한다(호스트 API 2 — 이 호출이 없는 옛 앱이면 패널이 버튼을 숨기고 안내). 하나로 같이 낸 결과서의 PDF 는 그 결과서 전체다(시나리오 절만 따로 자르지 않는다). 프로젝트 안에 남은 PDF 는 결과서 폴더에 속해 정리 · 삭제 때 같이 지워지고, 결과서 · 가이드를 다시 쓰면(시나리오 삭제로 남은 것으로 다시 씀) 옛 PDF 는 지운다
 - 용어: 사용자에게 보이는 글은 "돌리기" 대신 **실행**, 한 번의 기록은 **수행**
 
-- 범위: `"project"` — 대상 주소 · 계정이 프로젝트마다 다르다(`settingsPer: "project"`). 프로젝트 안 산출물(시나리오 · 결과서 · `_prompt.md` · `imported.json`)은 모두 `<프로젝트>/.litecode/plugins/ui-test/` 아래에 두고 위치를 설정으로 바꾸지 않는다 — 앱이 플러그인을 지울 때 그 폴더를 통째로 지우기 때문이다(`config.ts` 의 `PLUGIN_DIR` 상수 하나가 정한다). 플러그인을 지우면 `.litecode/plugins/ui-test/` 가 함께 지워진다(앱이 안내 후 삭제) — 사용자가 쓴 시나리오도 포함. 옛 `ui-tests/` 는 가져오기만 하고 지우지 않는다(사용자가 직접 정리).
+- 범위: `"project"` — 대상 주소 · 계정이 프로젝트마다 다르다(`settingsPer: "project"`). 프로젝트 안 산출물(시나리오 · 결과서 · `_prompt.md`)은 모두 `<프로젝트>/.litecode/plugins/ui-test/` 아래에 두고 위치를 설정으로 바꾸지 않는다 — 앱이 플러그인을 지울 때 그 폴더를 통째로 지우기 때문이다(`config.ts` 의 `PLUGIN_DIR` 상수 하나가 정한다). 플러그인을 지우면 `.litecode/plugins/ui-test/` 가 함께 지워진다(앱이 안내 후 삭제) — 사용자가 쓴 시나리오도 포함.
 - 앱에 닿는 자리: 서비스(`service` — 앱 안에서 도는 얇은 중계 · 진행 밀어 보내기, 서버를 `host.mcp.register`, 스킬을 `host.skills.register` 로 올림. **호스트 API 2** — `service.api: 2` 라 옛 앱에는 설치가 거절된다) · 별도 프로세스 MCP 서버(실행기 · 기록 저장소 접근, playwright-core) · 스킬 · 패널.
 - 권한: `service`(서비스를 담는다) · `project`(서비스가 결과서를 앱 파일 보기로 열고, 결과서 PDF 를 사용자가 고른 곳에 저장 — `project.exportFile`) · `chat`(서비스가 [보강] · [AI 에게 맡기기] 의 새 대화 요청을 보냄). `secrets` 권한은 없다 — 비밀번호는 설정의 secret 칸에 저장되고 서버 env 의 `${secret:password}` 로 서버 프로세스에만 가며, 서비스는 비밀을 읽지 못한다(권한 검사 없이 앱이 풀어 준다). 기록 저장소(`host.db`)는 권한이 따로 없다 — 서버는 앱이 띄우며 준 환경변수(`LITECODE_DB_URL` · `LITECODE_DB_TOKEN`)로 쓰고, 서버가 브라우저를 띄울 때는 그 환경변수를 넘기지 않는다(`driver.ts browserEnv`)
 
@@ -32,8 +32,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 | 대상 주소 · 브라우저 · 계정 · 비밀 | 설정 칸 | 사용자 | 플러그인을 지울 때 |
 | 패널 기본값(`headed` · `output` · `report`) | `storage` 칸 `prefs`(프로젝트별) | 서비스 | 플러그인을 지울 때 |
 | 시나리오 색인 `scenarios`(제목 · 종류 · 화면[] · 요청 id · 지문 · 마지막 결과 · 남은 수행 id[]) · 요청 `requests` · 수행 `runs` · 결과 `results`(단계별 상태 · 실패 이유 · 데이터 행 · 스크린샷 파일 이름[] · 본 주소[]) · 화면 `screens`(이름 · 마지막 그룹 수행) | `host.db`(프로젝트별) | 서버 | 플러그인을 지울 때(업데이트 · 재설치로는 안 지워짐). 깨져도 `reindex` 가 파일에서 시나리오 · 요청을 다시 채운다(수행 기록만 잃는다) |
-| 시나리오 `<id>.md` · 생성 코드 `<id>.spec.mjs` | `<프로젝트>/.litecode/plugins/ui-test/scenarios/` — 하위 폴더 없음, ASCII 이름 `<요청 id>-<번호>` | AI(서버는 읽기만, 가져오기만 복사해 쓴다) | 패널 [삭제] · 파일을 직접 지우면 reindex 가 기록을 같이 정리. **플러그인을 지우면 `.litecode/plugins/ui-test/` 가 함께 지워진다(앱이 안내 후 삭제) — 사용자가 쓴 시나리오도 포함** |
-| 가져온 기록 | `<프로젝트>/.litecode/plugins/ui-test/imported.json` — 원본 경로 → 새 파일 · 옛 `suite.md` 묶음 정보 | 서버 | 있으면 다시 가져오지 않는다. 플러그인 폴더와 함께 지워진다 |
+| 시나리오 `<id>.md` · 생성 코드 `<id>.spec.mjs` | `<프로젝트>/.litecode/plugins/ui-test/scenarios/` — 하위 폴더 없음, ASCII 이름 `<요청 id>-<번호>` | AI(서버는 읽기만 한다) | 패널 [삭제] · 파일을 직접 지우면 reindex 가 기록을 같이 정리. **플러그인을 지우면 `.litecode/plugins/ui-test/` 가 함께 지워진다(앱이 안내 후 삭제) — 사용자가 쓴 시나리오도 포함** |
 | 프로젝트 프롬프트 `_prompt.md` | `<프로젝트>/.litecode/plugins/ui-test/_prompt.md`(시나리오 폴더 밖) | AI | 플러그인 폴더와 함께 지워진다 |
 | 결과서 · 가이드 | `<프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/index.html`(하나로 같이) 또는 `…/<수행 id>/<시나리오 id>/index.html`(따로), 같은 수행 폴더에 `guide.html` · [PDF 로 저장] 을 눌렀을 때 만든 `index.pdf` · `guide.pdf` | 서버 | 최근 20 개를 넘으면 서버가 지운다(수행 id · 시나리오 id 모양의 폴더만). 플러그인 폴더와 함께 지워진다. 처음 결과서를 만든 뒤 한 번 `.gitignore` 에 `.litecode/plugins/ui-test/reports/` 를 넣을지 묻는다(플러그인은 `.gitignore` 를 고치지 않는다) |
 | 스크린샷 | 앱 데이터 폴더 `projects/<프로젝트 해시>/shots/<수행 id>/` | 서버 | 정리 때 · 플러그인을 지울 때 |
@@ -50,13 +49,12 @@ id 규칙: 수행 id · 요청 id 는 `20261110T110500_01`(지역 시각 + 같�
 - `server/tools.ts` — AI 에 보이는 도구(`litecode_ui-test_<도구>`): `list { scenarios?, screen?, request?, failed?, json?, cursor? }`(글 — 파일을 먼저 읽고 시나리오 · 화면별 · 요청별) · `run { scenarios?, screen?, request?, failed?, report?: 'one' | 'each', headed? }` · `report { run? , scenario? }` · `guide { run, json? }` · `fingerprint { files }` · `newRequest { text }`(요청 id · 파일 이름 · 머리 두 줄을 돌려준다 — 아무것도 쓰지 않는다), 설정 폼용 `check`. 패널 전용(`PANEL_TOOLS` — 서비스가 `panelTools` 로 올려 AI 에 안 보인다, 결과는 JSON 글): `progress` · `stop` · `shot { run, name }` · `delete { scenarios?, screen?, request? }` · `detail { id }` · `reindex` · `pdf { run, kind: 'report' | 'guide', scenario? }`(결과서 · 가이드를 PDF 로 — `{ path, name }`. 시나리오마다 따로 낸 수행은 `scenario` 필요, 시나리오가 하나뿐이면 생략 가능)
 - `server/runner.ts` — 시나리오 고르기(`Selector`) · 드라이버로 실행 · 결과서 `one`/`each` · 기록(`record`) · 비교 · 정리(`cleanup`) · 삭제(`remove`) · PDF(`pdf`) · 진행 · 멈추기. 한 번에 수행 하나. DB 없이도 실행은 된다
 - `server/store.ts` — 저장 계층: host.db 컬렉션 `scenarios` · `requests` · `runs` · `results` · `screens` 의 문서 모양과 읽고 쓰는 함수(시나리오 upsert · 쪽 읽기 200개 · 삭제 batch 50개씩 · 수행 기록 · 최근 20개 정리 `pruneResults` — 지운 results · runs 를 돌려주고 파일 삭제는 runner 가 · 그룹의 마지막 수행 · id 만들기 · 검증). 서버가 DB 를 못 쓰면 `db-unavailable`
-- `server/reindex.ts` — 시작할 때 `legacy.ts` 로 옛 `ui-tests/` 를 한 번 가져온 뒤, 시나리오 폴더(바로 아래만, `_`·`.` 로 시작하는 파일 제외)의 시나리오 md 를 훑어 `scenarios` · `requests` · `screens` 이름을 파일에 맞춘다(추가 · 바뀌면 갱신 · 파일이 없어진 줄은 results 와 함께 삭제). 옛 `suite.md` 묶음은 `imported.json` 의 정보로 요청 태그를 만든다. 시나리오 폴더가 없으면 아무것도 지우지 않는다. `ReindexResult.imported` 가 이번에 가져온 개수
+- `server/reindex.ts` — 시나리오 폴더(바로 아래만, `_`·`.` 로 시작하는 파일 제외)의 시나리오 md 를 훑어 `scenarios` · `requests` · `screens` 이름을 파일에 맞춘다(추가 · 바뀌면 갱신 · 파일이 없어진 줄은 results 와 함께 삭제). 시나리오 폴더가 없으면 아무것도 지우지 않는다
 - `server/tag.ts` — 화면 태그: 주소 → 경로 → 라우트 패턴
 - `server/files.ts` — 앱 데이터 폴더의 스크린샷 자리 · 처음 한 번 플래그
-- `server/legacy.ts` — 옛 `ui-tests/`(바로 아래 + 묶음 폴더 한 단계) 가져오기: md 와 짝 spec 을 시나리오 폴더로 **복사**(옛 폴더는 그대로, `_reports` · `_prompt.md` 는 안 가져옴), 이름이 겹치면 `<묶음 폴더>-<이름>`, 결과를 `imported.json` 에 적고 그 파일이 있으면 다시 안 가져온다
 - `server/remove.ts` — 시나리오 파일(md · 생성 코드) 삭제. 시나리오 폴더 바로 아래가 아닌 것 · `_`·`.` 로 시작하는 이름 · md 가 아닌 것 · 실제 경로가 플러그인 폴더 밖인 것은 거절
 - `server/history.ts` — 지난 실행과 비교(새로 실패 · 고쳐짐 · 그대로 실패, 행 단위)
-- `server/scenario.ts` — 시나리오 읽기(머리 `request` · `requested` · `screens` · `screen-names` · `sources`), 지문(이 줄들은 지문에서 뺀다), 옛 `suite.md` 읽기(가져오기용)
+- `server/scenario.ts` — 시나리오 읽기(머리 `request` · `requested` · `screens` · `screen-names` · `sources`), 지문(이 줄들은 지문에서 뺀다)
 - `server/steps.ts` — 생성 코드가 쓰는 단계 API(`step` · `page` · `expect` · `data` · `account` · `baseUrl`), 단계마다 스크린샷, "확인:" 단계의 주소 기록, page 호출(셀렉터 · 기다림)과 expect 를 적어 테스트 방법 재료로 돌려준다(입력 값은 적지 않는다)
 - `server/driver.ts` — 드라이버 인터페이스(`check()` · `run(cases)` · `pdf(html, pdf)` · `stop()`)와 `web` 하나(`pdf` 는 화면 없이 브라우저를 띄워 `emulateMedia('print')` + `page.pdf`, 라이트). 브라우저에는 `LITECODE_DB_*` 환경변수를 넘기지 않는다
 - `server/failure.ts` — 실패 갈래 · 길잡이
@@ -77,7 +75,7 @@ id 규칙: 수행 id · 요청 id 는 `20261110T110500_01`(지역 시각 + 같�
 | `progress` | — | `Progress` = `{ running, title?, target?, runId?, startedAt?, headed?, browser?, mode?: 'one' \| 'each', cases: { id, title, status: 'waiting' \| 'running' \| 'passed' \| 'failed' \| 'no-code' \| 'stopped', durationMs?, steps, rows? }[], stale?: string[], reports?: { scenario?, file }[], report?, recorded?: boolean, error? }` | 소식 `service.progress` 의 값도 같은 모양. 끝난 수행은 `reports`(하나로 같이면 1 개, 따로면 시나리오마다) · `recorded: false` 면 기록을 못 남긴 것 |
 | `stop` | — | `'멈추는 중' \| '실행 중이 아닙니다'` | |
 | `delete` | `{ scenarios?, screen?, request? }`(하나는 필요) | `{ scenarios: 지운 id[], files: 지운 파일[], runs: 통째로 지운 수행 수 }` | 확인을 받은 뒤 부른다. 화면 · 요청 그룹은 그 태그의 시나리오 전부(여러 화면에 걸친 것도). 실행 중인 시나리오가 있으면 거절 |
-| `reindex` | — | `{ added, updated, removed, imported }` | 패널을 열 때 한 번. `list` 앞에 부르면 목록이 파일과 맞는다. `imported` 는 이번에 옛 `ui-tests/` 에서 가져온 시나리오 수(보통 0) — 0 보다 크면 패널이 "옛 ui-tests/ 에서 시나리오 N개를 가져왔습니다 — 옛 ui-tests/ 는 그대로 있으니 필요 없으면 직접 지우세요" 를 한 번 알린다 |
+| `reindex` | — | `{ added, updated, removed }` | 패널을 열 때 한 번. `list` 앞에 부르면 목록이 파일과 맞는다 |
 | `shot` | `{ run, name }` | `data:image/jpeg;base64,…` | `name` 은 `StepResult.shot` · `failShot` |
 | `guide` | `{ run }` | `{ files: 가이드 파일[] }` | 환경 `output: 'both'` 면 실행이 끝난 뒤 패널이 부른다. 하나로 같이는 파일 1 개, 따로는 시나리오마다 |
 | `openFile` | `{ path }` | 앱의 `project.openFile` 결과 | 결과서 · 가이드 · 프로젝트 프롬프트 열기(앱 오른쪽 미리보기). **앵커(`#s-<id>`)는 못 넘긴다** — 앱의 `project.openFile` 은 `path` · `line` 만 받는다(desktop `calls/project.ts`: 경로 전체를 파일 이름으로 보므로 `#` 를 붙이면 파일을 못 찾는다). 그래서 하나로 같이 낸 결과서도 시나리오 절 위치 없이 맨 위부터 열린다(`Result.report.anchor` 는 "하나로 같이 낸 결과서" 표시로만 쓴다) |
@@ -97,9 +95,9 @@ zip 의 `server/` 폴더(러너 + `node_modules/playwright-core`)를 CI 에 두�
 
 ### 테스트
 
-`plugins/ui-test/tests/` (`npm test -- --project ui-test`) — 가짜 브라우저(`launch` 주입)와 SDK 가짜 host 의 `host.db`(`store-helper.ts`)로만 본다(브라우저를 띄우지 않는다): `workspace.test.ts`(시나리오 선택자 · 화면 태그 · 결과서 하나/따로 · 비교 · 최근 20 개 정리 · DB 없는 실행 · 삭제 · reindex 연동 · 도구), `reindex.test.ts`(옛 `ui-tests/` 가져오기 — 이름 충돌 · 두 번째에는 안 가져옴 · 옛 폴더 무변화 · `imported.json`) · `store.test.ts` · `tag.test.ts` · `scenario.test.ts` · `remove.test.ts` · `stage2.test.ts`(낡음 · 바뀜 · 데이터 표 · 긴 실행 · 중단) · `service.test.ts`(서비스 중계 · 진행 밀어 보내기 · 감시 정리 · `exportPdf` — `project.exportFile` 은 저장 창 결과를 정하려고 테스트가 호스트에서 가로챈다) · `pdf.test.ts`(결과서 · 가이드 → PDF, 하나로/따로, 폴더와 함께 삭제) · `panel.test.ts`(패널의 `<pure>` 구간 — 그룹 · 검색 · 상태 · 질문 흐름 — 과 소스 규칙) · `guide.test.ts` · `cli.test.ts`.
+`plugins/ui-test/tests/` (`npm test -- --project ui-test`) — 가짜 브라우저(`launch` 주입)와 SDK 가짜 host 의 `host.db`(`store-helper.ts`)로만 본다(브라우저를 띄우지 않는다): `workspace.test.ts`(시나리오 선택자 · 화면 태그 · 결과서 하나/따로 · 비교 · 최근 20 개 정리 · DB 없는 실행 · 삭제 · reindex 연동 · 도구), `reindex.test.ts`(시나리오 파일 ↔ 기록 맞추기 · 요청 · 화면 태그 · 지워진 파일 정리) · `store.test.ts` · `tag.test.ts` · `scenario.test.ts` · `remove.test.ts` · `stage2.test.ts`(낡음 · 바뀜 · 데이터 표 · 긴 실행 · 중단) · `service.test.ts`(서비스 중계 · 진행 밀어 보내기 · 감시 정리 · `exportPdf` — `project.exportFile` 은 저장 창 결과를 정하려고 테스트가 호스트에서 가로챈다) · `pdf.test.ts`(결과서 · 가이드 → PDF, 하나로/따로, 폴더와 함께 삭제) · `panel.test.ts`(패널의 `<pure>` 구간 — 그룹 · 검색 · 상태 · 질문 흐름 — 과 소스 규칙) · `guide.test.ts` · `cli.test.ts`.
 
-**앱에서 못 본 것**: 앱이 플러그인을 지울 때 `.litecode/plugins/ui-test/` 를 실제로 통째로 지우는 것(desktop 동작) · 옛 `ui-tests/` 가 있는 실제 프로젝트에서 패널이 가져온 개수 알림을 보이는 것 · 진짜 Chrome · Edge 로 실행해 단계 주소가 화면 태그로 붙는 것(가짜 페이지의 `url()` 로만 봤다) · 앱이 서비스를 올리고 패널이 `service.call` · `service.progress` 로 주고받는 것 · 앱이 서버에 준 환경변수로 진짜 `host.db` 중계에 쓰고 읽는 것(가짜 host 의 같은 처리기로만 봤다) · AI 가 `litecode_ui-test_<도구>` 로 부르는 종단 · Windows · `panelTools` 가 `detail` · `reindex` 까지 숨기는지 · `project.exportFile` 로 진짜 저장 창이 뜨고 파일이 쓰이는 것 · 패널이 앱의 샌드박스 iframe 안에서(CSP) 도는 것 · 한글 입력(IME)으로 검색 · Windows 의 PDF 글꼴.
+**앱에서 못 본 것**: 앱이 플러그인을 지울 때 `.litecode/plugins/ui-test/` 를 실제로 통째로 지우는 것(desktop 동작) · 진짜 Chrome · Edge 로 실행해 단계 주소가 화면 태그로 붙는 것(가짜 페이지의 `url()` 로만 봤다) · 앱이 서비스를 올리고 패널이 `service.call` · `service.progress` 로 주고받는 것 · 앱이 서버에 준 환경변수로 진짜 `host.db` 중계에 쓰고 읽는 것(가짜 host 의 같은 처리기로만 봤다) · AI 가 `litecode_ui-test_<도구>` 로 부르는 종단 · Windows · `panelTools` 가 `detail` · `reindex` 까지 숨기는지 · `project.exportFile` 로 진짜 저장 창이 뜨고 파일이 쓰이는 것 · 패널이 앱의 샌드박스 iframe 안에서(CSP) 도는 것 · 한글 입력(IME)으로 검색 · Windows 의 PDF 글꼴.
 
 **렌더로 본 것**: 패널(`index.html`)을 진짜 Chrome 에서 가짜 서비스(앱 통로 postMessage 스텁)로 열어 전체 · 선택 막대 · 실행/삭제 질문 · 화면별 · 요청별 · 검색 · 실행 중 · 완료 알림 · 상세(실패 · 스크린샷 · 실행 전) · 결과서 보기 · PDF 저장(성공 · 옛 앱) · 비어 있음 · 오류 · 환경 팝업을 라이트 · 다크, 폭 420 · 440 에서 시안과 견줘 확인했다. `Workspace.pdf` 는 진짜 Chrome 으로 결과서 · 가이드 PDF 를 만들어 열어 보았다(결과서 3쪽 · 가이드 — 약 0.6~0.9초). `project.openFile` 의 앵커는 앱 코드로 확인했다(위 `openFile` 행).
 

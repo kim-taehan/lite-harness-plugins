@@ -51,8 +51,6 @@ export interface RequestDoc {
   text: string
   at: number
   scenarios: string[]
-  /** 옛 suite.md 에서 가져왔으면 그 폴더 이름 */
-  imported?: string
   /** 이 요청의 시나리오를 그룹으로 마지막에 같이 실행한 수행 id */
   lastRun?: string
 }
@@ -141,9 +139,6 @@ const REQUEST_STEM = /^(\d{8}T\d{6}_\d{2,})-\d+$/
 export function requestIdFor(scenarioId: string, request: string, requested?: string): string {
   return REQUEST_STEM.exec(scenarioId)?.[1] ?? `q-${hash12(`${request}\n${requested ?? ''}`)}`
 }
-
-/** 옛 suite.md 폴더에서 가져온 요청의 id */
-export const importedRequestId = (folder: string): string => `q-${hash12(folder)}`
 
 /** 결과 문서 id — 시나리오 id 와 수행 id 를 `.` 로 잇는다(`~` 는 id 에 못 든다). 거꾸로 쪼개 읽지 않는다 — 문서 안 scenario · run 필드를 본다 */
 export const resultId = (scenarioId: string, runId: string): string => `${scenarioId}.${runId}`

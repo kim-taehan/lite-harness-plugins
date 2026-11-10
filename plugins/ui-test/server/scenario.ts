@@ -1,11 +1,10 @@
 // 시나리오 md 읽기 (#1248, 계획 §2-1) — 파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다.
 // 시나리오: 머리(--- name · kind · targets · tags · account · request · requested · screens · screen-names · sources ---) + 번호 단계 + (선택) `## 테스트 방법`
-// 옛 묶음 suite.md 는 reindex 가 옛 데이터를 요청 태그로 가져올 때만 읽는다(parseSuite)
 // 2 단계: 시나리오의 `## 데이터` 표(한 행마다 한 번 돈다) · 머리 `sources: [경로@지문, …]`(쓸 때 읽은 코드 — 바뀌면 "코드 바뀜")
 
 import { createHash } from 'node:crypto'
 import { normalizeRoute } from './tag.ts'
-import type { DataTable, LegacySuite, Scenario, ScenarioStep, SourceRef, StepKind } from './types.ts'
+import type { DataTable, Scenario, ScenarioStep, SourceRef, StepKind } from './types.ts'
 
 const METHOD_HEADING = /^##\s*테스트\s*방법\s*$/
 const DATA_HEADING = /^##\s*데이터\s*$/
@@ -155,14 +154,6 @@ export function fingerprint(source: string): string {
 /** 화면 · 서버 코드 파일의 지문 (12자) — 줄 끝(CRLF)만 맞춘 내용 */
 export function sourceFingerprint(content: string): string {
   return createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex').slice(0, 12)
-}
-
-/** 옛 suite.md — 머리의 이름 · request · created 만 읽는다(순서 · 규칙 · 대상은 쓰지 않는다) */
-export function parseSuite(id: string, source: string): LegacySuite {
-  const { head } = splitFrontMatter(source)
-  const request = text(head['request'])
-  const created = text(head['created'])
-  return { id, name: text(head['name']) ?? id, ...(request && { request }), ...(created && { created }) }
 }
 
 /** 생성 코드 머리말 — `// ui-test source: <시나리오 경로> · fingerprint: <지문>` */

@@ -404,8 +404,7 @@ const dot = (status) => el('span', { class: `dot ${dotOf(status)}`, role: 'img',
 /** 파일에 맞추고(reindex) 목록을 끝까지 읽는다 — 열 때와 [다시 불러오기] 만 reindex, 삭제 · 실행 뒤에는 목록만 */
 async function load(reindex = false, quiet = false) {
   try {
-    let imported = 0
-    if (reindex) imported = (await tool('reindex').catch(() => undefined))?.imported ?? 0
+    if (reindex) await tool('reindex').catch(() => undefined)
     let first
     const rows = []
     let cursor
@@ -423,7 +422,6 @@ async function load(reindex = false, quiet = false) {
     const requests = new Map((first.requests ?? []).map((item) => [item.id, item]))
     state.data = { project: first.project ?? '', scenarioDir: first.scenarioDir, reportDir: first.reportDir, baseUrl: first.baseUrl, browser: first.browser, rows: sortRows(rows, requests), screens, requests }
     state.error = ''
-    if (imported) state.notice = { tone: 'ok', text: `옛 ui-tests/ 에서 시나리오 ${imported}개를 가져왔습니다`, detail: '옛 ui-tests/ 는 그대로 있으니 필요 없으면 직접 지우세요' }
     const ids = new Set(rows.map((row) => row.id))
     for (const id of [...state.picked]) if (!ids.has(id)) state.picked.delete(id)
     if (!state.picked.size) state.dock = ''
