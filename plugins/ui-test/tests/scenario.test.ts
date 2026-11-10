@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { configFromEnv, guardPluginPath, insideProject, PLUGIN_DIR, scrub } from '../server/config.ts'
-import { fingerprint, parseScenario, parseSuite, specHeader, splitFrontMatter } from '../server/scenario.ts'
+import { fingerprint, parseScenario, specHeader, splitFrontMatter } from '../server/scenario.ts'
 
 // UI 테스트 (#1248) — 시나리오 · 묶음 md 읽기, 지문, 생성 코드 머리말, 폴더 설정 검사
 
@@ -60,17 +60,8 @@ describe('parseScenario', () => {
   })
 })
 
-describe('옛 suite.md · 머리말', () => {
-  it('parseSuite — reindex 의 옛 데이터 가져오기용: 이름 · 요청 · 만든 날만 읽는다', () => {
-    const suite = parseSuite(
-      '가입설계-화면',
-      `---\nname: 가입설계 화면\nrequest: "가입설계 화면 테스트 구성해 줘"\ncreated: 2026-11-06\ntarget: web\nurl: http://dev.local/join\nbrowser: Chrome\n---\n## 시나리오 순서\n1. 02-필수값-누락.md\n\n## 규칙\n- [검증] 이름 필수 — 01\n`,
-    )
-    expect(suite).toEqual({ id: '가입설계-화면', name: '가입설계 화면', request: '가입설계 화면 테스트 구성해 줘', created: '2026-11-06' })
-  })
-
-  it('머리 없는 suite.md 는 이름 = 폴더', () => {
-    expect(parseSuite('a', '# 묶음\n')).toEqual({ id: 'a', name: 'a' })
+describe('머리말', () => {
+  it('머리 없는 파일은 머리가 비어 있다', () => {
     expect(splitFrontMatter('no head').head).toEqual({})
   })
 

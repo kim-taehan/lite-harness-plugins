@@ -81,8 +81,8 @@ const MB = 1024 * 1024;
 const EXTENSION_LIMITS = {
     /** skills.writeFile 로 덧씌우는 .md 파일 하나 (2026-11-03) — 사내 표준 같은 문서. 모델이 읽는 글이라 크게 두지 않는다 */
     skillFileBytes: 512 * 1024,
-    /** project.writeFile 로 `.litecode/` 에 쓰는 .md 파일 하나 (#1232) — 팀이 커밋하는 표준 문서 같은 글. skillFileBytes 와 같은 근거 */
-    projectWriteBytes: 512 * 1024,
+    /** project.writeFile 로 쓰는 파일 하나 (#1714; 처음엔 .md 512KB, #1232). 근거: 스크린샷이 든 결과서 PDF · HTML 이 몇 MB 이고, 앱의 HTML 미리보기 한도(20MB)와 같다. base64 는 풀린 바이트로 센다 */
+    projectWriteBytes: 20 * MB,
     /** zip 파일 자체 크기 — 이보다 크면 목록도 읽지 않는다 */
     zipBytes: 100 * MB,
     /** 항목 수 (폴더 항목 포함) — 목록을 읽기 전에 zip 끝 레코드의 수로 본다 */

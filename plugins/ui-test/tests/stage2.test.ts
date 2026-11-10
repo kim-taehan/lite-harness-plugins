@@ -193,7 +193,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const out = await tool(tools(workspace()), 'guide').run({ run: runId }) // 새 서버(메모리 기록 없음)도 저장소에서 읽어 쓴다
     expect(out.isError).toBeUndefined()
     const file = /가이드: (\S+)/.exec(out.text)![1]!
-    expect(file).toBe(`.litecode/plugins/ui-test/reports/${runId}/guide.html`)
+    expect(file).toBe(`.litecode/plugins/ui-test/reports/${runId}/a-01/guide.html`)
     const html = await fs.readFile(path.join(root, file), 'utf8')
     expect(html).toContain('나이 — 화면 사용 가이드')
     expect(html).toContain('1행 — 69 · ok')
@@ -263,7 +263,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const saved = (await space.store!.getResult('a-01', runId))!
     expect(saved.rows!.map((row) => [row.row, row.status])).toEqual([[1, 'passed'], [2, 'failed']])
     expect(saved.rows![0]!.steps[0]!.shot).toBe('c1-r1-s1.jpg')
-    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/index.html`), 'utf8')).toContain('2행 — 71 · no')
+    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/a-01/index.html`), 'utf8')).toContain('2행 — 71 · no')
     const again = await tool(tools(space), 'run').run({ failed: true, headed: false })
     expect(again.text).toContain('그대로 실패: a-01 2행')
   })
@@ -283,7 +283,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     for (let tries = 0; tries < 40 && !text.startsWith('실행 끝'); tries++) text = (await tool(list, 'report').run({ run: runId })).text
     expect(text).toMatch(new RegExp(`^실행 끝 — 나이 .* 수행 id ${runId}`))
     const progress = JSON.parse((await tool(list, 'progress').run({})).text)
-    expect(progress).toMatchObject({ running: false, recorded: true, report: `.litecode/plugins/ui-test/reports/${runId}/index.html` })
+    expect(progress).toMatchObject({ running: false, recorded: true, report: `.litecode/plugins/ui-test/reports/${runId}/a-01/index.html` })
   })
 
   it('AI 가 지문을 못 구해 000000000000 이나 머리말 없이 쓴 코드도 "코드 낡음" — list 가 맞는 지문을 보여 준다', async () => {
@@ -312,7 +312,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const runId = /수행 id (\S+)/.exec(result.text)![1]!
     expect((await space.store!.getRun(runId))!.interrupted).toBe('대화에서 멈춤')
     expect((await space.store!.getResult('a-01', runId))!.rows!.some((row) => row.status === 'stopped')).toBe(true)
-    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/index.html`), 'utf8')).toContain('중단됨')
+    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/a-01/index.html`), 'utf8')).toContain('중단됨')
     // 멈춤은 돈 게 아니라 마지막 결과를 덮지 않는다
     expect((await space.store!.getScenario('a-01'))!.last).toBeUndefined()
     expect(space.current().running).toBe(false)

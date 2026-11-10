@@ -7,11 +7,12 @@
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { channelLabel, scrub } from './config.ts'
+import { channelLabel, PLUGIN_DIR, scrub } from './config.ts'
 import type { Driver } from './driver.ts'
 import { FAIL_HINT, FAIL_LABEL } from './failure.ts'
 import { compareLine, unitLabel } from './history.ts'
 import { seconds, when } from './report.ts'
+import { historyOf } from './remove.ts'
 import { caseOf, selectorEmpty, type Progress, type RunOutcome, type ScenarioInfo, type Selector, type Workspace } from './runner.ts'
 import { StoreError, timeId, type ResultDoc } from './store.ts'
 import type { CaseResult, RunRecord, StepResult } from './types.ts'
@@ -61,7 +62,7 @@ const counts = (run: RunRecord): string => {
 
 /** AI 없이 시나리오를 실행하는 명령 — CI */
 export function cliCommand(serverFile: string): string {
-  return `node "${serverFile}" run [<시나리오 id>…] [--failed] [--screen <라우트>] [--request <요청 id>] [--each] --headless`
+  return `node "${serverFile}" run [<시나리오 id>…] [--failed] [--screen <라우트>] [--request <요청 id>] --headless`
 }
 
 export interface ToolDeps {
@@ -198,6 +199,16 @@ export function createTools(deps: ToolDeps): Tool[] {
     return { run: runId, at: run.at, mode: run.report, ...(run.report === 'one' && docs.report && { report: docs.report.file }) }
   }
 
+  /** 프로젝트 프롬프트(_prompt.md)의 유무 — 서버가 직접 확인한다(읽지는 않는다). AI 가 짐작하지 않게 list 가 알려 준다 */
+  const promptInfo = (): { file: string; exists: boolean } => ({ file: `${PLUGIN_DIR}/_prompt.md`, exists: existsSync(path.join(config.pluginDir, '_prompt.md')) })
+
+  /** 최근 수행의 결과서 · 가이드가 만들어져 있는지 — 합친 옛 기록(one)과 시나리오별(each) 둘 다 본다. 패널이 놓친 수행의 가이드를 맞추는 데 쓴다 */
+  const lastDocs = (run: string | undefined, id: string): { lastReport: boolean; lastGuide: boolean } => {
+    if (!run) return { lastReport: false, lastGuide: false }
+    const docs = [workspace.documentsOf(run, 'each', id), workspace.documentsOf(run, 'one', id)]
+    return { lastReport: docs.some((doc) => doc.report), lastGuide: docs.some((doc) => doc.guide) }
+  }
+
   const list: Tool = {
     name: 'list',
     description:
@@ -207,7 +218,7 @@ export function createTools(deps: ToolDeps): Tool[] {
       try {
         const store = workspace.needStore()
         const sel = selectorOf(args)
-        const where = `시나리오 폴더: ${config.scenarioDirRel} · 결과서 폴더: ${config.reportDirRel} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'} · 백엔드 코드: ${config.backendDirs.length ? config.backendDirs.join(', ') : '(프로젝트 안만)'}`
+        const where = `시나리오 폴더: ${config.scenarioDirRel} · 결과서 폴더: ${config.reportDirRel} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'} · 프로젝트 프롬프트: ${promptInfo().file} (${promptInfo().exists ? '있음' : '없음'}) · 백엔드 코드: ${config.backendDirs.length ? config.backendDirs.join(', ') : '(프로젝트 안만)'}`
         if (args['json'] === true) {
           const cursor = typeof args['cursor'] === 'string' && args['cursor'] ? args['cursor'] : undefined
           const page = selectorEmpty(sel) ? await store.scenarioPage(cursor) : { items: (await workspace.selectDocs(sel)).items, cursor: undefined }
@@ -222,7 +233,9 @@ export function createTools(deps: ToolDeps): Tool[] {
             status: item.doc?.last?.status ?? null,
             lastAt: item.doc?.last?.at ?? null,
             lastRun: item.doc?.last?.run ?? null,
+            ...lastDocs(item.doc?.last?.run, item.id),
             hasCode: item.hasCode,
+            hasHistory: existsSync(historyOf(item.file)),
             stale: item.stale,
             changed: item.changed,
             steps: item.scenario.steps.length,
@@ -240,6 +253,7 @@ export function createTools(deps: ToolDeps): Tool[] {
               baseUrl: config.baseUrl,
               browser: channelLabel(config.channel),
               running: workspace.runningId() ?? null,
+              prompt: promptInfo(),
               scenarios,
               ...(page.cursor && { cursor: page.cursor }),
               ...(screens && { screens }),
@@ -252,7 +266,7 @@ export function createTools(deps: ToolDeps): Tool[] {
         const infos = await workspace.infosOf(items)
         const running = workspace.runningId()
         const now = running ? `\n지금 실행 중: ${workspace.current().title} · 수행 id ${running} — report { run } 으로 끝을 기다린다` : ''
-        const synced = (read.added + read.updated + read.removed ? `\n파일에서 다시 읽음: 새로 ${read.added} · 바뀜 ${read.updated} · 지워짐 ${read.removed}` : '') + (read.imported ? `\n옛 ui-tests/ 에서 시나리오 ${read.imported}개를 ${config.scenarioDirRel}/ 로 가져왔습니다(복사) — 옛 ui-tests/ 는 그대로 있으니 필요 없으면 직접 지우세요` : '')
+        const synced = (read.added + read.updated + read.removed ? `\n파일에서 다시 읽음: 새로 ${read.added} · 바뀜 ${read.updated} · 지워짐 ${read.removed}` : '')
         if (infos.length === 0) return { text: `${where}${now}${synced}\n${selectorEmpty(sel) ? '시나리오가 없습니다 — 화면을 정해 시나리오를 만드세요(스킬 ui-test).' : '조건에 맞는 시나리오가 없습니다.'}` }
         const rows = infos.map((item) => {
           const { scenario, hasCode, specFile } = item
@@ -279,19 +293,18 @@ export function createTools(deps: ToolDeps): Tool[] {
 
   const run: Tool = {
     name: 'run',
-    description: `Run UI test scenarios in the PC's installed Chrome/Edge: each generated spec (.spec.mjs next to its scenario) step by step with a screenshot per step (scenarios with a ## 데이터 table run once per row), then write the HTML report(s) and compare with the last real run of each scenario (new failures / fixed / still failing). Choose the scenarios with scenarios / screen / request / failed (all that match; none = every scenario). With several scenarios, report "one" (default) writes one report with a section per scenario, "each" one report per scenario; a single scenario never asks. Hidden browser by default. Waits up to ${RUN_WAIT_MS / 1000} s: if the run is done, returns per-step results with the selectors/waits each step used, the screens the "확인:" steps ran on and a failure kind per failure; otherwise returns the run id — then call report { run } until it is done. Warns when a scenario's code is stale. Without the app's record store the run still happens but nothing is recorded.`,
+    description: `Run UI test scenarios in the PC's installed Chrome/Edge: each generated spec (.spec.mjs next to its scenario) step by step with a screenshot per step (scenarios with a ## 데이터 table run once per row), then write the HTML report(s) and compare with the last real run of each scenario (new failures / fixed / still failing). Choose the scenarios with scenarios / screen / request / failed (all that match; none = every scenario). Always one report per scenario (in its own folder). Hidden browser by default. Waits up to ${RUN_WAIT_MS / 1000} s: if the run is done, returns per-step results with the selectors/waits each step used, the screens the "확인:" steps ran on and a failure kind per failure; otherwise returns the run id — then call report { run } until it is done. Warns when a scenario's code is stale. Without the app's record store the run still happens but nothing is recorded.`,
     inputSchema: {
       type: 'object',
       properties: {
         ...SELECTOR_PROPS,
-        report: { type: 'string', enum: ['one', 'each'], description: 'Several scenarios: "one" = one report with a section per scenario (default), "each" = one report per scenario.' },
         headed: { type: 'boolean', description: 'Show the browser window (default false = 화면 없이, the browser runs hidden). true = 보면서.' },
       },
     },
     async run(args, signal) {
       const at = Date.now()
       try {
-        const started = await workspace.start({ ...selectorOf(args), ...((args['report'] === 'one' || args['report'] === 'each') && { report: args['report'] }), ...(typeof args['headed'] === 'boolean' && { headed: args['headed'] }) })
+        const started = await workspace.start({ ...selectorOf(args), ...(typeof args['headed'] === 'boolean' && { headed: args['headed'] }) })
         return (await awaited(started.runId, at, signal)) ?? { text: '수행 기록을 찾지 못했습니다', isError: true }
       } catch (error) {
         return fail(error)
@@ -409,12 +422,12 @@ export function createTools(deps: ToolDeps): Tool[] {
 
   const reindexTool: Tool = {
     name: 'reindex',
-    description: 'Panel only: re-read the scenario files and fix the record store (new files added, changed ones updated, deleted ones removed with their records, screenshots and report sections). Also imports the old 0.6.x ui-tests/ folder once (copy). Returns JSON { added, updated, removed, imported }.',
+    description: 'Panel only: re-read the scenario files and fix the record store (new files added, changed ones updated, deleted ones removed with their records, screenshots and report sections). Returns JSON { added, updated, removed }.',
     inputSchema: { type: 'object', properties: {} },
     async run() {
       try {
-        const { added, updated, removed, imported } = await workspace.reindex()
-        return { text: JSON.stringify({ added, updated, removed, imported }) }
+        const { added, updated, removed } = await workspace.reindex()
+        return { text: JSON.stringify({ added, updated, removed }) }
       } catch (error) {
         return fail(error)
       }

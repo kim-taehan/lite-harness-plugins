@@ -1,7 +1,7 @@
 // 실행기 (#1248, 0.7.0) — 시나리오를 고르고(직접 · 화면 · 요청 · 실패한 것), 드라이버로 실행하고, 결과서를 쓰고, 기록을 남긴다.
 //   <프로젝트>/.litecode/plugins/ui-test/scenarios/<시나리오>.md · <시나리오>.spec.mjs(생성 코드, 시나리오 옆에 같은 이름) — 하위 폴더 없음
-//   결과서: <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/index.html (하나로 같이 — 시나리오마다 절 `#s-<시나리오 id>`)
-//          <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html (시나리오마다 따로)
+//   결과서: <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/index.html (옛 수행의 하나로 같이 — 시나리오마다 절 `#s-<시나리오 id>`, 읽기만 한다)
+//          <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html (시나리오마다 따로 — 지금은 늘 이쪽)
 //   스크린샷: 앱 데이터 폴더 shots/<수행 id>/
 //   기록 · 색인: host.db (store.ts) — 서버가 DB 를 못 쓰면(앱 밖 실행) 실행 · 결과서는 되고 기록 · 비교만 건너뛴다
 // 한 번에 수행 하나. 진행은 패널이 progress 로 본다. 수행은 start 로 시작만 하고 바로 돌아온다 — 엔진의 MCP 도구 호출 기한(5분)보다 긴 수행도 돌게, 도구는 wait 로 끝을 기다린다.
@@ -22,7 +22,7 @@ import { removeScenarioFiles, specOf } from './remove.ts'
 import { anchorOf, renderReport, type ReportInput } from './report.ts'
 import { parseScenario, sourceFingerprint, specHeader } from './scenario.ts'
 import { isValidId, openStore, StoreError, timeId, toResultDoc, type Db, type Dropped, type ResultDoc, type RunDoc, type RunTarget, type ScenarioDoc, type Store } from './store.ts'
-import { normalizeRoute, routesOf } from './tag.ts'
+import { keepsDeclaredScreens, normalizeRoute, routesOf } from './tag.ts'
 import type { CaseResult, RunRecord, Scenario, StepResult } from './types.ts'
 
 /** 결과서 · 가이드 HTML 옆에 두는 PDF 경로 */
@@ -95,8 +95,6 @@ export interface Progress {
 }
 
 export interface RunArgs extends Selector {
-  /** 여러 개를 실행할 때 결과서 방식 — 시나리오 하나면 묻지 않고 하나로 */
-  report?: ReportMode
   headed?: boolean
 }
 
@@ -366,7 +364,7 @@ export class Workspace {
     const startedAt = Date.now()
     const runId = this.store ? await this.store.newRunId() : timeId(new Date(startedAt))
     const headed = args.headed ?? false
-    const mode: ReportMode = infos.length === 1 ? 'one' : (args.report ?? 'one')
+    const mode: ReportMode = 'each' // 결과서는 늘 시나리오마다 따로(옛 수행의 'one' 기록은 읽기만 한다)
     const title = await this.titleOf(target, infos)
     const stale = infos.filter((item) => item.stale).map((item) => item.id)
     this.driver = driver
@@ -505,8 +503,16 @@ export class Workspace {
     const results = run.cases.map((item) => toResultDoc(run.id, run.startedAt, item))
     await store.recordRun(run.id, doc, results)
     const known = new Map(infos.map((item) => [item.id, item.doc]))
+    const declaredOf = new Map(infos.map((item) => [item.id, item.scenario]))
     for (const result of results) {
       if (result.status !== 'passed' && result.status !== 'failed') continue
+      const declared = declaredOf.get(result.scenario)
+      if (declared && keepsDeclaredScreens(declared)) {
+        // 로그인 시나리오 — 로그인 뒤 이동한 화면을 태그로 더하지 않는다(머리 screens 그대로)
+        const current = known.get(result.scenario)?.screens ?? []
+        await store.upsertScenario(result.scenario, { last: { status: result.status, at: run.startedAt, run: run.id }, ...(!same(declared.screens, current) && { screens: declared.screens }) })
+        continue
+      }
       const routes = routesOf(result.urls)
       // 성공이면 이번에 본 화면이 곧 화면 태그, 실패면 거기까지 본 것을 더한다(확인 단계에 닿기 전에 실패하면 태그가 줄어들지 않게)
       const current = known.get(result.scenario)?.screens ?? []
@@ -669,9 +675,9 @@ export class Workspace {
 
   // ── 저장소 맞추기 · 삭제 ──
 
-  /** 시나리오 폴더의 시나리오 파일로 저장소를 맞춘다(처음에는 옛 ui-tests/ 를 가져온다) — 사용자가 지운 파일의 줄 · 기록 · 스크린샷 · 결과서 절도 같이 지운다 */
+  /** 시나리오 폴더의 시나리오 파일로 저장소를 맞춘다— 사용자가 지운 파일의 줄 · 기록 · 스크린샷 · 결과서 절도 같이 지운다 */
   async reindex(): Promise<ReindexResult> {
-    const result = await reindex(this.needStore(), { project: this.config.project, pluginDir: this.config.pluginDir, scenarioDir: this.config.scenarioDir })
+    const result = await reindex(this.needStore(), { project: this.config.project, scenarioDir: this.config.scenarioDir })
     await this.cleanup(result.dropped)
     return result
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CaseResult } from '../server/types.ts'
-import { COLLECTIONS, fitResult, hashedScenarioId, importedRequestId, isValidId, newScenarioId, openStore, resultId, scenarioIdForFile, timeId, toResultDoc, type RunDoc, type ScenarioDoc } from '../server/store.ts'
+import { COLLECTIONS, fitResult, hashedScenarioId, isValidId, newScenarioId, openStore, resultId, scenarioIdForFile, timeId, toResultDoc, type RunDoc, type ScenarioDoc } from '../server/store.ts'
 import { fakeDb } from './store-helper.ts'
 
 // 저장 계층 — 진짜 앱과 같은 처리기를 쓰는 SDK 가짜 host 의 host.db 로 본다
@@ -32,7 +32,6 @@ describe('id', () => {
     expect(scenarioIdForFile('.litecode/plugins/ui-test/scenarios/01-정상.md', true)).toMatch(/^s-/)
     expect(scenarioIdForFile('.litecode/plugins/ui-test/scenarios/login-ok.md', true)).toBe('login-ok')
     expect(scenarioIdForFile('.litecode/plugins/ui-test/scenarios/join/login-ok.md', false)).toMatch(/^s-/)
-    expect(importedRequestId('가입설계')).toMatch(/^q-[0-9a-f]{12}$/)
     expect(isValidId(resultId('s-abc', timeId(new Date())))).toBe(true)
   })
 })
