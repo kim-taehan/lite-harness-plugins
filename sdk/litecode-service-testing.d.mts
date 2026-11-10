@@ -1,4 +1,4 @@
-// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
+// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · serviceDb.ts · dbClient.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
 import type { ExposedCall, ServiceBase, ServiceGrammar, ServiceCallMethod, ServiceContext, ServiceDbUsage, ServiceEventMap, ServiceEventName, ServiceHost, ServiceInjectKey, ServiceMcpServer, ServiceToolCall } from './litecode-service.js'
 
 export interface FakeHostOptions {

@@ -124,7 +124,7 @@
 | `host.settings(directory?)` · `host.enabledIn` · `host.projects` · `host.dir` | 설정 칸 값(비밀 제외) · 켜짐 여부 · 켜진 프로젝트 목록 · 설치 폴더 경로(자산은 여기서 읽음) |
 | `host.fetch(url, init)` | 바깥으로 나가는 유일한 길 — `network` 권한 + 사용자가 허용한 주소만 |
 
-서비스는 소식을 `ctx.on` 으로 받고, `expose(이름, 함수)` 로 낸 메서드를 패널이 `service.call` 로 부릅니다. 작은 영구 값은 `storage`, 목록으로 쌓는 이력 · 색인 · 상태는 서비스 전용 문서 저장소 `host.db`(호스트 API 2, MCP 서버 프로세스에서는 못 씀 — `guides/service-plugin.md` 3-1)에 둡니다.
+서비스는 소식을 `ctx.on` 으로 받고, `expose(이름, 함수)` 로 낸 메서드를 패널이 `service.call` 로 부릅니다. 작은 영구 값은 `storage`, 목록으로 쌓는 이력 · 색인 · 상태는 서비스 전용 문서 저장소 `host.db`(호스트 API 2, MCP 서버 프로세스는 `sdk/litecode-db-client.mjs` 로 — `guides/service-plugin.md` 3-1)에 둡니다.
 
 **소식 3종과 프로젝트 정보** — 이름은 패널 소식과 한 벌입니다. `chat.turnEnded`(대화가 있으면 그 작업 폴더, 권한 `chat`) · `project.filesChanged`(AI 가 파일을 쓰고 고친 것을 0.5초 묶음으로, 등록 프로젝트 경로, 권한 `project`) · `usage.changed`(프로젝트 정보가 없어 `scope: "app"` 서비스만, 권한 `usage`). 받는 값에 `directory` 가 붙고, 프로젝트를 모르는 소식은 프로젝트별 서비스에 주지 않고 버립니다. 허용 목록 원본은 desktop `shared/extensions/serviceApi.ts` 입니다.
 

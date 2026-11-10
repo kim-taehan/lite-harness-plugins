@@ -10,6 +10,7 @@
 | `litecode-service.d.ts` | 번들을 쓸 때 타입. cordis 를 설치하지 않아도 된다 |
 | `plugin-service.schema.json` | `plugin.json` 편집기 완성·경고(inject·events·api 값, `service` 권한 짝) |
 | `litecode-service-testing.mjs` · `.d.mts` | 앱 없이 번들을 시험하는 가짜 host |
+| `litecode-db-client.mjs` · `.d.mts` | 서비스가 올린 MCP 서버 프로세스에서 `host.db` 를 쓰는 클라이언트(서버 번들용) |
 
 모두 **생성물**이라 손으로 고치지 않는다. 원본은 `shared/extensions/serviceApi.ts`(허용 목록·소식 표)와 `serviceHostCore.ts`·`serviceHostFake.ts`이고, `node scripts/generate-plugin-sdk.mjs` 가 만든다. 원본과 어긋나면 `tests/unit/scripts/generate-plugin-sdk.test.ts` 가 실패한다.
 플러그인 저장소는 옆의 `../desktop/docs/plugin-sdk/` 를 복사해 쓴다(desktop 은 두기만 하고 쓰지 않는다).
@@ -235,7 +236,7 @@ await host.db.batch([
 const { bytes, docs, collections, limits } = await host.db.usage({ directory }) // db-full 이 나기 전에 스스로 오래된 것을 지운다
 ```
 
-`host.db.get` · `set` · `delete` · `list` · `query` · `batch` · `usage` 는 `host.call('db.get' …)` 위의 얇은 막이다(`host.fetch` 와 같다). **서비스 전용**이라 패널은 직접 부르지 못한다 — 패널은 `service.call` 로 서비스에 맡긴다. `host.mcp.register` 로 올린 MCP 서버 프로세스(별도 프로세스)에서도 쓸 수 없다 — 서버가 저장해야 할 값은 도구 결과로 서비스에 돌려주고, 서비스가 `host.db` 에 쓴다. 권한은 따로 없다(`storage` 와 같은 급).
+`host.db.get` · `set` · `delete` · `list` · `query` · `batch` · `usage` 는 `host.call('db.get' …)` 위의 얇은 막이다(`host.fetch` 와 같다). **서비스 전용**이라 패널은 직접 부르지 못한다 — 패널은 `service.call` 로 서비스에 맡긴다. `host.mcp.register` 로 올린 MCP 서버 프로세스(별도 프로세스)는 `host` 가 없으니 아래 "서버(MCP) 프로세스에서 쓰기" 의 클라이언트로 쓴다. 권한은 따로 없다(`storage` 와 같은 급).
 
 **범위.** 플러그인마다 따로 — 다른 플러그인의 문서는 열 길이 없다. `scope: "project"` 서비스는 프로젝트(실제 경로)마다 또 따로이고 `{ directory }` 가 있어야 한다(없으면 `host.call` 과 같이 `not-on`). `scope: "app"` 서비스는 하나다. 프로젝트 폴더를 옮기면 새 프로젝트로 보인다(다른 프로젝트별 자료와 같은 한계).
 
@@ -263,6 +264,37 @@ const { bytes, docs, collections, limits } = await host.db.usage({ directory }) 
 **지우기와 깨짐.** 플러그인을 지우면 자료 폴더째 사라진다. 업데이트·재설치로는 지우지 않는다. 저장소 파일이 깨지면(앱을 켤 때 열다가, 또는 쓰는 중에 발견해도) 앱이 `db.sqlite.corrupt-<시각>` 으로 옆으로 치우고 빈 채로 시작한다 — 쓰는 중에 발견한 호출은 `io-failed` 로 한 번 끝나고 다음 호출부터 정상이다. 치운 파일은 최근 2개만 남긴다. 그래서 여기에는 "다시 만들 수 있는 색인·이력·상태"만 둔다.
 
 **옛 앱에는 없다.** 이 저장소는 호스트 API 2 부터 있다(`SERVICE_API_LATEST` = 2). 옛 앱(api 1)의 `host` 에는 `db` 가 없고(`.d.ts` 에서 선택 필드), 그런 앱에 `service.api: 2` 를 적은 플러그인은 설치가 거절된다(`service-incompatible`). 옛 앱에서도 돌아야 하면 `service.api` 를 1 로 두고 `host.db` 가 있나 보고(`if (host.db)`) 파일 같은 대체 길로 물러난다.
+
+## 서버(MCP) 프로세스에서 쓰기
+
+`host.mcp.register` 로 올린 서버는 AI 가 도구를 직접 부르거나 CI 에서 돌아 서비스를 거치지 않는다. 이력·결과 요약을 그 서버가 만들고 읽는다면 같은 저장소를 서버 프로세스에서도 쓸 수 있다(**베타**).
+
+앱이 `127.0.0.1` 에서만 받는 작은 중계를 두고, 서버를 띄울 때 환경변수 두 개를 준다 — `LITECODE_DB_URL`(주소) · `LITECODE_DB_TOKEN`(번호표). 번호표는 **이 플러그인 + 이 서버가 맡은 프로젝트 폴더** 의 저장소에만 닿는다(서비스의 `host.db(…, { directory })` 와 같은 몫). 서버를 띄울 때마다 새 번호표이고, 서버가 내려가면(쉬어서 내려감 · 플러그인 끔 · 지움 · 업그레이드 · 앱 종료) 곧바로 쓸 수 없게 된다. 도구 목록만 묻느라 잠깐 띄우는 서버(프로젝트 없음)에는 주지 않는다.
+
+`docs/plugin-sdk/litecode-db-client.mjs`(타입 `.d.mts`)를 서버 번들 옆에 복사해 쓴다. 의존성이 없고 Node 22 의 `fetch` 한 겹이다. 서비스의 `host.db` 와 같은 코드·모양·오류 코드이고, 서버는 `directory` 를 주지 않는다(번호표가 정한다).
+
+```js
+import { createDbClient } from './litecode-db-client.mjs'
+
+const db = createDbClient() // 환경변수가 없으면 undefined
+if (db) {
+  await db.set('runs', runId, { suite: 'login', at: Date.now(), ok: true })
+  const { docs } = await db.query('runs', { orderBy: { field: 'at', dir: 'desc' }, limit: 20 })
+} else {
+  // 앱 밖에서 돈다(CI · 직접 실행) 또는 옛 앱 — 파일 같은 대체 길로 물러난다
+}
+```
+
+- **환경변수가 없으면** `createDbClient()` 는 `undefined` 를 준다(던지지 않는다). 앱 밖에서 도는 CI · 옛 앱 · 프로젝트 없이 뜬 서버가 그렇다 — 파일 같은 대체 길을 유지한다.
+- **오류**는 `DbClientError`(`error.code`)로 던진다. 서비스의 `host.db` 와 같은 코드(`params-invalid` · `not-on` · `no-project` · `doc-too-big` · `collection-limit` · `collection-full` · `db-full` · `io-failed`)에 중계 쪽 코드가 더해진다: `unauthorized`(번호표가 틀리거나 서버가 내려간 뒤) · `rate-limited` · `request-too-large` · `unreachable`(앱에 닿지 않음) · `bad-reply`. 서비스가 꺼졌거나 지워지는 중이면 `not-on` 이다.
+- **한도**는 서비스와 같다(위 표). 중계가 더하는 것: 요청 본문 512KB(문서 하나의 한도 256KB 의 두 배 — `batch` 는 크면 나눠 보낸다) · 동시 연결 64개 · 헤더를 5초, 요청을 10초 안에 못 보내는 느린 연결은 끊는다(점검이 1초 주기라 최대 1초 늦을 수 있다).
+- **속도**: 토큰당 초당 1,000번, 넘으면 429(`rate-limited`)이고 `Retry-After`(초)로 다음 구간까지의 시간을 알려 준다. 클라이언트는 `rate-limited` 에서만 그 시간(최대 1.5초)만큼 기다렸다가 **자동으로 최대 3번** 다시 시도하고, 그래도 안 되면 `rate-limited` 를 던진다(다른 오류는 바로 던진다). `createDbClient(env, fetch, { signal })` 의 `signal` 로 중단하면 `aborted`. 문서를 하나씩 수천 번 읽기보다 `list`/`query`/`batch` 를 쓴다. 1초 고정 구간이라 구간 경계에서 순간적으로 두 배까지 갈 수 있다(알려진 한계).
+- **서버 번들에 넣는다** — 서비스 번들(`service.main`)에는 넣지 않는다. 설치 검사는 `service.main` 한 파일만 훑으므로 서버 실행 파일의 `fetch` 는 걸리지 않지만, 서비스와 한 번들로 묶으면 `service-network-direct` 로 거절된다.
+- **패널**은 여전히 못 쓴다 — 서비스 전용 규칙이 그대로다.
+
+**보안 — 한계까지.** 중계는 `127.0.0.1` 에만 바인딩하고(포트는 OS 가 고름), `POST /db/<get|set|delete|list|query|batch|usage>` 만 연다. 번호표는 상수 시간으로 비교하고, `Host` 헤더가 `127.0.0.1:<포트>` 가 아니면 거절한다(DNS 리바인딩 방어). 틀린 번호표·메서드·길·본문 모양은 상태 코드와 짧은 코드만 돌려주고, 로그에는 번호표·본문을 남기지 않는다. 한계: 번호표를 **환경변수** 로 주므로 같은 사용자의 다른 프로세스는 `ps eww` 같은 것으로 서버의 환경변수를 볼 수 있다. 그래서 번호표를 서버 수명 동안만 유효하게 하고 플러그인 하나의 저장소(그 프로젝트 몫)에만 닿게 했다 — 새어도 그 범위를 넘지 못한다. 서버가 자식 프로세스를 띄우면 환경변수가 따라가므로, 서버가 남에게 환경을 그대로 넘기지 않게 한다. 이 길은 앱이 떠 있는 동안만 열려 있고(중계 포트는 서버를 처음 띄울 때 연다), 바깥 인터넷으로는 아무것도 나가지 않는다.
+
+**옛 앱** 에서는 환경변수가 없어 `createDbClient()` 가 `undefined` 다. 서비스의 `host.db` 가 있나 보고 물러나는 것과 같은 방식으로 대체 길을 둔다.
 
 ## 앱 없이 가짜 host 로 시험하기
 

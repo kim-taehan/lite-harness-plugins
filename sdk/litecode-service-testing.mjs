@@ -1,4 +1,4 @@
-// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
+// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · serviceDb.ts · dbClient.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
 // 앱 없이 서비스 번들을 시험하는 가짜 host — 사용법은 docs/plugin-sdk/README.md. Node 도 cordis 도 쓰지 않는다.
 
 // --- shared/extensions/channel.ts
@@ -657,6 +657,62 @@ function runDbCall(store, scope, call, limits) {
     return cursor === undefined ? { ok: false, error: 'params-invalid' } : { ok: true, result: { docs: page.docs, cursor } };
 }
 
+// --- shared/extensions/serviceDb.ts
+function dbPage(result) {
+    if (!isJsonObject(result) || !Array.isArray(result.docs))
+        throw new Error('unexpected db reply');
+    const docs = result.docs.flatMap((item) => (isJsonObject(item) && typeof item.id === 'string' && isJsonObject(item.doc) ? [{ id: item.id, doc: item.doc }] : []));
+    return typeof result.cursor === 'string' ? { docs, cursor: result.cursor } : { docs };
+}
+function dbUsage(result) {
+    if (!isJsonObject(result) || typeof result.bytes !== 'number' || typeof result.docs !== 'number' || typeof result.collections !== 'number' || !isJsonObject(result.limits))
+        throw new Error('unexpected db reply');
+    const { limits } = result;
+    const field = (name) => {
+        const value = limits[name];
+        if (typeof value !== 'number')
+            throw new Error('unexpected db reply');
+        return value;
+    };
+    return {
+        bytes: result.bytes,
+        docs: result.docs,
+        collections: result.collections,
+        limits: { docBytes: field('docBytes'), collections: field('collections'), docsPerCollection: field('docsPerCollection'), totalBytes: field('totalBytes'), pageDefault: field('pageDefault'), pageMax: field('pageMax'), batchOps: field('batchOps'), conditions: field('conditions'), inValues: field('inValues') },
+    };
+}
+/** host.db — host.call('db.*') 를 서비스가 쓰기 좋게 감싼 것뿐이다. 진짜 호스트와 가짜 host 가 같이 쓴다 */
+function serviceDb(call) {
+    return {
+        async get(collection, id, options) {
+            const result = await call('db.get', { collection, id }, options?.directory);
+            if (result === null)
+                return null;
+            if (!isJsonObject(result))
+                throw new Error('unexpected db reply');
+            return result;
+        },
+        async set(collection, id, doc, options) {
+            await call('db.set', { collection, id, doc }, options?.directory);
+        },
+        async delete(collection, id, options) {
+            await call('db.delete', { collection, id }, options?.directory);
+        },
+        async list(collection, params = {}, options) {
+            return dbPage(await call('db.list', { collection, ...params }, options?.directory));
+        },
+        async query(collection, params, options) {
+            return dbPage(await call('db.query', { collection, ...params }, options?.directory));
+        },
+        async batch(ops, options) {
+            await call('db.batch', { ops }, options?.directory);
+        },
+        async usage(options) {
+            return dbUsage(await call('db.usage', {}, options?.directory));
+        },
+    };
+}
+
 // --- shared/extensions/serviceHostCore.ts
 /** 이 서비스가 받기로 한 소식의 받는 곳 — 호스트가 deliver 로 넣는다. 핸들러가 던져도(비동기 포함) 서비스 밖으로 새지 않는다 */
 class ServiceEvents {
@@ -874,60 +930,6 @@ function serviceFetch(call) {
         // 본문 없는 상태(204 · 205 · 304)는 body 를 주면 Response 가 던진다
         const noBody = result.status === 204 || result.status === 205 || result.status === 304;
         return new Response(noBody ? null : result.body, { status: result.status, headers });
-    };
-}
-function dbPage(result) {
-    if (!isJsonObject(result) || !Array.isArray(result.docs))
-        throw new Error('unexpected db reply');
-    const docs = result.docs.flatMap((item) => (isJsonObject(item) && typeof item.id === 'string' && isJsonObject(item.doc) ? [{ id: item.id, doc: item.doc }] : []));
-    return typeof result.cursor === 'string' ? { docs, cursor: result.cursor } : { docs };
-}
-function dbUsage(result) {
-    if (!isJsonObject(result) || typeof result.bytes !== 'number' || typeof result.docs !== 'number' || typeof result.collections !== 'number' || !isJsonObject(result.limits))
-        throw new Error('unexpected db reply');
-    const { limits } = result;
-    const field = (name) => {
-        const value = limits[name];
-        if (typeof value !== 'number')
-            throw new Error('unexpected db reply');
-        return value;
-    };
-    return {
-        bytes: result.bytes,
-        docs: result.docs,
-        collections: result.collections,
-        limits: { docBytes: field('docBytes'), collections: field('collections'), docsPerCollection: field('docsPerCollection'), totalBytes: field('totalBytes'), pageDefault: field('pageDefault'), pageMax: field('pageMax'), batchOps: field('batchOps'), conditions: field('conditions'), inValues: field('inValues') },
-    };
-}
-/** host.db — host.call('db.*') 를 서비스가 쓰기 좋게 감싼 것뿐이다. 진짜 호스트와 가짜 host 가 같이 쓴다 */
-function serviceDb(call) {
-    return {
-        async get(collection, id, options) {
-            const result = await call('db.get', { collection, id }, options?.directory);
-            if (result === null)
-                return null;
-            if (!isJsonObject(result))
-                throw new Error('unexpected db reply');
-            return result;
-        },
-        async set(collection, id, doc, options) {
-            await call('db.set', { collection, id, doc }, options?.directory);
-        },
-        async delete(collection, id, options) {
-            await call('db.delete', { collection, id }, options?.directory);
-        },
-        async list(collection, params = {}, options) {
-            return dbPage(await call('db.list', { collection, ...params }, options?.directory));
-        },
-        async query(collection, params, options) {
-            return dbPage(await call('db.query', { collection, ...params }, options?.directory));
-        },
-        async batch(ops, options) {
-            await call('db.batch', { ops }, options?.directory);
-        },
-        async usage(options) {
-            return dbUsage(await call('db.usage', {}, options?.directory));
-        },
     };
 }
 

@@ -1,4 +1,4 @@
-// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
+// 생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · serviceDb.ts · dbClient.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs
 // 설치형 서비스 번들(.mjs)을 쓸 때 가져다 쓰는 타입 — cordis 를 설치하지 않아도 된다. 번들은 `export default (host: ServiceHost) => class extends host.Service { … }` 모양이다.
 // manifest(plugin.json)는 JSON 이라 이 파일이 못 본다 — plugin-service.schema.json 이 편집기에서 맞춰 주고, 앱은 설치 때 다시 검사한다.
 

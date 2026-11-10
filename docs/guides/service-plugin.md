@@ -136,13 +136,22 @@ await host.db.batch([{ op: 'set', collection: 'runs', id: newId, doc }, { op: 'd
 const { bytes, docs, limits } = await host.db.usage(at)
 ```
 
-- **서비스 전용입니다.** 패널은 `service.call` 로 서비스에 맡기고, `host.mcp.register` 로 올린 **MCP 서버 프로세스에서는 아직 못 씁니다**(desktop 에서 서버 접근을 만드는 중 — 머지되면 이 절을 고친다). 그때까지 서버가 만든 값은 도구 결과로 서비스에 돌려주고 서비스가 씁니다. 권한은 따로 없습니다(`storage` 와 같은 급).
+- **서비스 전용입니다.** 패널은 `service.call` 로 서비스에 맡기고, `host.mcp.register` 로 올린 **MCP 서버 프로세스는 `host` 가 없어 따로 클라이언트로 씁니다**(아래). 권한은 따로 없습니다(`storage` 와 같은 급).
 - **범위:** 플러그인마다 따로, 프로젝트별 서비스는 프로젝트(실제 경로)마다 또 따로입니다. 플러그인을 지우면 같이 지워지고 업데이트 · 재설치로는 지워지지 않습니다.
 - **한도:** 문서 하나 256KB · 컬렉션 20개 · 컬렉션당 문서 50,000개 · 플러그인 총 200MB · `list`/`query` 한 번 최대 200개(기본 50) · `batch` 50 연산. 넘으면 `ServiceCallError` 의 `code`(`doc-too-big` · `collection-limit` · `collection-full` · `db-full`). 그 밖에 `params-invalid` · `no-project` · `not-on`.
 - **조건:** `=` `!=` `<` `<=` `>` `>=` `in` `prefix`(모두 AND), 정렬 필드 하나, `cursor` 로 이어 읽기(건너뛰기가 아니라 마지막 값 뒤부터).
 - **느려지는 때:** 색인 선언이 없습니다. id 순 `list` 와 조건 · 정렬 없는 `query` 는 기본키를 타 문서가 많아도 1ms 안쪽이지만, 조건이나 `orderBy` 를 주면 컬렉션을 훑어 크기에 비례합니다(문서 ~1KB 5만 개 34~58ms, ~2KB 면 쪽당 약 200ms). **조회는 앱 메인 프로세스에서 동기로 돌아 그동안 앱 전체가 멈춥니다.** 큰 컬렉션은 id 를 시각으로 시작하게 지어(`2026-11-10T09-00-00_<번호>`) `list` 의 id 순이 곧 시간순이 되게 하고, `query` 를 연달아 부르지 않습니다.
 - **깨지면 빈 채로 다시 시작합니다**(앱이 옆으로 치움). 그래서 다시 만들 수 있는 색인 · 이력 · 상태만 둡니다. 사람이나 AI 가 쓴 원본(시나리오 · 결과서)은 지금처럼 파일입니다.
 - **옛 앱에는 없습니다.** `service.api: 2` 를 적으면 옛 앱(api 1)에서 설치가 거절됩니다(`service-incompatible`). 옛 앱에서도 돌아야 하면 `api: 1` 로 두고 `if (host.db)` 로 확인해 대체 길로 물러납니다.
+- **서버(MCP) 프로세스에서 쓰기**(desktop #1707, 베타): 서비스가 `host.mcp.register` 로 올린 서버를 앱이 띄울 때 환경변수 `LITECODE_DB_URL` · `LITECODE_DB_TOKEN` 을 준다(앱 안 `127.0.0.1` 중계, 서버를 처음 부를 때 늦게 열림). 번호표는 **플러그인 + 그 서버의 프로젝트 폴더** 의 저장소에만 닿고 서버가 사는 동안만 유효하다. `sdk/litecode-db-client.mjs` 를 **서버 번들 옆에** 두고 쓴다(서비스 번들과 한 파일로 묶지 않는다 — 설치 검사가 `fetch(` 를 거절한다).
+  ```js
+  import { createDbClient } from './litecode-db-client.mjs'
+  const db = createDbClient() // 환경변수가 없으면 undefined — 앱 밖 직접 실행 · CI · 옛 앱 · 프로젝트 없이 도구 목록만 물을 때
+  if (db) await db.set('runs', runId, { at: Date.now(), ok: true }) // directory 인자는 없다(번호표가 정함)
+  else { /* 파일 같은 대체 길 */ }
+  ```
+  `db.get/set/delete/list/query/batch/usage` 는 서비스의 `host.db` 와 같은 모양 · 한도 · 오류 코드다. 오류는 `DbClientError`(`.code`): 서비스와 같은 코드에 `unauthorized`(서버가 내려간 뒤 · 번호표 틀림) · `rate-limited` · `request-too-large` · `unreachable` · `aborted`. 토큰당 초당 1,000번이 넘으면 클라이언트가 `Retry-After` 만큼 기다려 최대 3번 다시 시도하니, 문서를 하나씩 수천 번 부르지 말고 `list`/`query`/`batch` 를 쓴다.
+- **주의:** 서버가 자식 프로세스를 띄울 때 환경변수를 그대로 넘기지 않는다(토큰이 따라간다 — 필요한 것만 골라 넘긴다). 로그 · 오류에 토큰을 찍지 않는다. 앱 안에서 AI 가 도구를 불러 서버가 쓰는 종단 확인과 Windows 는 desktop 에서도 확인하지 못했다.
 - 가짜 host(`createFakeHost`)가 같은 `host.db` 를 메모리로 흉내 냅니다(한도 시험은 `createFakeHost({ dbLimits: { totalBytes: 1000 } })`).
 
 ## 4. 앱 소식 받기
