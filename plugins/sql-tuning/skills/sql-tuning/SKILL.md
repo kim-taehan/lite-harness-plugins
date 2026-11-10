@@ -92,6 +92,7 @@ First turn the code into the SQL the database really runs. Then tune it with the
 - Name plan operations exactly as the plan prints them (the notes list the names).
 - Use numbers only from tool output. If you estimate something (for example the cost after an index that does not exist — it cannot be simulated here), label it as an estimate and give the reason.
 - Column aliases start with a letter.
+- **Copy names from the tool output or the user's code; never retype them.** A stray space inside an identifier (`AD BK_ID`) gives ORA-00907. When a tool returns a syntax error (ORA-00907, ORA-00933, `syntax error at or near`) or an unknown-name error (ORA-00904, ORA-00942), first compare the SQL you sent with its source character by character and confirm names with `table_info`. Never say that the tool cannot parse a construct unless the same SQL, typed correctly, still fails.
 - Never select personal data columns with `query`. Count or group instead.
 
 ## Common causes
@@ -117,11 +118,14 @@ Answer in the user's language, with these sections:
 - **④ Other**: only the items that apply.
 - **Standard**: which file you used — `.litecode/sql-standard.md` (this project) or `references/sql-standard.md` (the skill's default) — or that none is installed. List the rule IDs the original code violates.
 - Close by stating that nothing was created or changed in the database.
-- Then add one line asking whether the user also wants a final report (for example "결과서도 만들까요?"). Do not call `report` before the user says yes.
+- Then write the final report **automatically, without asking** (see "Final report"). Mention its path in one line after the tool returns it.
 
 ## Final report
 
-When the user wants the report, call `report` once (the tool of the sql-tuning server, like `explain`). It writes one local HTML file in the project folder and returns its path.
+When a tuning is finished, call `report` once **on your own, without asking** (the tool of the sql-tuning server, like `explain`). It writes one local HTML file in the project folder and returns its path.
+
+- Write it whenever you ran `compare` on a rewritten or hinted candidate — both a success (`ok`) and a rejected candidate (`hold`). If you only analysed the plan and tested no candidate, there is nothing to compare: skip the report and say so in one line. Do not write one before the answer is complete, and write only one per tuning request.
+- Skip it only if the user said not to make reports ("결과서 만들지 마"); remember that for the rest of the conversation.
 
 - Fill it only with values you got from tool output: `compare` (every bind set you ran, with rows, checksum and ms exactly as printed), `explain` (plan lines, costs, the full plan texts), `impact_check` (the index impact). Pass the original and the rewritten SQL as they were tuned; the server builds the diff.
 - Put anything you estimated, not measured, in `estimates` with the reason. An index that does not exist cannot be measured, so `index.effect_verified` is normally `false`. Put what you could not check in `unknown`.

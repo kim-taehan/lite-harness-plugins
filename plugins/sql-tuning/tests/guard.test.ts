@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bindsFor, blankLiterals, checkReadOnly, redact } from '../server/guard.ts'
+import { bindsFor, blankLiterals, checkReadOnly, redact, sqlErrorHint } from '../server/guard.ts'
 
 // SQL 튜닝 MCP 의 문장 검사 (#1051) — 한 문장 · 읽기(SELECT/WITH)만. 주석 · 문자열 속 낱말은 보지 않는다
 
@@ -57,5 +57,25 @@ describe('bindsFor — compare 가 쿼리마다 넘길 바인드', () => {
     expect(bindsFor('SELECT * FROM t WHERE a = $1 AND b = $2', [1, 2, 3])).toEqual([1, 2])
     expect(bindsFor('SELECT * FROM t WHERE a = :1', [1, 2])).toEqual([1])
     expect(bindsFor('SELECT 1 FROM dual', undefined)).toBeUndefined()
+  })
+})
+
+describe('sqlErrorHint', () => {
+  it('문법 오류는 보낸 SQL 의 오타(식별자 중간의 공백)부터 보라고 알려 준다', () => {
+    for (const message of ['ORA-00907: missing right parenthesis', 'ORA-00933: SQL command not properly ended', 'ERROR: syntax error at or near "FROM"']) {
+      expect(sqlErrorHint(message)).toContain('character by character')
+      expect(sqlErrorHint(message)).toContain('cannot parse')
+    }
+  })
+
+  it('모르는 이름 오류는 table_info 와 스키마를 보라고 알려 준다', () => {
+    for (const message of ['ORA-00904: "AD": invalid identifier', 'ORA-00942: table or view does not exist', 'ERROR: relation "orders" does not exist']) {
+      expect(sqlErrorHint(message)).toContain('table_info')
+    }
+  })
+
+  it('그 밖의 오류에는 아무것도 덧붙이지 않는다', () => {
+    expect(sqlErrorHint('ORA-01017: invalid username/password; logon denied')).toBe('')
+    expect(sqlErrorHint('')).toBe('')
   })
 })

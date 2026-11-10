@@ -86,3 +86,15 @@ export function bindsFor(sql: string, binds: unknown[] | Record<string, unknown>
   const names = new Set([...blank.matchAll(/(?<![:\w]):([A-Za-z_][\w$#]*)/g)].map((match) => match[1]!.toLowerCase()))
   return Object.fromEntries(Object.entries(binds).filter(([name]) => names.has(name.toLowerCase())).map(([name, value]) => [name, structuredClone(value)]))
 }
+
+/** DB 오류 글에 덧붙일 안내 — 문법 · 이름 오류는 도구가 아니라 보낸 SQL 의 오타(식별자 중간의 공백 · 빠진 글자)인 경우가 흔하다.
+ *  AI 가 "도구가 이 문법을 못 읽는다" 고 잘못 결론 내리지 않게 원인을 먼저 보라고 알려 준다. 해당 없으면 빈 글 */
+export function sqlErrorHint(message: string): string {
+  if (/ORA-00907|ORA-00933|ORA-00923|ORA-00936|ORA-00905|syntax error at or near/i.test(message)) {
+    return 'Hint: this is a SQL syntax error. The tool passes the SQL to the database as written, so first compare the SQL you sent with your source character by character — a space inside an identifier (AD BK_ID instead of ADBK_ID), a missing comma or parenthesis, a typo in a keyword. Do not conclude that the tool cannot parse a construct; confirm column names with table_info and send the corrected SQL again.'
+  }
+  if (/ORA-00904|ORA-00942|ORA-00911|column .* does not exist|relation .* does not exist/i.test(message)) {
+    return 'Hint: the database does not know that name. Check the spelling against table_info (and the schema: a table of another schema needs its prefix, or the connection setting "schema" must name it) before changing the query.'
+  }
+  return ''
+}

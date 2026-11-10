@@ -8,7 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { pathToFileURL } from 'node:url'
 import { adapterFor, connectionTarget, databaseUrlFromEnv, missingConnectionFields } from './connect.ts'
-import { redact } from './guard.ts'
+import { redact, sqlErrorHint } from './guard.ts'
 import { createTools } from './tools.ts'
 import { serverStatusTool } from './status.ts'
 import type { Adapter } from './types.ts'
@@ -48,7 +48,9 @@ async function main(): Promise<void> {
       const result = await tool.run((request.params.arguments ?? {}) as Record<string, unknown>)
       return { content: [{ type: 'text', text: result.text }], ...(result.isError && { isError: true }) }
     } catch (error) {
-      return { content: [{ type: 'text', text: redact(error instanceof Error ? error.message : String(error), url) }], isError: true }
+      const message = redact(error instanceof Error ? error.message : String(error), url)
+      const hint = sqlErrorHint(message)
+      return { content: [{ type: 'text', text: hint ? `${message}\n\n${hint}` : message }], isError: true }
     }
   })
 
