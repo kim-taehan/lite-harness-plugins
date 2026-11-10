@@ -51,6 +51,10 @@ If there is a company git server (GitLab etc.), you can mirror this repository t
 - A downloaded zip is installed only if it matches the `sha256` in `catalog.json`; after that it goes through the same checks as a zip install (size · paths · manifest · app version · permission confirmation).
 - If the repository can't be reached (closed network · offline · login required), the app keeps showing the last list it fetched and shows a notice on the browse screen only. Installed extensions keep running.
 
+## Completed plugins
+
+Introductions to plugins whose development is complete: [Index](docs/completed-plugins.md)
+
 ## Publishing extensions
 
 ### Layout
