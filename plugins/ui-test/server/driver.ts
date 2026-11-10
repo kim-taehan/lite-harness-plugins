@@ -43,6 +43,8 @@ export interface Driver {
   browserName(): string
   check(url: string): Promise<CheckResult>
   run(cases: DriverCase[], options: DriverRunOptions): Promise<CaseResult[]>
+  /** 결과서 · 가이드 HTML(절대 경로)을 인쇄 모양으로 PDF 에 쓴다 — 화면 없이 브라우저를 한 번 띄운다 */
+  pdf(input: string, output: string): Promise<void>
   /** 멈추기 — 떠 있는 브라우저를 닫는다 */
   stop(): Promise<void>
 }
@@ -130,6 +132,19 @@ export class WebDriver implements Driver {
       return { ok, text: `${ok ? '열림' : '열렸지만 오류'} — ${url} · HTTP ${status ?? '-'} · 제목 "${title}" · ${channelLabel(this.used)} (${Date.now() - started}ms)` }
     } catch (error) {
       return { ok: false, text: `열지 못함 — ${url}: ${(error instanceof Error ? error.message : String(error)).split('\n')[0]}` }
+    } finally {
+      await browser.close().catch(() => undefined)
+    }
+  }
+
+  async pdf(input: string, output: string): Promise<void> {
+    const browser = await this.open(true)
+    try {
+      const context = await browser.newContext({ colorScheme: 'light' })
+      const page = (await context.newPage()) as PageLike & { goto(url: string, options: unknown): Promise<unknown>; emulateMedia(options: unknown): Promise<void>; pdf(options: unknown): Promise<unknown> }
+      await page.goto(pathToFileURL(input).href, { waitUntil: 'load', timeout: 30_000 })
+      await page.emulateMedia({ media: 'print' })
+      await page.pdf({ path: output, format: 'A4', printBackground: true, margin: { top: '14mm', bottom: '14mm', left: '12mm', right: '12mm' } })
     } finally {
       await browser.close().catch(() => undefined)
     }

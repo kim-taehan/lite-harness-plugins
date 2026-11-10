@@ -25,6 +25,9 @@ import { isValidId, openStore, StoreError, timeId, toResultDoc, type Db, type Dr
 import { normalizeRoute, routesOf } from './tag.ts'
 import type { CaseResult, RunRecord, Scenario, StepResult } from './types.ts'
 
+/** 결과서 · 가이드 HTML 옆에 두는 PDF 경로 */
+const pdfOf = (html: string): string => html.replace(/\.html$/, '.pdf')
+
 export interface SourceChange {
   path: string
   state: 'changed' | 'missing'
@@ -600,6 +603,7 @@ export class Workspace {
       const input = this.reportInput(subset, target.scenario ? (subset.cases[0]?.title ?? title) : title, located)
       await fs.mkdir(path.dirname(target.file), { recursive: true })
       await fs.writeFile(target.file, render(input))
+      await fs.rm(pdfOf(target.file), { force: true }) // 옛 내용으로 만든 PDF 는 남기지 않는다
     }
     return targets
   }
@@ -633,6 +637,24 @@ export class Workspace {
       ...(existsSync(report) && { report: { file: this.rel(report), ...(mode === 'one' && { anchor: anchorOf(scenarioId) }) } }),
       ...(existsSync(guide) && { guide: { file: this.rel(guide) } }),
     }
+  }
+
+  /** 결과서 · 가이드를 PDF 로 — 같은 폴더에 `index.pdf` · `guide.pdf` 로 쓰고(그 폴더와 함께 지워진다) 프로젝트 기준 경로와 저장 창에 제안할 이름을 돌려준다.
+   *  시나리오마다 따로 낸 수행은 scenario 가 필요하고, 하나로 같이 낸 수행은 scenario 와 상관없이 그 결과서 전체다 */
+  async pdf(runId: string, kind: 'report' | 'guide', scenario?: string): Promise<{ path: string; name: string }> {
+    if (!isRunId(runId)) throw new Error(`수행 id 가 틀렸습니다: ${runId}`)
+    if (this.runningId() === runId) throw new Error('실행 중입니다 — 끝난 뒤 다시 눌러 주세요')
+    const picked = await this.runOf(runId)
+    if (!picked) throw new Error(`수행 기록이 없습니다: ${runId}`)
+    const id = picked.mode === 'each' ? (scenario ?? (picked.run.cases.length === 1 ? picked.run.cases[0]!.id : undefined)) : undefined
+    if (picked.mode === 'each' && !id) throw new Error('시나리오마다 따로 낸 수행입니다 — scenario 가 필요합니다')
+    if (id && !isValidId(id)) throw new Error(`시나리오 id 가 틀렸습니다: ${id}`)
+    const html = path.join(this.config.reportDir, runId, ...(id ? [id] : []), kind === 'report' ? 'index.html' : 'guide.html')
+    if (!existsSync(html)) throw new Error(`${kind === 'report' ? '결과서' : '가이드'} 파일이 없습니다: ${this.rel(html)}`)
+    const out = pdfOf(html)
+    await driverFor('web', { channel: this.config.channel }, this.launch).pdf(html, out)
+    const title = (id ? picked.run.cases.find((item) => item.id === id)?.title : undefined) ?? picked.title
+    return { path: this.rel(out), name: `${kind === 'report' ? '결과서' : '화면 가이드'}${title ? ` - ${title}` : ''}`.slice(0, 70) + '.pdf' }
   }
 
   // ── 저장소 맞추기 · 삭제 ──

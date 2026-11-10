@@ -1,4 +1,4 @@
-// MCP 도구 (#1248, 0.7.0) — AI 와 패널이 같이 쓰는 것: list · run · report · guide · fingerprint · newRequest. 패널만(plugin 서비스의 panelTools, AI 에 안 보임): progress · stop · shot · delete · detail · reindex. [연결 확인]: check (settingsCheck).
+// MCP 도구 (#1248, 0.7.0) — AI 와 패널이 같이 쓰는 것: list · run · report · guide · fingerprint · newRequest. 패널만(plugin 서비스의 panelTools, AI 에 안 보임): progress · stop · shot · delete · detail · reindex · pdf. [연결 확인]: check (settingsCheck).
 // 시나리오를 고르는 말(Selector)은 list · run · delete 가 같이 쓴다: { scenarios?, screen?, request?, failed? } — 여럿이면 모두 맞는 것, 없으면 전부.
 // 결과 글에 비밀 값은 넣지 않는다 — 계정은 아이디만. 패널 도구의 결과는 JSON 글이다(계약은 README "패널 ↔ 서비스").
 // run 은 RUN_WAIT_MS 까지만 기다리고 돌아온다(엔진의 MCP 도구 호출 기한 5분 — 긴 수행은 report { run } 으로 끝을 기다린다).
@@ -33,7 +33,7 @@ export interface Tool {
 export const RUN_WAIT_MS = 120_000
 
 /** 패널만 부르는 도구 — 서비스가 host.mcp.register 의 panelTools 로 올린다(AI 에 안 보인다) */
-export const PANEL_TOOLS = ['progress', 'stop', 'shot', 'delete', 'detail', 'reindex']
+export const PANEL_TOOLS = ['progress', 'stop', 'shot', 'delete', 'detail', 'reindex', 'pdf']
 
 const STATUS: Record<CaseResult['status'], string> = { passed: '성공', failed: '실패', 'no-code': '코드 없음', stopped: '멈춤' }
 const JSON_ARG = { type: 'boolean', description: 'Return JSON (used by the panel).' }
@@ -234,6 +234,7 @@ export function createTools(deps: ToolDeps): Tool[] {
           const requests = first ? await Promise.all((await store.listRequests()).map(async ({ id, doc }) => ({ id, text: doc.text, at: doc.at, count: doc.scenarios.length, lastRun: await groupRun(doc.lastRun) ?? null }))) : undefined
           return {
             text: JSON.stringify({
+              project: path.basename(config.project),
               testDir: config.testDirSetting,
               reportDir: config.reportDirSetting,
               baseUrl: config.baseUrl,
@@ -420,6 +421,21 @@ export function createTools(deps: ToolDeps): Tool[] {
     },
   }
 
+  const pdf: Tool = {
+    name: 'pdf',
+    description: 'Panel only: print a run\'s report (index.html) or guide (guide.html) to a PDF file next to it (index.pdf / guide.pdf, headless browser). With report "each", scenario picks the scenario folder. Returns JSON { path (project-relative), name (suggested file name) } — the service then lets the user save it with project.exportFile.',
+    inputSchema: { type: 'object', properties: { run: { type: 'string' }, kind: { type: 'string', enum: ['report', 'guide'] }, scenario: { type: 'string' } }, required: ['run', 'kind'] },
+    async run(args) {
+      const kind = args['kind']
+      if (typeof args['run'] !== 'string' || (kind !== 'report' && kind !== 'guide')) return { text: 'run 과 kind(report | guide) 가 필요합니다', isError: true }
+      try {
+        return { text: JSON.stringify(await workspace.pdf(args['run'], kind, typeof args['scenario'] === 'string' && args['scenario'] ? args['scenario'] : undefined)) }
+      } catch (error) {
+        return fail(error)
+      }
+    },
+  }
+
   const fingerprint: Tool = {
     name: 'fingerprint',
     description:
@@ -512,9 +528,9 @@ export function createTools(deps: ToolDeps): Tool[] {
     },
   }
 
-  return [list, run, report, guide, newRequest, fingerprint, progress, stop, shot, remove, detail, reindexTool, check]
+  return [list, run, report, guide, newRequest, fingerprint, progress, stop, shot, remove, detail, reindexTool, pdf, check]
 }
 
-export const TOOL_NAMES = ['list', 'run', 'report', 'guide', 'newRequest', 'fingerprint', 'progress', 'stop', 'shot', 'delete', 'detail', 'reindex', 'check']
+export const TOOL_NAMES = ['list', 'run', 'report', 'guide', 'newRequest', 'fingerprint', 'progress', 'stop', 'shot', 'delete', 'detail', 'reindex', 'pdf', 'check']
 
 export const serverFileOf = (argv1: string | undefined): string => path.resolve(argv1 ?? 'ui-test.mjs')

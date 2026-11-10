@@ -23,7 +23,7 @@ export default (host) =>
     constructor(ctx) {
       super(ctx)
       // 실행기 서버 — 앱이 따로 띄우고(첫 도구 호출 때) 쉬면 내린다. 설정 칸 값은 ${storage:}, 비밀번호는 ${secret:} 로 서버 env 에 간다.
-      // 서버 도구는 AI 에 litecode_ui-test_<도구> 로 보이고(스킬이 쓰는 이름 그대로), progress · stop · shot · delete · detail · reindex 는 패널(서비스) 전용이다
+      // 서버 도구는 AI 에 litecode_ui-test_<도구> 로 보이고(스킬이 쓰는 이름 그대로), progress · stop · shot · delete · detail · reindex · pdf 는 패널(서비스) 전용이다
       host.mcp.register({
         command: 'server/ui-test.mjs',
         env: {
@@ -37,7 +37,7 @@ export default (host) =>
         },
         idleMs: 1_800_000,
         timeoutMs: 1_800_000,
-        panelTools: ['progress', 'stop', 'shot', 'delete', 'detail', 'reindex'],
+        panelTools: ['progress', 'stop', 'shot', 'delete', 'detail', 'reindex', 'pdf'],
       })
       // 스킬 — SKILL.md 와 references/ 가 통째로 올라간다(zip 의 skills/ui-test). 서비스가 켜진 프로젝트의 대화에서만 보인다
       host.skills.register({ name: 'ui-test', dir: 'skills/ui-test' })
@@ -83,6 +83,25 @@ export default (host) =>
       this.expose('delete', async (params, call) => JSON.parse(await this.tool('delete', pick(params, ['scenarios', 'screen', 'request']), call)))
       // 가이드형 결과물 — 서버가 수행 기록으로 guide.html 을 쓰고 경로를 돌려준다
       this.expose('guide', async (params, call) => JSON.parse(await this.tool('guide', { run: record(params).run, json: true }, call)))
+      // PDF 로 저장 — 서버(pdf 도구)가 프로젝트 안에 PDF 를 만들고, 서비스가 project.exportFile 로 사용자가 고른 곳에 복사한다(서비스만 부를 수 있다 — 호스트 API 2).
+      // 던지면 패널에는 코드 service-failed 만 가므로 실패는 값으로 돌려준다: { saved: true, name } · 취소 { saved: false } · 실패 { saved: false, code, message? }
+      // code: busy · export-limit · permission-missing · unsupported(옛 앱 — 알 수 없는 호출) · pdf-failed(서버가 PDF 를 못 만듦 — 브라우저 등) · 그 밖의 앱 오류 코드 그대로
+      this.expose('exportPdf', async (params, call) => {
+        const { directory } = call
+        let made
+        try {
+          made = JSON.parse(await this.tool('pdf', pick(params, ['run', 'kind', 'scenario']), call))
+        } catch (error) {
+          return { saved: false, code: 'pdf-failed', message: error instanceof Error ? error.message : String(error) }
+        }
+        try {
+          const saved = await host.call('project.exportFile', { path: made.path, name: made.name }, { directory })
+          return saved?.saved === true ? { saved: true, name: saved.name ?? made.name } : { saved: false }
+        } catch (error) {
+          const code = typeof error?.code === 'string' ? error.code : 'failed'
+          return { saved: false, code: code === 'method-unknown' ? 'unsupported' : code }
+        }
+      })
       // 앱 기능 — 패널은 앱 통로를 직접 쓰지 않고 서비스를 거친다
       this.expose('openFile', (params, { directory }) => host.call('project.openFile', { path: record(params).path }, { directory }))
       // send: false 면 새 대화의 입력창만 채우고 보내지 않는다(변경 요청처럼 사용자가 이어 쓸 때)

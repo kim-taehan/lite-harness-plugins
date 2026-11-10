@@ -21,7 +21,7 @@ beforeAll(async () => {
 afterEach(() => vi.useRealTimers())
 
 /** 서버 도구를 흉내 낸다 — tools[이름](args) 가 { text } 또는 { text, isError } 를 돌려준다 */
-function start(tools: Record<string, (args: Record<string, unknown>) => { text: string; isError?: boolean } | Promise<{ text: string; isError?: boolean }>>) {
+function start(tools: Record<string, (args: Record<string, unknown>) => { text: string; isError?: boolean } | Promise<{ text: string; isError?: boolean }>>, exportFile?: (params: { path: string; name: string }) => unknown) {
   const calls: McpCall[] = []
   const store = new Map<string, unknown>()
   const fake = createFakeHost({
@@ -41,8 +41,13 @@ function start(tools: Record<string, (args: Record<string, unknown>) => { text: 
     },
   })
   fake.enableProject(DIR)
-  fake.mount(bundle)
-  return { fake, calls }
+  // project.exportFile 은 desktop dev 에만 있고 이 저장소의 sdk 사본(가짜 host)은 아직 모른다(PR #94 가 머지돼 sdk 를 다시 맞추면 `calls` 로 바로 흉내 낼 수 있다) — 그래서 그 호출만 가로챈다.
+  // 안 가로채면 가짜 host 가 알 수 없는 호출로 거절한다(옛 앱과 같다)
+  const exported: { path: string; name: string }[] = []
+  fake.mount((host: { call: (method: string, params: unknown, options?: unknown) => Promise<unknown> }) =>
+    bundle(exportFile ? { ...host, call: async (method: string, params: unknown, options?: unknown) => (method === 'project.exportFile' ? (exported.push(params as { path: string; name: string }), exportFile(params as { path: string; name: string })) : host.call(method, params, options)) } : host),
+  )
+  return { fake, calls, exported }
 }
 
 const progress = (running: boolean, done = 0) => ({ text: JSON.stringify({ running, title: 's', runId: 'r1', done }) })
@@ -72,7 +77,7 @@ describe('service', () => {
 
   it('패널이 부를 메서드를 올린다', () => {
     const { fake } = start({})
-    expect(fake.names().sort()).toEqual(['ask', 'delete', 'detail', 'guide', 'list', 'openFile', 'prefs', 'progress', 'reindex', 'run', 'shot', 'stop'])
+    expect(fake.names().sort()).toEqual(['ask', 'delete', 'detail', 'exportPdf', 'guide', 'list', 'openFile', 'prefs', 'progress', 'reindex', 'run', 'shot', 'stop'])
   })
 
   it('list · detail · delete · reindex 는 서버 도구의 JSON 을 풀어서, shot · stop 은 글 그대로 돌려준다 — 허용한 인자만 넘긴다', async () => {
@@ -197,6 +202,28 @@ describe('service', () => {
     const { fake, calls } = start({ guide: () => ({ text: '{"files":["ui-tests/_reports/r1/guide.html"]}' }) })
     expect(await fake.call('guide', { run: 'r1', x: 1 }, { directory: DIR })).toEqual({ files: ['ui-tests/_reports/r1/guide.html'] })
     expect(calls).toEqual([{ tool: 'guide', args: { run: 'r1', json: true } }])
+  })
+
+  it('exportPdf — 서버가 만든 PDF 를 project.exportFile 로 저장 창에 넘기고, 저장 · 취소 · 오류를 값으로 돌려준다', async () => {
+    const made = { text: '{"path":"ui-tests/_reports/r1/index.pdf","name":"결과서 - 로그인.pdf"}' }
+    const saved = start({ pdf: () => made }, () => ({ saved: true, name: '내 결과서.pdf' }))
+    expect(await saved.fake.call('exportPdf', { run: 'r1', kind: 'report', scenario: 'a-01', evil: 1 }, { directory: DIR })).toEqual({ saved: true, name: '내 결과서.pdf' })
+    expect(saved.calls).toEqual([{ tool: 'pdf', args: { run: 'r1', kind: 'report', scenario: 'a-01' } }])
+    expect(saved.exported).toEqual([{ path: 'ui-tests/_reports/r1/index.pdf', name: '결과서 - 로그인.pdf' }])
+    const cancelled = start({ pdf: () => made }, () => ({ saved: false }))
+    expect(await cancelled.fake.call('exportPdf', { run: 'r1', kind: 'report' }, { directory: DIR })).toEqual({ saved: false })
+    for (const code of ['busy', 'export-limit', 'permission-missing', 'too-big']) {
+      const failing = start({ pdf: () => made }, () => Promise.reject(Object.assign(new Error(code), { code })))
+      expect(await failing.fake.call('exportPdf', { run: 'r1', kind: 'guide' }, { directory: DIR })).toEqual({ saved: false, code })
+    }
+  })
+
+  it('exportPdf — 서버가 PDF 를 못 만들면 pdf-failed(글 포함), 옛 앱(알 수 없는 호출)이면 unsupported — 던지지 않는다', async () => {
+    const broken = start({ pdf: () => ({ text: '인쇄 실패', isError: true }) }, () => ({ saved: true }))
+    expect(await broken.fake.call('exportPdf', { run: 'r1', kind: 'report' }, { directory: DIR })).toEqual({ saved: false, code: 'pdf-failed', message: '인쇄 실패' })
+    expect(broken.exported).toEqual([])
+    const old = start({ pdf: () => ({ text: '{"path":"a.pdf","name":"a.pdf"}' }) }) // 가로채지 않으면 가짜 host 가 method-unknown
+    expect(await old.fake.call('exportPdf', { run: 'r1', kind: 'report' }, { directory: DIR })).toEqual({ saved: false, code: 'unsupported' })
   })
 
   it('스킬의 도구 이름 · 용어가 서버 도구와 일치한다 — AI 도구는 litecode_ui-test_<도구>, 패널 전용은 스킬에 없고, 묶음 문구가 없다', () => {
