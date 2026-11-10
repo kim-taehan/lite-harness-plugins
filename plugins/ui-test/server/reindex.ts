@@ -8,6 +8,7 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { HISTORY_SUFFIX } from './remove.ts'
 import { parseScenario } from './scenario.ts'
+import { keepsDeclaredScreens } from './tag.ts'
 import { requestIdFor, scenarioIdForFile, type Dropped, type RequestDoc, type Store } from './store.ts'
 import type { Scenario } from './types.ts'
 
@@ -89,10 +90,11 @@ export async function reindex(store: Store, config: { project: string; scenarioD
     const before = existing.get(item.id)
     const { scenario } = item
     const request = requestOf.get(item.id) ?? before?.request
-    const screens = before?.observed ? before.screens : scenario.screens
-    const same_ = before && before.fingerprint === scenario.fingerprint && before.title === scenario.name && before.file === item.file && before.kind === scenario.kind && before.request === request && (before.observed ? true : same(before.screens, screens))
+    const declaredOnly = keepsDeclaredScreens(scenario) // 로그인 시나리오는 머리 screens 가 전부 — 이미 관찰로 쌓인 태그도 선언으로 돌아온다
+    const screens = !declaredOnly && before?.observed ? before.screens : scenario.screens
+    const same_ = before && before.fingerprint === scenario.fingerprint && before.title === scenario.name && before.file === item.file && before.kind === scenario.kind && before.request === request && (before.observed && !declaredOnly ? true : same(before.screens, screens))
     if (same_) continue
-    await store.upsertScenario(item.id, { title: scenario.name, kind: scenario.kind, fingerprint: scenario.fingerprint, file: item.file, screens, ...(request && { request }) })
+    await store.upsertScenario(item.id, { title: scenario.name, kind: scenario.kind, fingerprint: scenario.fingerprint, file: item.file, screens, ...(declaredOnly && before?.observed && { observed: false }), ...(request && { request }) })
     if (before) result.updated++
     else result.added++
   }

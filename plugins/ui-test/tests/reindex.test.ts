@@ -125,21 +125,37 @@ describe('reindex', () => {
   })
 
   it('화면 태그 — 한 번도 안 돈 시나리오는 머리 screens, 수행이 정한 뒤로는 덮지 않는다 · screen-names 는 screens 컬렉션에', async () => {
-    write('a.md', `---\nname: A\nscreens: [/login, /admin/menu/12]\nscreen-names: {/login: 로그인, /admin/menu/12: 메뉴 관리}\n---\n1. 연다\n2. 확인: 보인다\n`)
+    write('a.md', `---\nname: A\nscreens: [/home, /admin/menu/12]\nscreen-names: {/home: 홈, /admin/menu/12: 메뉴 관리}\n---\n1. 연다\n2. 확인: 보인다\n`)
     const { store } = setup()
     await reindex(store, cfg())
-    expect((await store.getScenario('a'))!.screens).toEqual(['/login', '/admin/menu/:id'])
-    expect((await store.getScreen('/login'))).toMatchObject({ route: '/login', name: '로그인' })
+    expect((await store.getScenario('a'))!.screens).toEqual(['/home', '/admin/menu/:id'])
+    expect((await store.getScreen('/home'))).toMatchObject({ route: '/home', name: '홈' })
     expect((await store.getScreen('/admin/menu/:id'))).toMatchObject({ name: '메뉴 관리' })
     // 머리가 바뀌면 (아직 안 돌았으니) 따라간다
-    write('a.md', `---\nname: A\nscreens: [/login]\n---\n1. 연다\n2. 확인: 보인다\n`)
+    write('a.md', `---\nname: A\nscreens: [/home]\n---\n1. 연다\n2. 확인: 보인다\n`)
     await reindex(store, cfg())
-    expect((await store.getScenario('a'))!.screens).toEqual(['/login'])
+    expect((await store.getScenario('a'))!.screens).toEqual(['/home'])
     // 수행이 정한 뒤 — observed
     await store.upsertScenario('a', { screens: ['/seen'], observed: true })
-    write('a.md', `---\nname: A\nscreens: [/login, /other]\n---\n1. 연다\n2. 확인: 보인다\n`)
+    write('a.md', `---\nname: A\nscreens: [/home, /other]\n---\n1. 연다\n2. 확인: 보인다\n`)
     await reindex(store, cfg())
     expect((await store.getScenario('a'))!.screens).toEqual(['/seen'])
+  })
+
+  it('로그인 시나리오는 이미 관찰로 쌓인 화면 태그도 reindex 가 머리 screens 로 되돌린다 — 다른 시나리오는 그대로 둔다', async () => {
+    write('login.md', `---\nname: 정상 로그인\nscreens: [/login]\n---\n1. 연다\n2. 확인: 보인다\n`)
+    write('other.md', `---\nname: 대시보드\nscreens: [/dashboard]\n---\n1. 연다\n2. 확인: 보인다\n`)
+    const { store } = setup()
+    await reindex(store, cfg())
+    const login = (await store.listScenarios()).find((item) => item.doc.title === '정상 로그인')!.id
+    const other = (await store.listScenarios()).find((item) => item.doc.title === '대시보드')!.id
+    await store.upsertScenario(login, { screens: ['/login', '/dashboard'], observed: true })
+    await store.upsertScenario(other, { screens: ['/seen'], observed: true })
+    await reindex(store, cfg())
+    expect((await store.getScenario(login))!).toMatchObject({ screens: ['/login'], observed: false })
+    expect((await store.getScenario(other))!.screens).toEqual(['/seen'])
+    // 다시 읽어도 그대로(바뀐 게 없으면 쓰지 않는다)
+    expect(await reindex(store, cfg())).toMatchObject({ added: 0, updated: 0, removed: 0 })
   })
 
   it('DB 가 비면 파일에서 다시 채운다 — 수행 기록만 잃는다', async () => {

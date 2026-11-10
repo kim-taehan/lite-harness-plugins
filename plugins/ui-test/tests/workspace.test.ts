@@ -43,10 +43,10 @@ afterEach(async () => {
 const flags = ((globalThis as Record<string, unknown>)['__uiTestWs'] ??= {}) as Record<string, boolean>
 
 /** 시나리오 한 개 — md 와 생성 코드. 1 연다(goto) → 2 확인(그 주소에서). 코드는 flags[이름] 이 false 면 확인에서 실패 */
-async function put(rel: string, options: { title: string; page: string; second?: string; request?: string; screens?: string; names?: string; ok?: boolean; checkStep?: boolean }): Promise<string> {
+async function put(rel: string, options: { title: string; page: string; second?: string; request?: string; screens?: string; tags?: string; names?: string; ok?: boolean; checkStep?: boolean }): Promise<string> {
   const key = `${root}|${rel}`
   flags[key] = options.ok ?? true
-  const md = `---\nname: ${options.title}\n${options.request ? `request: "${options.request}"\nrequested: 2026-11-10T01:00:00.000Z\n` : ''}${options.screens ? `screens: [${options.screens}]\n` : ''}${options.names ? `screen-names: {${options.names}}\n` : ''}---\n1. 연다\n${options.checkStep === false ? '' : '2. 확인: 보인다\n'}${options.second ? '3. 다른 화면을 연다\n4. 확인: 또 보인다\n' : ''}`
+  const md = `---\nname: ${options.title}\n${options.request ? `request: "${options.request}"\nrequested: 2026-11-10T01:00:00.000Z\n` : ''}${options.tags ? `tags: [${options.tags}]\n` : ''}${options.screens ? `screens: [${options.screens}]\n` : ''}${options.names ? `screen-names: {${options.names}}\n` : ''}---\n1. 연다\n${options.checkStep === false ? '' : '2. 확인: 보인다\n'}${options.second ? '3. 다른 화면을 연다\n4. 확인: 또 보인다\n' : ''}`
   const file = path.join(root, '.litecode/plugins/ui-test/scenarios', rel)
   await fs.mkdir(path.dirname(file), { recursive: true })
   await fs.writeFile(file, md)
@@ -120,6 +120,21 @@ describe('화면 태그 — "확인:" 단계를 실행한 주소', () => {
     await space.reindex()
     expect((await store.getScenario('a-01'))!.screens).toEqual(['/admin/menu/:id'])
     expect((await store.getResult('a-01', outcome.run.id))!.urls).toEqual(['/admin/menu/12'])
+  })
+
+  it('로그인 시나리오는 로그인 뒤 이동한 화면을 태그로 더하지 않는다 — 머리 screens 그대로, 다른 시나리오는 관찰 주소를 더한다', async () => {
+    await put('a-01.md', { title: '정상 로그인', page: '/dashboard', screens: '/login' })
+    await put('a-02.md', { title: '인증 화면', page: '/home', screens: '/auth', tags: '로그인' })
+    await put('a-03.md', { title: '대시보드', page: '/dashboard/7', screens: '/dashboard' })
+    const { space, store } = open()
+    await space.reindex()
+    await space.run({})
+    expect((await store.getScenario('a-01'))!.screens).toEqual(['/login'])
+    expect((await store.getScenario('a-01'))!.observed).toBeUndefined()
+    expect((await store.getScenario('a-02'))!.screens).toEqual(['/auth'])
+    expect((await store.getScenario('a-03'))!.screens).toEqual(['/dashboard/:id']) // 로그인이 아니면 관찰 주소로 바뀌던 기존 동작 그대로
+    expect((await store.getScenario('a-03'))!.observed).toBe(true)
+    expect((await store.getScenario('a-01'))!.last).toMatchObject({ status: 'passed' })
   })
 
   it('거쳐 가는 로그인은 "확인:" 단계가 없으면 붙지 않는다 — 확인 단계가 없으면 태그가 안 바뀐다', async () => {
@@ -355,7 +370,7 @@ describe('도구 — 패널 · AI', () => {
     expect(json).toMatchObject({ scenarioDir: '.litecode/plugins/ui-test/scenarios', baseUrl: 'http://a', running: null })
     expect(json.cursor).toBeUndefined()
     const login = json.scenarios.find((item: { id: string }) => item.id === 'q-01')
-    expect(login).toMatchObject({ title: '로그인', screens: ['/login-ok'], status: 'passed', hasCode: true, stale: false, steps: 2, checks: 1, rows: 0, file: '.litecode/plugins/ui-test/scenarios/q-01.md' })
+    expect(login).toMatchObject({ title: '로그인', screens: ['/login'], status: 'passed', hasCode: true, stale: false, steps: 2, checks: 1, rows: 0, file: '.litecode/plugins/ui-test/scenarios/q-01.md' })
     expect(json.scenarios.find((item: { id: string }) => item.id === 'q-02')).toMatchObject({ status: null, lastRun: null })
     expect(json.screens).toEqual([{ route: '/login', name: '로그인 화면', lastRun: expect.objectContaining({ mode: 'each' }) }])
     expect(json.requests).toHaveLength(1)
@@ -410,7 +425,7 @@ describe('도구 — 패널 · AI', () => {
     const outcome = await space.run({ scenarios: ['q-01'] })
     await space.writeGuide(outcome.run.id)
     const json = JSON.parse((await tool('detail').run({ id: 'q-01' })).text)
-    expect(json).toMatchObject({ id: 'q-01', title: '로그인', screens: ['/login-ok'], status: 'passed', hasCode: true, stale: false, file: '.litecode/plugins/ui-test/scenarios/q-01.md', request: { text: '로그인 화면' } })
+    expect(json).toMatchObject({ id: 'q-01', title: '로그인', screens: ['/login'], status: 'passed', hasCode: true, stale: false, file: '.litecode/plugins/ui-test/scenarios/q-01.md', request: { text: '로그인 화면' } })
     expect(json.source).toContain('1. 연다')
     expect(json.steps).toEqual([{ no: 1, text: '연다', kind: 'action' }, { no: 2, text: '확인: 보인다', kind: 'check' }])
     expect(json.latest).toMatchObject({ run: outcome.run.id, status: 'passed', urls: ['/login-ok'] })

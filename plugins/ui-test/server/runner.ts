@@ -22,7 +22,7 @@ import { removeScenarioFiles, specOf } from './remove.ts'
 import { anchorOf, renderReport, type ReportInput } from './report.ts'
 import { parseScenario, sourceFingerprint, specHeader } from './scenario.ts'
 import { isValidId, openStore, StoreError, timeId, toResultDoc, type Db, type Dropped, type ResultDoc, type RunDoc, type RunTarget, type ScenarioDoc, type Store } from './store.ts'
-import { normalizeRoute, routesOf } from './tag.ts'
+import { keepsDeclaredScreens, normalizeRoute, routesOf } from './tag.ts'
 import type { CaseResult, RunRecord, Scenario, StepResult } from './types.ts'
 
 /** 결과서 · 가이드 HTML 옆에 두는 PDF 경로 */
@@ -503,8 +503,16 @@ export class Workspace {
     const results = run.cases.map((item) => toResultDoc(run.id, run.startedAt, item))
     await store.recordRun(run.id, doc, results)
     const known = new Map(infos.map((item) => [item.id, item.doc]))
+    const declaredOf = new Map(infos.map((item) => [item.id, item.scenario]))
     for (const result of results) {
       if (result.status !== 'passed' && result.status !== 'failed') continue
+      const declared = declaredOf.get(result.scenario)
+      if (declared && keepsDeclaredScreens(declared)) {
+        // 로그인 시나리오 — 로그인 뒤 이동한 화면을 태그로 더하지 않는다(머리 screens 그대로)
+        const current = known.get(result.scenario)?.screens ?? []
+        await store.upsertScenario(result.scenario, { last: { status: result.status, at: run.startedAt, run: run.id }, ...(!same(declared.screens, current) && { screens: declared.screens }) })
+        continue
+      }
       const routes = routesOf(result.urls)
       // 성공이면 이번에 본 화면이 곧 화면 태그, 실패면 거기까지 본 것을 더한다(확인 단계에 닿기 전에 실패하면 태그가 줄어들지 않게)
       const current = known.get(result.scenario)?.screens ?? []

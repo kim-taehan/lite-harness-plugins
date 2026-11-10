@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeRoute, pathOf, routePattern, routesOf } from '../server/tag.ts'
+import { isLoginScenario, keepsDeclaredScreens, normalizeRoute, pathOf, routePattern, routesOf } from '../server/tag.ts'
 
 // 화면 태그 — "확인:" 단계를 실행한 순간의 주소 → 라우트 패턴
 
@@ -35,5 +35,24 @@ describe('화면 태그 라우트 패턴', () => {
     expect(normalizeRoute('login')).toBe('/login')
     expect(normalizeRoute('/admin/menu/12/')).toBe('/admin/menu/:id')
     expect(normalizeRoute('http://a/b')).toBe('/b')
+  })
+})
+
+describe('로그인 시나리오 판정', () => {
+  it('tags 에 로그인이 있거나 screens 경로의 마지막 마디가 login · signin · sign-in · log-in 이면 로그인 시나리오', () => {
+    expect(isLoginScenario({ tags: [], screens: ['/login'] })).toBe(true)
+    expect(isLoginScenario({ tags: [], screens: ['/auth/sign-in'] })).toBe(true)
+    expect(isLoginScenario({ tags: [], screens: ['/Account/SignIn'] })).toBe(true)
+    expect(isLoginScenario({ tags: [], screens: ['/user/log-in'] })).toBe(true)
+    expect(isLoginScenario({ tags: ['로그인', '스모크'], screens: ['/auth'] })).toBe(true)
+    expect(isLoginScenario({ tags: [], screens: ['/dashboard'] })).toBe(false)
+    expect(isLoginScenario({ tags: ['스모크'], screens: ['/login/history'] })).toBe(false)
+    expect(isLoginScenario({ tags: [], screens: [] })).toBe(false)
+  })
+
+  it('선언이 비어 있으면 로그인 시나리오여도 관찰 값을 쓴다 — keepsDeclaredScreens', () => {
+    expect(keepsDeclaredScreens({ tags: ['로그인'], screens: [] })).toBe(false)
+    expect(keepsDeclaredScreens({ tags: ['로그인'], screens: ['/auth'] })).toBe(true)
+    expect(keepsDeclaredScreens({ tags: [], screens: ['/dashboard'] })).toBe(false)
   })
 })
