@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { configFromEnv, insideProject, scrub } from '../server/config.ts'
+import { configFromEnv, guardPluginPath, insideProject, PLUGIN_DIR, scrub } from '../server/config.ts'
 import { fingerprint, parseScenario, parseSuite, specHeader, splitFrontMatter } from '../server/scenario.ts'
 
 // UI 테스트 (#1248) — 시나리오 · 묶음 md 읽기, 지문, 생성 코드 머리말, 폴더 설정 검사
@@ -57,46 +60,83 @@ describe('parseScenario', () => {
   })
 })
 
-describe('parseSuite · 머리말', () => {
-  it('suite.md — 요청 · 만든 날 · 대상 · 주소 · 시나리오 순서', () => {
+describe('옛 suite.md · 머리말', () => {
+  it('parseSuite — reindex 의 옛 데이터 가져오기용: 이름 · 요청 · 만든 날만 읽는다', () => {
     const suite = parseSuite(
       '가입설계-화면',
-      `---\nname: 가입설계 화면\nrequest: "가입설계 화면 테스트 구성해 줘"\ncreated: 2026-11-06\ntarget: web\nurl: http://dev.local/join\nbrowser: Chrome\n---\n## 시나리오 순서\n1. 02-필수값-누락.md\n2. \`01-정상.md\`\n\n## AI 없이 돌리기\n- node x.mjs run a.md\n`,
+      `---\nname: 가입설계 화면\nrequest: "가입설계 화면 테스트 구성해 줘"\ncreated: 2026-11-06\ntarget: web\nurl: http://dev.local/join\nbrowser: Chrome\n---\n## 시나리오 순서\n1. 02-필수값-누락.md\n\n## 규칙\n- [검증] 이름 필수 — 01\n`,
     )
-    expect(suite).toEqual({ id: '가입설계-화면', name: '가입설계 화면', request: '가입설계 화면 테스트 구성해 줘', created: '2026-11-06', target: 'web', url: 'http://dev.local/join', browser: 'Chrome', order: ['02-필수값-누락.md', '01-정상.md'], rules: [] })
+    expect(suite).toEqual({ id: '가입설계-화면', name: '가입설계 화면', request: '가입설계 화면 테스트 구성해 줘', created: '2026-11-06' })
   })
 
-  it('머리 없는 suite.md 는 이름 = 폴더, 대상 web, 순서 없음', () => {
-    expect(parseSuite('a', '# 묶음\n')).toEqual({ id: 'a', name: 'a', target: 'web', order: [], rules: [] })
+  it('머리 없는 suite.md 는 이름 = 폴더', () => {
+    expect(parseSuite('a', '# 묶음\n')).toEqual({ id: 'a', name: 'a' })
     expect(splitFrontMatter('no head').head).toEqual({})
   })
 
+  it('시나리오 머리 — request · requested · screens · screen-names (태그의 재료)', () => {
+    const scenario = parseScenario('q-01', `---\nname: 로그인\nrequest: "메뉴 관리 화면에 대해서 진행해줘 #12 (급해요)"\nrequested: 2026-11-10T01:05:00.000Z\nscreens: [/admin/menu/12, login/]\nscreen-names: {/admin/menu/12: 메뉴 관리, /login: "로그인: 화면"}\n---\n1. 연다\n`)
+    expect(scenario).toMatchObject({ request: '메뉴 관리 화면에 대해서 진행해줘 #12 (급해요)', requested: '2026-11-10T01:05:00.000Z', screens: ['/admin/menu/:id', '/login'], screenNames: { '/admin/menu/:id': '메뉴 관리', '/login': '로그인: 화면' } })
+    expect(parseScenario('x', '---\nname: a\n---\n1. 연다\n')).toMatchObject({ screens: [], screenNames: {} })
+    expect(parseScenario('x', '1. 연다\n').request).toBeUndefined()
+  })
+
+  it('요청 · 화면 줄을 고쳐도 지문(코드 낡음)은 그대로', () => {
+    const base = fingerprint('---\nname: a\n---\n1. 연다\n')
+    expect(fingerprint('---\nname: a\nrequest: "x"\nrequested: 2026-11-10T00:00:00Z\nscreens: [/a]\nscreen-names: {/a: 에이}\n---\n1. 연다\n')).toBe(base)
+    expect(fingerprint('---\nname: b\n---\n1. 연다\n')).not.toBe(base)
+  })
+
   it('생성 코드 머리말에서 출처 · 지문', () => {
-    expect(specHeader('// ui-test source: ui-tests/a/01-x.md · fingerprint: 3f2a9c1b7d04\nexport default async () => {}')).toEqual({ source: 'ui-tests/a/01-x.md', fingerprint: '3f2a9c1b7d04' })
+    expect(specHeader('// ui-test source: .litecode/plugins/ui-test/scenarios/a/01-x.md · fingerprint: 3f2a9c1b7d04\nexport default async () => {}')).toEqual({ source: '.litecode/plugins/ui-test/scenarios/a/01-x.md', fingerprint: '3f2a9c1b7d04' })
     expect(specHeader('export default 1')).toEqual({})
   })
 })
 
 describe('폴더 설정', () => {
   const project = '/work/proj'
-  it('기본은 ui-tests · ui-tests/_reports(테스트 폴더 안), 이력은 앱이 준 데이터 폴더', () => {
+  it('시나리오 · 결과서는 프로젝트 .litecode/plugins/ui-test/ 아래로 정해져 있다, 이력은 앱이 준 데이터 폴더', () => {
     const config = configFromEnv({ UI_TEST_BASE_URL: ' http://a ', UI_TEST_BROWSER: 'Edge', UI_TEST_DATA_DIR: '/data/ui-test' }, project)
-    expect(config).toMatchObject({ baseUrl: 'http://a', channel: 'msedge', testDir: '/work/proj/ui-tests', reportDir: '/work/proj/ui-tests/_reports', dataDir: '/data/ui-test' })
+    expect(config).toMatchObject({
+      baseUrl: 'http://a',
+      channel: 'msedge',
+      pluginDir: '/work/proj/.litecode/plugins/ui-test',
+      scenarioDir: '/work/proj/.litecode/plugins/ui-test/scenarios',
+      reportDir: '/work/proj/.litecode/plugins/ui-test/reports',
+      scenarioDirRel: '.litecode/plugins/ui-test/scenarios',
+      reportDirRel: '.litecode/plugins/ui-test/reports',
+      dataDir: '/data/ui-test',
+    })
+    expect(PLUGIN_DIR).toBe('.litecode/plugins/ui-test')
     expect(configFromEnv({ UI_TEST_BROWSER: '' }, project).channel).toBe('chrome')
   })
 
-  it('테스트 폴더는 프로젝트 안만 — .. · 절대 경로 거절', () => {
-    expect(insideProject(project, 'qa/ui', '테스트 폴더')).toBe('/work/proj/qa/ui')
-    expect(() => insideProject(project, '../other', '테스트 폴더')).toThrow(/밖/)
-    expect(() => insideProject(project, '/tmp/x', '테스트 폴더')).toThrow(/상대 경로/)
-    expect(() => configFromEnv({ UI_TEST_DIR: 'a/../../b' }, project)).toThrow()
+  it('옛 설정(testDir → UI_TEST_DIR · UI_TEST_REPORT_DIR)이 env 로 와도 무시한다', () => {
+    const config = configFromEnv({ UI_TEST_DIR: 'qa/ui', UI_TEST_REPORT_DIR: '/share/reports' }, project)
+    expect(config).toMatchObject({ scenarioDir: '/work/proj/.litecode/plugins/ui-test/scenarios', reportDir: '/work/proj/.litecode/plugins/ui-test/reports' })
   })
 
-  it('결과서 폴더는 따로 받지 않는다 — 테스트 폴더 안 _reports', () => {
-    expect(configFromEnv({ UI_TEST_DIR: 'qa/ui' }, project)).toMatchObject({ reportDir: '/work/proj/qa/ui/_reports', reportDirSetting: 'qa/ui/_reports' })
-    expect(configFromEnv({ UI_TEST_DIR: 'qa/ui/' }, project).reportDirSetting).toBe('qa/ui/_reports')
-    // 옛 설정 값(UI_TEST_REPORT_DIR)은 무시한다
-    expect(configFromEnv({ UI_TEST_REPORT_DIR: '/share/reports' }, project).reportDir).toBe('/work/proj/ui-tests/_reports')
+  it('코드 파일 경로는 프로젝트 안만 — .. · 절대 경로 거절', () => {
+    expect(insideProject(project, 'qa/ui', '코드 파일')).toBe('/work/proj/qa/ui')
+    expect(() => insideProject(project, '../other', '코드 파일')).toThrow(/밖/)
+    expect(() => insideProject(project, '/tmp/x', '코드 파일')).toThrow(/상대 경로/)
+  })
+
+  it('쓰기 전 실제 경로 확인 — 없는 경로는 가까운 윗 폴더로, 심볼릭 링크가 밖을 가리키면 거절', async () => {
+    const real = mkdtempSync(path.join(tmpdir(), 'ui-test-guard-'))
+    const outside = mkdtempSync(path.join(tmpdir(), 'ui-test-guard-out-'))
+    try {
+      expect(await guardPluginPath(real, path.join(real, PLUGIN_DIR, 'reports', 'r1', 'index.html'))).toContain('reports')
+      await expect(guardPluginPath(real, path.join(real, 'ui-tests', 'a.md'))).rejects.toThrow('플러그인 폴더')
+      await expect(guardPluginPath(real, path.join(real, PLUGIN_DIR, '..', 'x'))).rejects.toThrow('플러그인 폴더')
+      mkdirSync(path.join(real, PLUGIN_DIR), { recursive: true })
+      symlinkSync(outside, path.join(real, PLUGIN_DIR, 'reports'))
+      await expect(guardPluginPath(real, path.join(real, PLUGIN_DIR, 'reports', 'r1', 'index.html'))).rejects.toThrow('플러그인 폴더')
+      expect(await guardPluginPath(real, path.join(real, PLUGIN_DIR, 'scenarios', 'a.md'))).toContain('scenarios')
+    } finally {
+      rmSync(real, { recursive: true, force: true })
+      rmSync(outside, { recursive: true, force: true })
+    }
   })
 
   it('비밀 값 지우기', () => {

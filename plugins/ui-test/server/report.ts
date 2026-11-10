@@ -1,5 +1,5 @@
 // 수행 결과서 (#1248, 계획 §2-4 · 시안 ③) — index.html 한 파일, 스크린샷은 파일 안에(data: URL), 인쇄하면 PDF 결과서.
-// 머리(프로젝트 · 대상 주소 · 브라우저 · 시각 · 수행자 · 성공/실패 · 실패 시나리오 링크 · 지난 수행과 비교) → 요약 목록 → 시나리오마다 단계 줄 · 오류 · 테스트 방법 → 무엇을 돌렸나. 시안 v3: 카드 · 라이트/다크 · 좁은 폭은 표 없이 줄로.
+// 머리(프로젝트 · 대상 주소 · 브라우저 · 시각 · 수행자 · 성공/실패 · 실패 시나리오 링크 · 지난 수행과 비교) → 요약 목록 → 시나리오마다 단계 줄 · 오류 · 테스트 방법 → 무엇을 실행했나. 시안 v3: 카드 · 라이트/다크 · 좁은 폭은 표 없이 줄로.
 // 비밀 값은 넣지 않는다 — 모든 글을 scrub 으로 한 번 더 거른다.
 // 2 단계: 데이터 표 시나리오는 행마다 결과 하나 · 실패 갈래 · 스크린샷 예산(앱의 HTML 미리보기 한도 20MB 안에 들게 — 넘치면 실패 순간을 먼저 남기고 단계 끝 사진을 뺀다)
 
@@ -32,7 +32,8 @@ export function budgetShots(shots: { name: string; fail: boolean }[], size: (nam
 export interface ReportInput {
   run: RunRecord
   project: string
-  suiteName: string
+  /** 결과서 · 가이드 제목 — 화면 · 요청 · 시나리오 이름 */
+  title: string
   user: string
   /** 시나리오 id → 시나리오 (원문 · 테스트 방법 · 종류) */
   scenarios: Map<string, Scenario>
@@ -182,7 +183,7 @@ body{margin:0;background:#eef0f4}@media (prefers-color-scheme:dark){body{backgro
 `
 
 /** 시나리오 절의 앵커 id — 파일 이름 stem 의 공백은 `-` 로, 따옴표 · `<>&` 는 이스케이프 */
-const anchorOf = (id: string): string => esc(`s-${id.trim().replace(/\s+/g, '-')}`)
+export const anchorOf = (id: string): string => esc(`s-${id.trim().replace(/\s+/g, '-')}`)
 /** 단계 제목 앞의 "1. " 는 번호 칸과 겹쳐 뗀다 (데이터는 그대로) */
 const bareTitle = (title: string): string => title.replace(/^\d+\.\s*/, '')
 
@@ -236,7 +237,7 @@ export function renderReport(input: ReportInput): string {
   const compare = run.compare
     ? `<p class="cmp"><b>지난 수행(${esc(run.compare.previousId)})과 비교</b> — ${compareLine(run.compare)}${run.compare.newFail.length ? `<br>새로 실패: ${run.compare.newFail.map((id) => clean(titleOf(id))).join(' · ')}` : ''}${run.compare.fixed.length ? `<br>고쳐짐: ${run.compare.fixed.map((id) => clean(titleOf(id))).join(' · ')}` : ''}</p>`
     : '<p class="cmp">처음 수행 — 비교할 지난 수행이 없습니다</p>'
-  const interrupted = run.interrupted ? `<p class="stop"><span class="st bad">중단됨</span> ${clean(run.interrupted)} — 돈 데까지만 적었습니다. 남은 케이스는 멈춤입니다.</p>` : ''
+  const interrupted = run.interrupted ? `<p class="stop"><span class="st bad">중단됨</span> ${clean(run.interrupted)} — 실행한 데까지만 적었습니다. 남은 케이스는 멈춤입니다.</p>` : ''
 
   const info = [
     ['프로젝트', clean(input.project), ''],
@@ -301,14 +302,14 @@ ${error}${method}</section>`
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UI 테스트 결과서 — ${clean(input.suiteName)}</title>
+<title>UI 테스트 결과서 — ${clean(input.title)}</title>
 <style>${STYLE}</style>
 </head>
 <body>
 <div class="rp">
 <article class="doc">
 <header class="card">
-<h1>UI 테스트 수행 결과서 — ${clean(input.suiteName)}</h1>
+<h1>UI 테스트 수행 결과서 — ${clean(input.title)}</h1>
 <dl class="info">${info}</dl>
 ${failBar}
 ${interrupted}
@@ -317,9 +318,9 @@ ${compare}
 ${summary}
 ${cases}
 <footer class="foot">
-<h2 class="lbl">무엇을 돌렸나</h2>
+<h2 class="lbl">무엇을 실행했나</h2>
 ${input.files.map((file) => `<div class="f"><span>시나리오</span><code>${clean(file.scenario)}</code><span>코드</span><code>${clean(file.spec)}</code></div>`).join('\n')}
-<p>"대화에서만 확인" 단계(확인(DB):)는 실행기가 돌리지 않습니다 — 대화에서 DB 조회 도구로 확인합니다.</p>
+<p>"대화에서만 확인" 단계(확인(DB):)는 실행기가 실행하지 않습니다 — 대화에서 DB 조회 도구로 확인합니다.</p>
 <p>비밀번호 등 비밀 값은 이 결과서에 넣지 않습니다. ${dropped ? `스크린샷 ${dropped} 장은 결과서 크기(앱 미리보기 20MB) 때문에 뺐습니다 — 실패 순간은 먼저 남깁니다.` : '이 파일 하나에 스크린샷이 모두 들어 있습니다'}(인쇄하면 PDF).</p>
 ${sources}
 </footer>

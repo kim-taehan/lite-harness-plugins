@@ -8,6 +8,7 @@
 import { scrub } from './config.ts'
 import { classifyFailure } from './failure.ts'
 import { stepKind } from './scenario.ts'
+import { pathOf } from './tag.ts'
 import type { CaseResult, ScenarioStep, StepResult } from './types.ts'
 
 export const DEFAULT_EXPECT_MS = 5_000
@@ -206,13 +207,25 @@ export async function runCase(input: CaseInput, options: CaseOptions, index: num
     options.onStep?.(steps)
     const at = now()
     const shotName = `c${index + 1}${options.row ? `-r${options.row.no}` : ''}-s${no ?? steps.length}`
+    // "확인:" 단계를 실행한 순간의 주소 — 화면 태그. 창이 닫혔으면 못 읽는다
+    const seen = (): void => {
+      if (stepKind(text) !== 'check') return
+      try {
+        const path = pathOf(options.page.url())
+        if (path !== undefined) current!.url = path
+      } catch {
+        // 페이지가 닫혔다
+      }
+    }
     try {
       await run()
       current.durationMs = now() - at
+      seen()
       const shot = await shoot(`${shotName}.jpg`)
       if (shot) current.shot = shot
     } catch (error) {
       current.durationMs = now() - at
+      seen()
       current.status = 'failed'
       current.error = scrub(error instanceof StoppedError ? '멈춤' : error instanceof Error ? error.message : String(error), options.secrets)
       if (!(error instanceof StoppedError)) current.failKind = classifyFailure(current.error)

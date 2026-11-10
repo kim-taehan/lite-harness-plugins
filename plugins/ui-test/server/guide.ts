@@ -133,24 +133,24 @@ ${caseError}</section>`
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>화면 사용 가이드 — ${clean(input.suiteName)}</title>
+<title>화면 사용 가이드 — ${clean(input.title)}</title>
 <style>${STYLE}</style>
 </head>
 <body>
 <article>
 <header>
-<h1>${clean(input.suiteName)} — 화면 사용 가이드</h1>
+<h1>${clean(input.title)} — 화면 사용 가이드</h1>
 <p class="lead">이 화면을 실제로 따라 해 보며 단계마다 화면과 결과를 적은 문서입니다. 잘 된 단계는 초록, 실패한 단계는 붉게 표시하고 원인을 함께 적었습니다.</p>
 <div class="meta"><span>${when(run.startedAt)} 수행 (${seconds(run.durationMs)})</span><span>${clean(run.baseUrl || '-')}</span><span>${clean(run.browser)}</span><span>수행자 ${clean(input.user)}</span></div>
 <div class="meta" style="margin-top:6px"><span class="chip ok">성공 ${passed}</span><span class="chip bad">실패 ${failed}</span>${other ? `<span class="chip off">그 밖 ${other}</span>` : ''}</div>
-${run.interrupted ? `<p class="note"><span class="chip bad">중단됨</span> ${clean(run.interrupted)} — 돈 데까지만 적었습니다.</p>` : ''}
+${run.interrupted ? `<p class="note"><span class="chip bad">중단됨</span> ${clean(run.interrupted)} — 실행한 데까지만 적었습니다.</p>` : ''}
 ${cmp}
 </header>
 <nav aria-label="목차"><b>이 문서의 순서</b><ol>${toc}</ol></nav>
 ${issues.length ? `<div class="issues" role="note"><h2>확인이 필요한 곳 ${issues.length}건</h2><ul>${issues.map((line) => `<li>${line}</li>`).join('')}</ul></div>` : ''}
 ${sections}
 <footer>
-<span>"대화에서만 확인" 단계(확인(DB):)는 수행기가 돌리지 않습니다 — 대화에서 DB 조회 도구로 확인합니다.</span>
+<span>"대화에서만 확인" 단계(확인(DB):)는 실행기가 실행하지 않습니다 — 대화에서 DB 조회 도구로 확인합니다.</span>
 <span>비밀번호 등 비밀 값은 이 문서에 넣지 않습니다. ${dropped ? `스크린샷 ${dropped} 장은 문서 크기(앱 미리보기 20MB) 때문에 뺐습니다 — 실패한 순간은 먼저 남깁니다.` : '스크린샷이 이 파일 하나에 모두 들어 있습니다'}</span>
 <span>합격 · 불합격을 표로 모아 본 결과서는 같은 폴더의 <code>index.html</code> 입니다.</span>
 </footer>
