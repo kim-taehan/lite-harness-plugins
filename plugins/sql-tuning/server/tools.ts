@@ -2,7 +2,7 @@
 // 실제 데이터 행은 query 만 돌려준다(승인은 엔진 권한 규칙이 매번 묻는다 — README)
 
 import { bindsFor, checkReadOnly } from './guard.ts'
-import { gitignoreHint, hiddenValues, parseReport, renderReport, writeReport } from './report.ts'
+import { buildMeta, gitignoreHint, hiddenValues, parseReport, renderReport, writeReport } from './report.ts'
 import type { Adapter, Binds, CapturedSql, ImpactInfo, Plan, PlanStep, RunStats, TableInfo, TopBy, TopQuery } from './types.ts'
 
 export interface ToolResult {
@@ -396,8 +396,9 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
         if (!parsed.ok) return fail(parsed.error)
         const cwd = options.report?.cwd ?? process.cwd()
         const now = options.report?.now?.() ?? new Date()
-        const html = renderReport(parsed.input, { at: now, hide: hiddenValues(options.report?.databaseUrl ?? '', parsed.input.schema) })
-        const file = await writeReport(cwd, html, now)
+        const hide = hiddenValues(options.report?.databaseUrl ?? '', parsed.input.schema)
+        const html = renderReport(parsed.input, { at: now, hide })
+        const file = await writeReport(cwd, html, now, (id) => buildMeta(parsed.input, id, now, hide))
         const lines = [`Report written: ${file}`, 'Tell the user this path. It is a local file; open it in a browser (print to PDF if needed).']
         if (parsed.notices.length) lines.push('', ...parsed.notices.map((notice) => `Note: ${notice}`))
         const hint = await gitignoreHint(cwd)
