@@ -144,29 +144,16 @@ describe('화면 태그 — "확인:" 단계를 실행한 주소', () => {
   })
 })
 
-describe('결과서 — 하나로 같이 · 시나리오마다 따로', () => {
+describe('결과서 — 늘 시나리오마다 따로', () => {
   async function two() {
     await put('a-01.md', { title: '에이', page: '/a' })
     await put('a-02.md', { title: '비', page: '/b', ok: false })
     return open()
   }
 
-  it('one — 수행 폴더 하나, 시나리오마다 절(#s-<id>)', async () => {
+  it('여러 개를 실행하면 시나리오 폴더마다 하나, 그 시나리오 것만 — 합치는 선택은 없다', async () => {
     const { space, store } = await two()
-    const outcome = await space.run({ report: 'one' })
-    expect(outcome.reports).toHaveLength(1)
-    expect(outcome.reports[0]!.file).toBe(path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id, 'index.html'))
-    const html = await fs.readFile(outcome.reports[0]!.file, 'utf8')
-    expect(html).toContain('id="s-a-01"')
-    expect(html).toContain('id="s-a-02"')
-    expect(html).toContain('UI 테스트 수행 결과서 — 시나리오 2개')
-    expect(await store.getRun(outcome.run.id)).toMatchObject({ report: 'one', target: { kind: 'scenarios' }, scenarios: ['a-01', 'a-02'], totals: { passed: 1, failed: 1, other: 0 } })
-    expect(space.documentsOf(outcome.run.id, 'one', 'a-02').report).toEqual({ file: `.litecode/plugins/ui-test/reports/${outcome.run.id}/index.html`, anchor: 's-a-02' })
-  })
-
-  it('each — 시나리오 폴더마다 하나, 그 시나리오 것만', async () => {
-    const { space, store } = await two()
-    const outcome = await space.run({ report: 'each' })
+    const outcome = await space.run({})
     expect(outcome.reports.map((item) => item.file)).toEqual(['a-01', 'a-02'].map((id) => path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id, id, 'index.html')))
     const first = await fs.readFile(outcome.reports[0]!.file, 'utf8')
     expect(first).toContain('에이')
@@ -177,19 +164,18 @@ describe('결과서 — 하나로 같이 · 시나리오마다 따로', () => {
     expect(JSON.parse(JSON.stringify(space.current().reports!.map((item) => item.scenario)))).toEqual(['a-01', 'a-02'])
   })
 
-  it('시나리오가 하나뿐이면 each 를 골라도 하나로(묻지 않는다)', async () => {
+  it('시나리오가 하나뿐이어도 시나리오 폴더에 낸다', async () => {
     await put('a-01.md', { title: '에이', page: '/a' })
     const { space, store } = open()
-    const outcome = await space.run({ report: 'each' })
-    expect(outcome.mode).toBe('one')
-    expect((await store.getRun(outcome.run.id))!.report).toBe('one')
+    const outcome = await space.run({})
+    expect(outcome.mode).toBe('each')
+    expect(outcome.reports[0]!.file).toBe(path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id, 'a-01', 'index.html'))
+    expect((await store.getRun(outcome.run.id))!.report).toBe('each')
   })
 
-  it('가이드 — one 은 수행 폴더에 하나, each 는 시나리오 폴더마다', async () => {
+  it('가이드 — 시나리오 폴더마다', async () => {
     const { space } = await two()
-    const one = await space.run({ report: 'one' })
-    expect((await space.writeGuide(one.run.id)).map((item) => item.file)).toEqual([path.join(root, '.litecode/plugins/ui-test/reports', one.run.id, 'guide.html')])
-    const each = await space.run({ report: 'each' })
+    const each = await space.run({})
     const files = await space.writeGuide(each.run.id)
     expect(files.map((item) => path.basename(path.dirname(item.file)))).toEqual(['a-01', 'a-02'])
     expect(space.documentsOf(each.run.id, 'each', 'a-02').guide).toEqual({ file: `.litecode/plugins/ui-test/reports/${each.run.id}/a-02/guide.html` })
@@ -231,7 +217,7 @@ describe('정리 — 시나리오마다 최근 20개', () => {
       expect(existsSync(space.files.shotsDir(gone))).toBe(false)
     }
     for (const kept of runIds.slice(2)) {
-      expect(existsSync(path.join(root, '.litecode/plugins/ui-test/reports', kept, 'index.html'))).toBe(true)
+      expect(existsSync(path.join(root, '.litecode/plugins/ui-test/reports', kept, 'a-01', 'index.html'))).toBe(true)
       expect(existsSync(space.files.shotsDir(kept))).toBe(true)
     }
     expect(KEEP_RUNS).toBe(20)
@@ -254,13 +240,13 @@ describe('DB 없는 실행 (앱 밖 · CI · 옛 앱)', () => {
     expect(ids(outcome)).toEqual(['a-01', 'a-02'])
     expect(outcome.recorded).toBe(false)
     expect(outcome.run.compare).toBeUndefined()
-    expect(await fs.readFile(outcome.run.report, 'utf8')).toContain('id="s-a-02"')
+    expect(outcome.reports.map((item) => existsSync(item.file))).toEqual([true, true])
     expect(existsSync(space.files.shotsDir(outcome.run.id))).toBe(true)
     await expect(space.run({ screen: '/login' })).rejects.toThrow('db-unavailable')
     await expect(space.run({ failed: true })).rejects.toThrow('db-unavailable')
     await expect(space.run({ scenarios: ['없음'] })).rejects.toThrow('없는 시나리오')
     // 방금 실행한 수행의 가이드는 메모리 기록으로 쓴다
-    expect((await space.writeGuide(outcome.run.id)).length).toBe(1)
+    expect((await space.writeGuide(outcome.run.id)).length).toBe(2) // 시나리오마다 하나
     for (const [name, args] of [['list', {}], ['list', { json: true }], ['delete', { scenarios: ['a-01'] }], ['reindex', {}], ['detail', { id: 'a-01' }]] as const) {
       const out = await tool(name).run({ ...args })
       expect(out).toMatchObject({ isError: true })
@@ -290,10 +276,10 @@ describe('삭제', () => {
     expect(removed.scenarios).toContain('q-01')
     expect(removed.files.sort()).toEqual(['.litecode/plugins/ui-test/scenarios/q-01.md', '.litecode/plugins/ui-test/scenarios/q-01.spec.mjs', '.litecode/plugins/ui-test/scenarios/q-03.md', '.litecode/plugins/ui-test/scenarios/q-03.spec.mjs'])
     expect((await store.listScenarios()).map((item) => item.id)).toEqual(['q-02'])
-    // 남은 시나리오가 있는 하나로 같이 결과서는 그것만으로 다시 쓴다
-    const html = await fs.readFile(outcome.run.report, 'utf8')
-    expect(html).toContain('id="s-q-02"')
-    expect(html).not.toContain('id="s-q-01"')
+    // 지운 시나리오의 결과서 폴더는 지워지고, 남은 시나리오 것은 그대로
+    const reportDir = path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id)
+    expect(existsSync(path.join(reportDir, 'q-01'))).toBe(false)
+    expect(existsSync(path.join(reportDir, 'q-02', 'index.html'))).toBe(true)
     expect(existsSync(path.join(shots, 'c1-s1.jpg'))).toBe(false) // 지운 시나리오의 스크린샷
     expect(existsSync(path.join(shots, 'c2-s1.jpg'))).toBe(true)
     // 마지막 시나리오까지 지우면 수행이 통째로 사라진다
@@ -305,7 +291,7 @@ describe('삭제', () => {
 
   it('따로 낸 결과서는 그 시나리오 폴더만 지운다 · 요청 그룹 삭제 · 고르지 않으면 거절 · 수행 중이면 거절', async () => {
     const { space, store } = await setup()
-    const outcome = await space.run({ report: 'each' })
+    const outcome = await space.run({})
     await space.remove({ scenarios: ['q-01'] })
     expect(existsSync(path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id, 'q-01'))).toBe(false)
     expect(existsSync(path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id, 'q-02/index.html'))).toBe(true)
@@ -371,7 +357,7 @@ describe('도구 — 패널 · AI', () => {
     const login = json.scenarios.find((item: { id: string }) => item.id === 'q-01')
     expect(login).toMatchObject({ title: '로그인', screens: ['/login-ok'], status: 'passed', hasCode: true, stale: false, steps: 2, checks: 1, rows: 0, file: '.litecode/plugins/ui-test/scenarios/q-01.md' })
     expect(json.scenarios.find((item: { id: string }) => item.id === 'q-02')).toMatchObject({ status: null, lastRun: null })
-    expect(json.screens).toEqual([{ route: '/login', name: '로그인 화면', lastRun: expect.objectContaining({ mode: 'one', report: expect.stringMatching(/^\.litecode\/plugins\/ui-test\/reports\/\d{8}T\d{6}_\d{2}\/index\.html$/) }) }])
+    expect(json.screens).toEqual([{ route: '/login', name: '로그인 화면', lastRun: expect.objectContaining({ mode: 'each' }) }])
     expect(json.requests).toHaveLength(1)
     expect(json.requests[0]).toMatchObject({ text: '로그인 화면', count: 2, lastRun: null })
     // 쪽 읽기 — 선택자를 주면 걸러서
@@ -402,7 +388,7 @@ describe('도구 — 패널 · AI', () => {
     expect(json.steps).toEqual([{ no: 1, text: '연다', kind: 'action' }, { no: 2, text: '확인: 보인다', kind: 'check' }])
     expect(json.latest).toMatchObject({ run: outcome.run.id, status: 'passed', urls: ['/login-ok'] })
     expect(json.latest.steps[0].shot).toBe('c1-s1.jpg')
-    expect(json.results).toEqual([{ run: outcome.run.id, at: expect.any(Number), status: 'passed', durationMs: expect.any(Number), failure: null, report: { file: `.litecode/plugins/ui-test/reports/${outcome.run.id}/index.html`, anchor: 's-q-01' }, guide: { file: `.litecode/plugins/ui-test/reports/${outcome.run.id}/guide.html` } }])
+    expect(json.results).toEqual([{ run: outcome.run.id, at: expect.any(Number), status: 'passed', durationMs: expect.any(Number), failure: null, report: { file: `.litecode/plugins/ui-test/reports/${outcome.run.id}/q-01/index.html` }, guide: { file: `.litecode/plugins/ui-test/reports/${outcome.run.id}/q-01/guide.html` } }])
     expect(await tool('detail').run({ id: 'nope' })).toMatchObject({ isError: true })
   })
 
@@ -410,7 +396,7 @@ describe('도구 — 패널 · AI', () => {
     const { space, tool } = await setup()
     const run = await tool('run').run({ screen: '/nope' })
     expect(run).toMatchObject({ isError: true })
-    const out = await tool('run').run({ scenarios: ['q-01', 'q-02'], report: 'each' })
+    const out = await tool('run').run({ scenarios: ['q-01', 'q-02'] })
     expect(out.text).toMatch(/^실행 끝 — 시나리오 2개 .* 수행 id \d{8}T\d{6}_\d{2}/)
     expect(out.text).toContain('결과서(시나리오마다 따로): .litecode/plugins/ui-test/reports/')
     expect(out.text).toContain('본 화면: /login-ok')
@@ -455,7 +441,7 @@ describe('쓰는 위치 — 프로젝트 .litecode/plugins/ui-test/ 안', () => 
     const { space } = open()
     await space.reindex()
     const outcome = await space.run({})
-    expect(outcome.run.report).toBe(path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id, 'index.html'))
+    expect(outcome.run.report).toBe(path.join(root, '.litecode/plugins/ui-test/reports', outcome.run.id, 'a-01', 'index.html'))
     expect(existsSync(outcome.run.report)).toBe(true)
   })
 

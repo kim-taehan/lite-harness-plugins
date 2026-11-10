@@ -1,5 +1,5 @@
 // UI 테스트 MCP 서버 입구 (#1248) — stdio. 앱이 plugin.json 의 mcp 선언대로 띄운다(작업 폴더 = 프로젝트, 앱 실행 파일을 Node 로).
-// 같은 파일이 CI 명령도 된다: `node ui-test.mjs run [<시나리오>…] [--failed] [--screen <라우트>] [--request <요청 id>] [--each] [--headed|--headless]` — env 는 UI_TEST_BASE_URL · UI_TEST_BROWSER ·
+// 같은 파일이 CI 명령도 된다: `node ui-test.mjs run [<시나리오>…] [--failed] [--screen <라우트>] [--request <요청 id>] [--headed|--headless]` — env 는 UI_TEST_BASE_URL · UI_TEST_BROWSER ·
 // UI_TEST_USER · UI_TEST_PASSWORD (시나리오 · 결과서 위치는 프로젝트 `.litecode/plugins/ui-test/` 로 정해져 있다). 앱 밖이면 기록 저장소(host.db)가 없어 실행 · 결과서만 되고 기록 · 비교는 건너뛴다(--screen · --request · --failed 는 기록이 있어야 한다). 실패가 있으면 종료 코드 1
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -22,7 +22,7 @@ function load(): { config?: Config; error?: string } {
 }
 
 /** `--screen /a` 처럼 값이 붙는 옵션을 뽑고 나머지(시나리오 이름)를 돌려준다 */
-export function parseCliArgs(args: string[]): { scenarios: string[]; screen?: string; request?: string; failed: boolean; each: boolean; headed: boolean } {
+export function parseCliArgs(args: string[]): { scenarios: string[]; screen?: string; request?: string; failed: boolean; headed: boolean } {
   const rest: string[] = []
   let screen: string | undefined
   let request: string | undefined
@@ -32,7 +32,7 @@ export function parseCliArgs(args: string[]): { scenarios: string[]; screen?: st
     else if (arg === '--request') request = args[++index]
     else if (!arg.startsWith('--')) rest.push(arg)
   }
-  return { scenarios: rest, ...(screen && { screen }), ...(request && { request }), failed: args.includes('--failed'), each: args.includes('--each'), headed: args.includes('--headed') }
+  return { scenarios: rest, ...(screen && { screen }), ...(request && { request }), failed: args.includes('--failed'), headed: args.includes('--headed') }
 }
 
 async function cli(args: string[]): Promise<number> {
@@ -40,7 +40,7 @@ async function cli(args: string[]): Promise<number> {
   if (!config) throw new Error(error)
   const parsed = parseCliArgs(args)
   const workspace = new Workspace(config, undefined, createDbClient())
-  const outcome = await workspace.run({ ...(parsed.scenarios.length && { scenarios: parsed.scenarios }), ...(parsed.screen && { screen: parsed.screen }), ...(parsed.request && { request: parsed.request }), ...(parsed.failed && { failed: true }), ...(parsed.each && { report: 'each' as const }), headed: parsed.headed })
+  const outcome = await workspace.run({ ...(parsed.scenarios.length && { scenarios: parsed.scenarios }), ...(parsed.screen && { screen: parsed.screen }), ...(parsed.request && { request: parsed.request }), ...(parsed.failed && { failed: true }), headed: parsed.headed })
   console.log(scrub(runSummary(outcome, workspace), [config.password]))
   return outcome.run.cases.every((item) => item.status === 'passed') ? 0 : 1
 }

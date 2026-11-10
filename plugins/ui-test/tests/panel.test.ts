@@ -9,7 +9,7 @@ if (!source) throw new Error('index.html 에서 <pure> 구간을 찾지 못했�
 
 type Row = { id: string; title: string; screens: string[]; request: string | null; status: string | null; lastAt: number | null }
 type Group = { key: string; kind?: string; title: string; rows: Row[]; selector?: Record<string, string>; loose?: boolean; shown?: Row[]; lastRun?: { at: number } | null }
-const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPlan, preferredMode, runCount, finishNote, bareTitle }`)() as {
+const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runCount, finishNote, bareTitle }`)() as {
   whenText(ms: number, now?: number): string
   dayText(ms: number): string
   dotOf(status: string): string
@@ -20,8 +20,6 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   matches(row: Row, query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): boolean
   showGroups(groups: Group[], query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): Group[]
   sharedCount(rows: Row[]): number
-  runPlan(count: number): string
-  preferredMode(prefs?: { report?: string }): string
   runCount(progress: unknown): { total: number; done: number; at: number; percent: number }
   finishNote(progress: unknown): { text: string; detail: string; report?: { file: string } }
   bareTitle(title: string): string
@@ -100,9 +98,7 @@ describe('패널 순수 로직', () => {
     expect(api.showGroups(api.buildGroups('screen', rows, screens, requests), '없는말', screens, requests)).toEqual([])
   })
 
-  it('질문 흐름 — 1개뿐이면 묻지 않고 바로, 여럿이면 결과서 방식을 묻고 마지막에 고른 것을 미리 선택, 삭제 확인의 "걸친" 개수', () => {
-    expect([0, 1, 2, 9].map(api.runPlan)).toEqual(['now', 'now', 'ask', 'ask'])
-    expect([undefined, {}, { report: 'one' }, { report: 'each' }, { report: 'x' }].map(api.preferredMode)).toEqual(['one', 'one', 'one', 'each', 'one'])
+  it('삭제 확인의 "걸친" 개수', () => {
     expect(api.sharedCount(rows)).toBe(1)
     expect(api.sharedCount([rows[0]!, rows[3]!])).toBe(0)
   })

@@ -11,7 +11,7 @@ const WATCH_MS = 1000
 /** 수행을 시작하고 첫 진행을 읽기까지 — 서버가 수행 상태를 만들 시간 */
 const FIRST_WATCH_MS = 400
 /** 패널이 서버 도구 run 에 넘길 수 있는 인자 — 시나리오를 고르는 말(scenarios · screen · request · failed)과 결과서 방식 · 브라우저 창 */
-const RUN_KEYS = ['scenarios', 'screen', 'request', 'failed', 'report', 'headed']
+const RUN_KEYS = ['scenarios', 'screen', 'request', 'failed', 'headed']
 /** 패널 기본값을 담는 저장 칸 키 */
 const PREFS_KEY = 'prefs'
 
@@ -66,15 +66,14 @@ export default (host) =>
         return { started: true }
       })
       // 기본값(환경 팝업 · 실행 묻기) — 프로젝트별 저장 칸에 둔다. 서비스에는 영구 저장소가 없어 host.call('storage.*') 를 쓴다.
-      // headed(브라우저 창 보이게 — 기본 false = 화면 없이) · output(실행 뒤 산출물: report | both) · report(여러 시나리오 결과서 방식, 마지막에 고른 것: one | each)
+      // headed(브라우저 창 보이게 — 기본 false = 화면 없이) · output(실행 뒤 산출물: report | both)
       this.expose('prefs', async (params, { directory }) => {
         const current = record(await host.call('storage.get', { key: PREFS_KEY }, { directory }))
         const set = record(record(params).set)
         const next = { ...current }
         if (typeof set.headed === 'boolean') next.headed = set.headed
         if (set.output === 'report' || set.output === 'both') next.output = set.output
-        if (set.report === 'one' || set.report === 'each') next.report = set.report
-        if (next.headed === current.headed && next.output === current.output && next.report === current.report) return current
+        if (next.headed === current.headed && next.output === current.output) return current
         await host.call('storage.set', { key: PREFS_KEY, value: next }, { directory })
         return next
       })

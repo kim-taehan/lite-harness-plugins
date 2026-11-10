@@ -127,7 +127,7 @@ describe('service', () => {
     expect(pushes.map((p) => (p.data as { running: boolean }).running)).toEqual([true, true, false])
     expect(pushes.every((p) => p.directory === DIR)).toBe(true)
     expect(calls.filter((c) => c.tool === 'progress')).toHaveLength(3)
-    expect(calls.find((c) => c.tool === 'run')?.args).toEqual({ screen: '/login', report: 'each', headed: true })
+    expect(calls.find((c) => c.tool === 'run')?.args).toEqual({ screen: '/login', headed: true }) // report · evil 은 걸러진다
     release()
   })
 
@@ -189,12 +189,10 @@ describe('service', () => {
     expect(fake.calls.filter((c) => c.method === 'storage.set')).toHaveLength(2)
   })
 
-  it('prefs — 여러 개 실행의 결과서 방식(report: one | each)을 기억한다', async () => {
+  it('prefs — 결과서 방식(report)은 기억하지 않는다 — 늘 시나리오마다 따로', async () => {
     const { fake } = start({})
-    expect(await fake.call('prefs', { set: { report: 'each' } }, { directory: DIR })).toEqual({ report: 'each' })
-    expect(await fake.call('prefs', { set: { report: 'both' } }, { directory: DIR })).toEqual({ report: 'each' })
-    expect(await fake.call('prefs', { set: { report: 'one', headed: true } }, { directory: DIR })).toEqual({ report: 'one', headed: true })
-    expect(fake.calls.filter((c) => c.method === 'storage.set')).toHaveLength(2)
+    expect(await fake.call('prefs', { set: { report: 'each' } }, { directory: DIR })).toEqual({})
+    expect(fake.calls.filter((c) => c.method === 'storage.set')).toHaveLength(0)
   })
 
   it('guide — 서버의 guide 도구에 json 으로 부르고 파일 목록을 돌려준다', async () => {

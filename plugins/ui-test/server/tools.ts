@@ -61,7 +61,7 @@ const counts = (run: RunRecord): string => {
 
 /** AI 없이 시나리오를 실행하는 명령 — CI */
 export function cliCommand(serverFile: string): string {
-  return `node "${serverFile}" run [<시나리오 id>…] [--failed] [--screen <라우트>] [--request <요청 id>] [--each] --headless`
+  return `node "${serverFile}" run [<시나리오 id>…] [--failed] [--screen <라우트>] [--request <요청 id>] --headless`
 }
 
 export interface ToolDeps {
@@ -279,19 +279,18 @@ export function createTools(deps: ToolDeps): Tool[] {
 
   const run: Tool = {
     name: 'run',
-    description: `Run UI test scenarios in the PC's installed Chrome/Edge: each generated spec (.spec.mjs next to its scenario) step by step with a screenshot per step (scenarios with a ## 데이터 table run once per row), then write the HTML report(s) and compare with the last real run of each scenario (new failures / fixed / still failing). Choose the scenarios with scenarios / screen / request / failed (all that match; none = every scenario). With several scenarios, report "one" (default) writes one report with a section per scenario, "each" one report per scenario; a single scenario never asks. Hidden browser by default. Waits up to ${RUN_WAIT_MS / 1000} s: if the run is done, returns per-step results with the selectors/waits each step used, the screens the "확인:" steps ran on and a failure kind per failure; otherwise returns the run id — then call report { run } until it is done. Warns when a scenario's code is stale. Without the app's record store the run still happens but nothing is recorded.`,
+    description: `Run UI test scenarios in the PC's installed Chrome/Edge: each generated spec (.spec.mjs next to its scenario) step by step with a screenshot per step (scenarios with a ## 데이터 table run once per row), then write the HTML report(s) and compare with the last real run of each scenario (new failures / fixed / still failing). Choose the scenarios with scenarios / screen / request / failed (all that match; none = every scenario). Always one report per scenario (in its own folder). Hidden browser by default. Waits up to ${RUN_WAIT_MS / 1000} s: if the run is done, returns per-step results with the selectors/waits each step used, the screens the "확인:" steps ran on and a failure kind per failure; otherwise returns the run id — then call report { run } until it is done. Warns when a scenario's code is stale. Without the app's record store the run still happens but nothing is recorded.`,
     inputSchema: {
       type: 'object',
       properties: {
         ...SELECTOR_PROPS,
-        report: { type: 'string', enum: ['one', 'each'], description: 'Several scenarios: "one" = one report with a section per scenario (default), "each" = one report per scenario.' },
         headed: { type: 'boolean', description: 'Show the browser window (default false = 화면 없이, the browser runs hidden). true = 보면서.' },
       },
     },
     async run(args, signal) {
       const at = Date.now()
       try {
-        const started = await workspace.start({ ...selectorOf(args), ...((args['report'] === 'one' || args['report'] === 'each') && { report: args['report'] }), ...(typeof args['headed'] === 'boolean' && { headed: args['headed'] }) })
+        const started = await workspace.start({ ...selectorOf(args), ...(typeof args['headed'] === 'boolean' && { headed: args['headed'] }) })
         return (await awaited(started.runId, at, signal)) ?? { text: '수행 기록을 찾지 못했습니다', isError: true }
       } catch (error) {
         return fail(error)

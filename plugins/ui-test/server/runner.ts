@@ -1,7 +1,7 @@
 // 실행기 (#1248, 0.7.0) — 시나리오를 고르고(직접 · 화면 · 요청 · 실패한 것), 드라이버로 실행하고, 결과서를 쓰고, 기록을 남긴다.
 //   <프로젝트>/.litecode/plugins/ui-test/scenarios/<시나리오>.md · <시나리오>.spec.mjs(생성 코드, 시나리오 옆에 같은 이름) — 하위 폴더 없음
-//   결과서: <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/index.html (하나로 같이 — 시나리오마다 절 `#s-<시나리오 id>`)
-//          <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html (시나리오마다 따로)
+//   결과서: <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/index.html (옛 수행의 하나로 같이 — 시나리오마다 절 `#s-<시나리오 id>`, 읽기만 한다)
+//          <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html (시나리오마다 따로 — 지금은 늘 이쪽)
 //   스크린샷: 앱 데이터 폴더 shots/<수행 id>/
 //   기록 · 색인: host.db (store.ts) — 서버가 DB 를 못 쓰면(앱 밖 실행) 실행 · 결과서는 되고 기록 · 비교만 건너뛴다
 // 한 번에 수행 하나. 진행은 패널이 progress 로 본다. 수행은 start 로 시작만 하고 바로 돌아온다 — 엔진의 MCP 도구 호출 기한(5분)보다 긴 수행도 돌게, 도구는 wait 로 끝을 기다린다.
@@ -95,8 +95,6 @@ export interface Progress {
 }
 
 export interface RunArgs extends Selector {
-  /** 여러 개를 실행할 때 결과서 방식 — 시나리오 하나면 묻지 않고 하나로 */
-  report?: ReportMode
   headed?: boolean
 }
 
@@ -366,7 +364,7 @@ export class Workspace {
     const startedAt = Date.now()
     const runId = this.store ? await this.store.newRunId() : timeId(new Date(startedAt))
     const headed = args.headed ?? false
-    const mode: ReportMode = infos.length === 1 ? 'one' : (args.report ?? 'one')
+    const mode: ReportMode = 'each' // 결과서는 늘 시나리오마다 따로(옛 수행의 'one' 기록은 읽기만 한다)
     const title = await this.titleOf(target, infos)
     const stale = infos.filter((item) => item.stale).map((item) => item.id)
     this.driver = driver

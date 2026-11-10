@@ -117,10 +117,9 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--probe)}
 .dock{position:sticky;bottom:10px;margin:auto -4px 0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;padding:8px 8px 8px 14px;border-radius:12px;background:var(--sheet);box-shadow:0 0 0 1px var(--rule-strong),var(--lift-sm)}
 .dock .q{flex:1 1 140px;font-size:12.5px;min-width:0}
 .dock .q b{font-weight:650}
-.dock.askrun{background:var(--probe-wash);box-shadow:0 0 0 1px var(--probe-ring),var(--lift-sm)}
 .dock.askdel{background:var(--bad-wash);box-shadow:0 0 0 1px var(--bad-ring),var(--lift-sm)}
 .dock.askdel .q b{color:var(--bad)}
-.dock.askrun .q,.dock.askdel .q{flex:1 1 100%}
+.dock.askdel .q{flex:1 1 100%}
 
 /* 상세 */
 .card{background:var(--sheet);border-radius:12px;box-shadow:0 0 0 1px var(--rule);padding:14px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
@@ -286,10 +285,6 @@ function showGroups(groups, query, screens, requests) {
 
 /** 삭제 확인 글에 쓰는 "다른 화면에도 걸친" 개수 */
 const sharedCount = (rows) => rows.filter((row) => row.screens.length > 1).length
-/** 실행 전 질문 — 시나리오가 1개뿐이면 묻지 않고 바로 */
-const runPlan = (count) => (count < 2 ? 'now' : 'ask')
-/** 결과서 방식의 미리 선택 — 마지막에 고른 것(prefs.report), 없으면 하나로 */
-const preferredMode = (prefs) => (prefs?.report === 'each' ? 'each' : 'one')
 
 /** 실행 배너 숫자 — 몇 개 중 몇 번째 · 진행선 너비(%) */
 function runCount(progress) {
@@ -351,7 +346,7 @@ const state = {
   folded: new Set(), // 접은 그룹 `view:key`
   picked: new Set(), // 전체 탭에서 고른 시나리오 id
   dock: '', // '' · run · del — 아래 막대가 묻는 중
-  asking: undefined, // 그룹 머리 질문 { kind: 'run' | 'del', key }
+  asking: undefined, // 그룹 머리 질문 { kind: 'del', key }
   screen: { name: 'list' }, // list · detail { id } · doc { … }
   detail: undefined, // { id, loading, data, error }
   delOne: false, // 상세의 삭제 확인
@@ -507,21 +502,17 @@ function onEvent(event, data) {
 
 // ── 실행 · 삭제 ──
 
-/** 시나리오 고르는 말(selector)로 실행 — 서비스가 시작하고 진행을 밀어 보낸다. 여럿이면 결과서 방식(mode)을 같이 보내고 기억한다 */
-function startRun(selector, mode) {
+/** 시나리오 고르는 말(selector)로 실행 — 서비스가 시작하고 진행을 밀어 보낸다. 결과서는 늘 시나리오마다 따로 나온다 */
+function startRun(selector) {
   state.picked.clear()
   state.dock = ''
   state.asking = undefined
   state.notice = undefined
   state.progress = { running: true, cases: [] }
-  tool('run', { ...selector, ...(mode && { report: mode }), headed: state.prefs.headed }).then(
+  tool('run', { ...selector, headed: state.prefs.headed }).then(
     () => undefined,
     (error) => ((state.progress = undefined), failNotice(error)),
   )
-  if (mode) {
-    state.prefs.report = mode
-    tool('prefs', { set: { report: mode } }).catch(() => undefined)
-  }
   render()
 }
 const stop = () => void tool('stop').catch(() => undefined)
@@ -671,11 +662,6 @@ function backToList(focus) {
   render()
 }
 
-function runAsk(count, label, onPick, dock = false) {
-  const first = preferredMode(state.prefs)
-  const pick = (mode) => btn(mode === 'each' ? '시나리오마다 따로' : '하나로 같이', () => onPick(mode), { class: mode === first ? 'btn pri' : 'btn', 'data-fk': `mode:${mode}` })
-  return [el('div', { class: 'q' }, el('b', {}, `${label}${count}개를 실행합니다`), dock ? ' — 결과서를 어떻게 낼까요?' : '결과서를 어떻게 낼까요?'), btn('취소', () => ((state.asking = undefined), (state.dock = ''), render()), { class: 'btn ghost' }), first === 'each' ? [pick('one'), pick('each')] : [pick('each'), pick('one')]]
-}
 function delAsk(rows, label, onOk, onCancel, dock = false) {
   const shared = sharedCount(rows)
   return [
@@ -703,19 +689,11 @@ function groupNode(group) {
     { class: 'gh' },
     toggle,
     report ? link('결과서', () => openDoc({ kind: 'report', run: group.lastRun.run, file: report, title: group.title, at: group.lastRun.at }), { title: `${whenText(group.lastRun.at)} 에 이 그룹을 같이 실행한 결과서` }) : '',
-    group.loose ? '' : [btn('▶ 실행', () => ((state.asking = undefined), runGroup(group)), { class: 'btn tint', disabled: busy(), 'data-fk': `run:${foldKey}` }), el('span', { class: 'sepv' }), el('button', { type: 'button', class: 'ico', disabled: busy(), 'data-fk': `del:${foldKey}`, 'aria-label': `${label}그룹의 시나리오 삭제`, title: '이 그룹의 시나리오 삭제', onclick: () => ((state.asking = state.asking?.kind === 'del' && state.asking.key === foldKey ? undefined : { kind: 'del', key: foldKey }), (pendingFocus = state.asking ? 'cancel' : `del:${foldKey}`), render()) }, icon('trash'))],
+    group.loose ? '' : [btn('▶ 실행', () => ((state.asking = undefined), startRun(group.selector)), { class: 'btn tint', disabled: busy(), 'data-fk': `run:${foldKey}` }), el('span', { class: 'sepv' }), el('button', { type: 'button', class: 'ico', disabled: busy(), 'data-fk': `del:${foldKey}`, 'aria-label': `${label}그룹의 시나리오 삭제`, title: '이 그룹의 시나리오 삭제', onclick: () => ((state.asking = state.asking?.kind === 'del' && state.asking.key === foldKey ? undefined : { kind: 'del', key: foldKey }), (pendingFocus = state.asking ? 'cancel' : `del:${foldKey}`), render()) }, icon('trash'))],
   )
   const asked = state.asking?.key === foldKey ? state.asking : undefined
-  const question = asked?.kind === 'run' ? el('div', { class: 'ask' }, runAsk(total, label, (mode) => startRun(group.selector, mode))) : asked?.kind === 'del' ? el('div', { class: 'ask bad' }, delAsk(group.rows, label, () => removeNow(group.selector), () => ((state.asking = undefined), (pendingFocus = `del:${foldKey}`), render()))) : ''
+  const question = asked?.kind === 'del' ? el('div', { class: 'ask bad' }, delAsk(group.rows, label, () => removeNow(group.selector), () => ((state.asking = undefined), (pendingFocus = `del:${foldKey}`), render()))) : ''
   return el('div', { class: 'grp' }, head, question, open ? el('div', { class: 'rows' }, group.shown.map((row) => rowNode(row, false))) : '')
-}
-/** 그룹 머리 [▶ 실행] — 1 개뿐이면 묻지 않고 바로, 여럿이면 결과서 방식을 묻는다 */
-function runGroup(group) {
-  const key = `${state.view}:${group.key}`
-  if (runPlan(group.rows.length) === 'now') return startRun(group.selector)
-  state.asking = { kind: 'run', key }
-  pendingFocus = `mode:${preferredMode(state.prefs)}`
-  render()
 }
 
 function emptyNode(title, text, button) {
@@ -751,7 +729,6 @@ function dockNode() {
   const show = n > 0 && state.view === 'all' && state.screen.name === 'list' && !state.error && !busy()
   if (!show) return el('div', { id: 'dock', hidden: true })
   const rows = state.data.rows.filter((row) => state.picked.has(row.id))
-  if (state.dock === 'run') return el('div', { id: 'dock', class: 'dock askrun', role: 'group', 'aria-label': '실행 방식' }, runAsk(n, '', (mode) => startRun({ scenarios: rows.map((row) => row.id) }, mode), true))
   if (state.dock === 'del') return el('div', { id: 'dock', class: 'dock askdel', role: 'group', 'aria-label': '삭제 확인' }, delAsk(rows, '선택한 ', () => removeNow({ scenarios: rows.map((row) => row.id) }), () => ((state.dock = ''), (pendingFocus = 'dock:del'), render()), true))
   return el(
     'div',
@@ -759,7 +736,7 @@ function dockNode() {
     el('div', { class: 'q' }, el('b', {}, `${n}개`), ' 선택'),
     btn('선택 해제', () => (state.picked.clear(), render()), { class: 'btn ghost' }),
     btn('삭제', () => ((state.dock = 'del'), (pendingFocus = 'cancel'), render()), { class: 'btn danger', 'data-fk': 'dock:del' }),
-    btn('▶ 실행', () => (runPlan(n) === 'now' ? startRun({ scenarios: rows.map((row) => row.id) }) : ((state.dock = 'run'), (pendingFocus = `mode:${preferredMode(state.prefs)}`), render())), { class: 'btn pri', 'data-fk': 'dock:run' }),
+    btn('▶ 실행', () => startRun({ scenarios: rows.map((row) => row.id) }), { class: 'btn pri', 'data-fk': 'dock:run' }),
   )
 }
 
@@ -1054,9 +1031,9 @@ addEventListener('keydown', (event) => {
   if (state.env) return ((state.env = undefined), (pendingFocus = 'env'), render())
   if (state.dock) return ((state.dock = ''), (pendingFocus = 'dock:run'), render())
   if (state.asking) {
-    const { kind, key } = state.asking
+    const { key } = state.asking
     state.asking = undefined
-    pendingFocus = `${kind === 'run' ? 'run' : 'del'}:${key}`
+    pendingFocus = `del:${key}`
     return render()
   }
   if (state.delOne) return ((state.delOne = false), (pendingFocus = 'del'), render())
@@ -1066,7 +1043,7 @@ void (async () => {
   try { await call('events.subscribe', { events: ['service.progress', 'service.runError'] }) } catch { /* 권한 없음 */ }
   try {
     const prefs = await tool('prefs')
-    state.prefs = { headed: prefs.headed === true, output: prefs.output === 'both' ? 'both' : 'report', report: prefs.report }
+    state.prefs = { headed: prefs.headed === true, output: prefs.output === 'both' ? 'both' : 'report' }
   } catch { /* 저장된 값 없음 — 화면 없이 · 결과서만 */ }
   await load(true)
   await refreshProgress()
