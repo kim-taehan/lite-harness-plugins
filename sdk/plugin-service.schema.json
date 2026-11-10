@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "litecode plugin.json — service · permissions",
-  "description": "생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs",
+  "description": "생성물 — 직접 고치지 않는다. 원본: desktop 의 shared/extensions/serviceApi.ts · serviceHostCore.ts · serviceHostFake.ts · serviceDb.ts · dbClient.ts · docQuery.ts · docStore.ts · docMemory.ts · docCall.ts, 만드는 곳: scripts/generate-plugin-sdk.mjs",
   "type": "object",
   "properties": {
     "scope": {
@@ -43,7 +43,7 @@
         "api": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 1,
+          "maximum": 2,
           "description": "호스트 API 버전"
         },
         "inject": {
