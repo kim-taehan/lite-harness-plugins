@@ -47,6 +47,8 @@ export default (host) =>
           SQL_TUNING_POOL: '4',
         },
         idleMs: 600000,
+        // 패널만 부르는 도구 — AI 의 도구 목록에는 보이지 않는다(결과서 삭제는 사용자가 패널에서 확인한 뒤에만)
+        panelTools: ['delete_report'],
       })
 
       host.skills.register({ name: 'sql-tuning', dir: 'skills/sql-tuning' })
@@ -74,6 +76,19 @@ export default (host) =>
           }
         })
       }
+
+      // 결과서 삭제 — 파일 권한이 있는 서버가 지운다(앱의 project.removeFile 은 .litecode/*.md 만 지운다). 서버 오류 글 `코드: 설명` 의 코드를 패널에 돌려준다
+      this.expose('deleteReport', async (params, { directory }) => {
+        const id = params && typeof params === 'object' ? params.id : undefined
+        if (typeof id !== 'string' || !id) return { ok: false, code: 'bad-id' }
+        try {
+          const result = await host.call('mcp.call', { tool: 'delete_report', args: { id } }, { directory })
+          if (result?.isError) return { ok: false, code: String(result.text ?? '').split(':')[0]?.trim() || 'io-failed' }
+          return { ok: true, value: result?.text ?? '' }
+        } catch (error) {
+          return { ok: false, code: codeOf(error) }
+        }
+      })
 
       // 플러그인 기본 표준 — skills.readFile 과 같은 { text } 모양. 없으면 null(패널은 "플러그인 기본 없음")
       this.expose('bundledFile', async () => {
