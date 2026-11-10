@@ -136,7 +136,7 @@ await host.db.batch([{ op: 'set', collection: 'runs', id: newId, doc }, { op: 'd
 const { bytes, docs, limits } = await host.db.usage(at)
 ```
 
-- **서비스 전용입니다.** 패널은 `service.call` 로 서비스에 맡기고, `host.mcp.register` 로 올린 **MCP 서버 프로세스에서도 못 씁니다** — 서버가 만든 값은 도구 결과로 서비스에 돌려주고 서비스가 씁니다. 권한은 따로 없습니다(`storage` 와 같은 급).
+- **서비스 전용입니다.** 패널은 `service.call` 로 서비스에 맡기고, `host.mcp.register` 로 올린 **MCP 서버 프로세스에서는 아직 못 씁니다**(desktop 에서 서버 접근을 만드는 중 — 머지되면 이 절을 고친다). 그때까지 서버가 만든 값은 도구 결과로 서비스에 돌려주고 서비스가 씁니다. 권한은 따로 없습니다(`storage` 와 같은 급).
 - **범위:** 플러그인마다 따로, 프로젝트별 서비스는 프로젝트(실제 경로)마다 또 따로입니다. 플러그인을 지우면 같이 지워지고 업데이트 · 재설치로는 지워지지 않습니다.
 - **한도:** 문서 하나 256KB · 컬렉션 20개 · 컬렉션당 문서 50,000개 · 플러그인 총 200MB · `list`/`query` 한 번 최대 200개(기본 50) · `batch` 50 연산. 넘으면 `ServiceCallError` 의 `code`(`doc-too-big` · `collection-limit` · `collection-full` · `db-full`). 그 밖에 `params-invalid` · `no-project` · `not-on`.
 - **조건:** `=` `!=` `<` `<=` `>` `>=` `in` `prefix`(모두 AND), 정렬 필드 하나, `cursor` 로 이어 읽기(건너뛰기가 아니라 마지막 값 뒤부터).
