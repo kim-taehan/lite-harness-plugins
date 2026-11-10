@@ -237,7 +237,7 @@ textarea:focus{outline:0;box-shadow:0 0 0 1.5px var(--probe),0 0 0 4px var(--pro
 <input id="picker" type="file" accept=".md,.markdown,text/markdown" hidden>
 
 <script>
-// SQL 튜닝 패널 (#1232, 목록 시안 2026-11-10) — 튜닝 이력 목록이 주인공: 프로젝트 sql-tuning-reports/ 의 결과서마다 meta.json 한 줄. 연결 · 사내 SQL 표준은 맨 위 한 줄(눌러서 펼침).
+// SQL 튜닝 패널 (#1232, 목록 시안 2026-11-10) — 튜닝 이력 목록이 주인공: 결과서마다 한 줄(서비스가 host.db 색인 `reports` 에서 읽어 준다 — 파일이 정본: 새 .litecode/plugins/sql-tuning/reports/ · 0.13 까지의 sql-tuning-reports/). 연결 · 사내 SQL 표준은 맨 위 한 줄(눌러서 펼침).
 // 이력은 서비스의 `reports` 소식(결과서 폴더가 바뀜)과 패널이 다시 보일 때 읽는다. 규격은 .interface-design/system.md.
 // 표준: 프로젝트 파일 `.litecode/sql-standard.md`(팀이 커밋해 같이 씀, 권한 projectWrite) 가 있으면 그것, 없으면 zip 에 든 스킬의
 // references/sql-standard.md(플러그인 기본). 스킬도 같은 순서로 읽는다. 연결: 앱이 가진 설정 칸 값의 요약(비밀번호는 저장됐나만) ·
@@ -248,7 +248,8 @@ const PROJECT_FILE = '.litecode/sql-standard.md'
 const BUNDLED = { skill: 'sql-tuning', path: 'references/sql-standard.md' }
 const RULE_ID = /\b[A-Z]{2,5}-\d{1,4}\b/
 const PREVIEW_RULES = 3
-const REPORTS = 'sql-tuning-reports'
+const REPORTS = '.litecode/plugins/sql-tuning/reports' // 새 결과서 폴더 — service/index.mjs 의 REPORTS_FOLDER 와 같다
+const LEGACY_REPORTS = 'sql-tuning-reports' // 0.13 까지의 폴더 — 읽기 · 삭제만
 const REPORT_LIMIT = 30 // 최신 이만큼의 meta.json 만 읽는다
 const QUIET_MS = 1500 // 마지막 소식 뒤 이만큼 조용하면 읽는다
 const MAX_WAIT_MS = 5000 // 소식이 계속 와도 첫 소식 뒤 이 안에는 읽는다
@@ -311,6 +312,7 @@ const RELAY = {
   'settings.open': 'settingsOpen',
   'skills.readFile': 'bundledFile',
   'reports.delete': 'deleteReport',
+  'reports.list': 'reports',
 }
 /** 호출 — 실패면 Error(code). 서비스가 앱 호출의 오류 코드를 { ok: false, code } 로 돌려준다 */
 async function call(method, params) {
@@ -403,7 +405,7 @@ async function load() {
   state.load = 'loading'
   state.fatal = undefined
   render()
-  void readReports()
+  void readReports(true)
   try {
     const info = await soft(call('project.info'))
     state.project = info?.name ?? ''
@@ -529,15 +531,15 @@ function cancelConfirm() {
   document.querySelector(kind === 'reset' ? '[data-fk=resetask]' : '[data-fk=pick]')?.focus()
 }
 
-// --- 튜닝 이력 (sql-tuning-reports/<YYYYMMDD-HHMMSS>[-n]/ 의 meta.json 을 읽어 줄로 — 최신 30개만) ---
+// --- 튜닝 이력 (서비스 색인 reports 의 문서 = 결과서 폴더 <YYYYMMDD-HHMMSS>[-n] 하나의 meta.json 요약 — 최신 30개만) ---
 
-const FOLDER_NAME = /^\d{8}-\d{6}(-\d+)?$/
-const reportFile = (id) => `${REPORTS}/${id}/index.html`
+const reportPath = (legacy, id) => `${legacy ? LEGACY_REPORTS : REPORTS}/${id}/index.html`
+/** 목록에 있는 결과서의 파일 경로 — 옛 폴더의 것(legacy)이면 옛 위치 */
+const reportFile = (id) => reportPath(state.list?.rows.find((row) => row.id === id)?.legacy, id)
 /** 폴더 이름의 시각 — 옛 결과서(meta.json 없음)의 시각 */
 const atOfFolder = (id) => new Date(+id.slice(0, 4), +id.slice(4, 6) - 1, +id.slice(6, 8), +id.slice(9, 11), +id.slice(11, 13), +id.slice(13, 15))
-function parseMeta(text) {
+function parseMeta(meta) {
   try {
-    const meta = JSON.parse(text)
     if (meta?.v !== 1 || (meta.verdict !== 'ok' && meta.verdict !== 'hold') || typeof meta.target !== 'string' || !(Date.parse(meta.at) > 0)) return undefined
     return meta
   } catch {
@@ -545,29 +547,16 @@ function parseMeta(text) {
   }
 }
 
-async function fetchReports() {
-  let names
-  let truncated = false
-  try {
-    const listing = await call('project.listDir', { path: REPORTS })
-    names = (listing?.entries ?? []).filter((entry) => entry.dir && FOLDER_NAME.test(entry.name)).map((entry) => entry.name)
-    truncated = listing?.truncated === true
-  } catch (error) {
-    if (isOff(error)) throw error
-    // 폴더가 아직 없는 것(튜닝한 적 없음)과 읽지 못한 것을 가른다 — 없으면 fileInfo 가 null, 있는데 못 읽으면 던진다
-    const gone = await call('project.fileInfo', { path: REPORTS }).then(() => true, (inner) => (isOff(inner) ? Promise.reject(inner) : false))
-    if (!gone) throw error
-    names = []
-  }
-  names.sort().reverse()
+async function fetchReports(reindex) {
+  const { rows: docs, total, truncated } = await call('reports.list', { reindex, limit: REPORT_LIMIT })
   const rows = await Promise.all(
-    names.slice(0, REPORT_LIMIT).map(async (id) => {
-      const [text, info] = await Promise.all([soft(call('project.readFile', { path: `${REPORTS}/${id}/meta.json` })), soft(call('project.fileInfo', { path: reportFile(id) }))])
-      const meta = typeof text === 'string' ? parseMeta(text) : undefined
-      return { id, at: meta ? new Date(meta.at) : atOfFolder(id), meta, file: !!info && typeof info === 'object' }
+    docs.map(async ({ id, doc }) => {
+      const info = await soft(call('project.fileInfo', { path: reportPath(doc.legacy === true, id) }))
+      const meta = doc.hasMeta ? parseMeta(doc) : undefined
+      return { id, legacy: doc.legacy === true, at: meta ? new Date(meta.at) : atOfFolder(id), meta, file: !!info && typeof info === 'object' }
     }),
   )
-  return { rows, total: names.length, truncated, readAt: Date.now() }
+  return { rows, total, truncated: truncated === true, readAt: Date.now() }
 }
 
 const signature = (row) => JSON.stringify([row.file, row.meta && [row.meta.verdict, row.meta.target, row.meta.cost, row.meta.compare, row.meta.cause, row.meta.index_proposed]])
@@ -593,19 +582,21 @@ function markChanges(before, after) {
 
 let reading = false
 let rereads = false
+let rereadIndex = false
 let slowTimer
-/** 이력 읽기 — 겹치면 끝난 뒤 한 번 더. 실패는 자동 재시도 없이 낡은 목록으로 남긴다 */
-async function readReports() {
+/** 이력 읽기 — reindex 가 참이면 서비스가 먼저 결과서 폴더를 훑어 색인을 맞춘다(열 때 · 새로 고침). 겹치면 끝난 뒤 한 번 더. 실패는 자동 재시도 없이 낡은 목록으로 남긴다 */
+async function readReports(reindex = false) {
   if (state.load === 'off') return
   if (reading) {
     rereads = true
+    rereadIndex ||= reindex
     return
   }
   reading = true
   clearTimeout(slowTimer)
   slowTimer = setTimeout(() => ((state.slow = true), renderFresh()), SLOW_MS)
   try {
-    const next = await fetchReports()
+    const next = await fetchReports(reindex)
     markChanges(state.list, next)
     state.list = next
     if (state.del && state.del.phase !== 'busy' && !next.rows.some((row) => row.id === state.del.id)) state.del = undefined
@@ -625,7 +616,9 @@ async function readReports() {
   render()
   if (rereads) {
     rereads = false
-    void readReports()
+    const again = rereadIndex
+    rereadIndex = false
+    void readReports(again)
   }
 }
 
@@ -655,7 +648,7 @@ const num = (n) => Number(n).toLocaleString('en-US')
 
 function freshView() {
   const list = state.list
-  const refresh = (disabled) => el('button', { type: 'button', class: 'btn ghost', 'data-fk': 'refresh', disabled, 'aria-label': '튜닝 이력 새로 고침', onclick: () => void readReports() }, icon('retry'), '새로 고침')
+  const refresh = (disabled) => el('button', { type: 'button', class: 'btn ghost', 'data-fk': 'refresh', disabled, 'aria-label': '튜닝 이력 새로 고침', onclick: () => void readReports(true) }, icon('retry'), '새로 고침')
   let left
   let right
   if (state.slow) {
@@ -663,7 +656,7 @@ function freshView() {
     right = refresh(true)
   } else if (state.readFailed) {
     left = [el('span', { class: 'chip warn' }, '낡은 목록'), el('span', { class: 'badtxt' }, '갱신하지 못했습니다'), el('span', { class: 'sub' }, `${clock(list.readAt)} 에 읽은 튜닝 이력을 보이고 있습니다. 대화에서 바뀐 것은 아직 안 보일 수 있습니다.`)]
-    right = el('button', { type: 'button', class: 'btn again', 'data-fk': 'refresh', onclick: () => void readReports() }, icon('retry'), '다시')
+    right = el('button', { type: 'button', class: 'btn again', 'data-fk': 'refresh', onclick: () => void readReports(true) }, icon('retry'), '다시')
   } else {
     left = el('span', {}, `${ago(list.readAt)} 갱신 · ${clock(list.readAt)}`)
     right = refresh(false)
@@ -914,7 +907,7 @@ function historyCard() {
   let tools
   let body
   if (!list && state.listError) {
-    body = el('div', { class: 'empty' }, el('div', { class: 'errbox', role: 'alert' }, el('b', {}, '튜닝 이력을 읽지 못했습니다'), el('p', {}, el('code', {}, REPORTS), ` 폴더를 읽는 중 오류가 났습니다 — ${state.listError}. 확인한 뒤 다시 읽으세요.`), el('div', { class: 'acts' }, el('button', { type: 'button', class: 'btn', 'data-fk': 'reread', onclick: () => void readReports() }, icon('retry'), '다시 읽기'))))
+    body = el('div', { class: 'empty' }, el('div', { class: 'errbox', role: 'alert' }, el('b', {}, '튜닝 이력을 읽지 못했습니다'), el('p', {}, el('code', {}, REPORTS), ` 의 결과서 목록을 읽는 중 오류가 났습니다 — ${state.listError}. 확인한 뒤 다시 읽으세요.`), el('div', { class: 'acts' }, el('button', { type: 'button', class: 'btn', 'data-fk': 'reread', onclick: () => void readReports(true) }, icon('retry'), '다시 읽기'))))
   } else if (!list) {
     body = el('div', { class: 'loading', role: 'status' }, el('span', { class: 'spin', 'aria-hidden': 'true' }), '튜닝 이력을 읽는 중…')
   } else if (rows.length === 0) {
@@ -1225,7 +1218,7 @@ addEventListener('keydown', (event) => {
 })
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return
-  void readReports()
+  void readReports(true)
   renderFresh()
 })
 setInterval(() => {
