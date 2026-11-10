@@ -3,7 +3,7 @@
 A spec is an ES module with **no imports**. It exports one async function; the runner passes everything in:
 
 ```js
-// ui-test source: ui-tests/가입설계-화면/01-정상-가입설계.md · fingerprint: 3f2a9c1b7d04
+// ui-test source: .litecode/plugins/ui-test/scenarios/01-정상-가입설계.md · fingerprint: 3f2a9c1b7d04
 export default async ({ step, page, expect, data, account, baseUrl }) => {
   await step('1. 로그인한다', async () => {
     await page.goto('/login')
@@ -44,7 +44,7 @@ export default async ({ step, page, expect, data, account, baseUrl }) => {
 ## Data tables
 
 ```js
-// ui-test source: ui-tests/가입설계-화면/04-가입-나이.md · fingerprint: 7c1d02e9a4b3
+// ui-test source: .litecode/plugins/ui-test/scenarios/04-가입-나이.md · fingerprint: 7c1d02e9a4b3
 export default async ({ step, page, expect, data }) => {
   await step('1. 가입설계를 연다', async () => {
     await page.goto('/join/design')

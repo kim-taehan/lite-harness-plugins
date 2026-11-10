@@ -41,8 +41,7 @@ function start(tools: Record<string, (args: Record<string, unknown>) => { text: 
     },
   })
   fake.enableProject(DIR)
-  // project.exportFile 은 desktop dev 에만 있고 이 저장소의 sdk 사본(가짜 host)은 아직 모른다(PR #94 가 머지돼 sdk 를 다시 맞추면 `calls` 로 바로 흉내 낼 수 있다) — 그래서 그 호출만 가로챈다.
-  // 안 가로채면 가짜 host 가 알 수 없는 호출로 거절한다(옛 앱과 같다)
+  // project.exportFile 은 시험이 저장 창 결과(저장 · 취소 · 오류)를 정하려고 그 호출만 가로챈다
   const exported: { path: string; name: string }[] = []
   fake.mount((host: { call: (method: string, params: unknown, options?: unknown) => Promise<unknown> }) =>
     bundle(exportFile ? { ...host, call: async (method: string, params: unknown, options?: unknown) => (method === 'project.exportFile' ? (exported.push(params as { path: string; name: string }), exportFile(params as { path: string; name: string })) : host.call(method, params, options)) } : host),
@@ -222,7 +221,7 @@ describe('service', () => {
     const broken = start({ pdf: () => ({ text: '인쇄 실패', isError: true }) }, () => ({ saved: true }))
     expect(await broken.fake.call('exportPdf', { run: 'r1', kind: 'report' }, { directory: DIR })).toEqual({ saved: false, code: 'pdf-failed', message: '인쇄 실패' })
     expect(broken.exported).toEqual([])
-    const old = start({ pdf: () => ({ text: '{"path":"a.pdf","name":"a.pdf"}' }) }) // 가로채지 않으면 가짜 host 가 method-unknown
+    const old = start({ pdf: () => ({ text: '{"path":"a.pdf","name":"a.pdf"}' }) }, () => Promise.reject(Object.assign(new Error('method-unknown'), { code: 'method-unknown' }))) // 옛 앱 — 가짜 host 는 이제 exportFile 을 알아서 같은 오류를 직접 낸다
     expect(await old.fake.call('exportPdf', { run: 'r1', kind: 'report' }, { directory: DIR })).toEqual({ saved: false, code: 'unsupported' })
   })
 

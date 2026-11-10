@@ -1,10 +1,10 @@
 # File formats
 
-All files are plain Markdown in the project's test folder (default `ui-tests/`) inside the project. Whether to commit them is the user's choice — don't add them to git or assume a team shares them.
+All files are plain Markdown in the project's plugin folder `.litecode/plugins/ui-test/`: scenarios in `scenarios/`, reports in `reports/`. Deleting the plugin deletes this whole folder (the app asks first), including the scenarios the user wrote. Whether to commit them is the user's choice — don't add them to git or assume a team shares them.
 
-## Scenario — `<test folder>/<request id>-01.md`
+## Scenario — `.litecode/plugins/ui-test/scenarios/<request id>-01.md`
 
-The file name is `<request id>-<number>.md` directly in the test folder (ASCII; the request id comes from `newRequest`, e.g. `20261110T110500_01-02.md`). The name never changes after the first save — the scenario's records are keyed by it. The title is `name:` inside the file. Older scenarios (Korean names, sub-folders) are read where they are.
+The file name is `<request id>-<number>.md` directly in the scenario folder (ASCII, no sub-folders; the request id comes from `newRequest`, e.g. `20261110T110500_01-02.md`). The name never changes after the first save — the scenario's records are keyed by it. The title is `name:` inside the file. Scenarios imported from the old `ui-tests/` may have Korean names; they are read as they are.
 
 ```markdown
 ---
@@ -58,16 +58,16 @@ sources: [src/main/webapp/join/design.jsp@3f2a9c1b7d04, src/main/java/ins/join/J
 
 ## Running without the AI (CI)
 
-Copy the CI command line exactly as `list` prints it ("AI 없이: …") — it points at the plugin's bundled runner: `run [<scenario id>…] [--failed] [--screen <route>] [--request <request id>] [--each] --headless`. Environment: UI_TEST_BASE_URL (target), UI_TEST_USER, UI_TEST_PASSWORD (from the CI secret store), UI_TEST_BROWSER (Chrome · Edge), UI_TEST_DIR (default ui-tests; reports go to its `_reports` folder). Exit code 1 when any scenario fails. Outside the app there is no record store: the run and its report work, nothing is recorded or compared, and `--screen` / `--request` / `--failed` are not available (name the scenarios instead). To run in CI, copy the plugin's `server/` folder (runner + its `node_modules/playwright-core`) next to the repo or onto the CI machine and adjust the path; the machine needs Node 20+ and Chrome or Edge.
+Copy the CI command line exactly as `list` prints it ("AI 없이: …") — it points at the plugin's bundled runner: `run [<scenario id>…] [--failed] [--screen <route>] [--request <request id>] [--each] --headless`. Environment: UI_TEST_BASE_URL (target), UI_TEST_USER, UI_TEST_PASSWORD (from the CI secret store), UI_TEST_BROWSER (Chrome · Edge). The scenario and report folders are fixed under the project (`.litecode/plugins/ui-test/`) — run the command from the project folder. Exit code 1 when any scenario fails. Outside the app there is no record store: the run and its report work, nothing is recorded or compared, and `--screen` / `--request` / `--failed` are not available (name the scenarios instead). To run in CI, copy the plugin's `server/` folder (runner + its `node_modules/playwright-core`) next to the repo or onto the CI machine and adjust the path; the machine needs Node 20+ and Chrome or Edge.
 
-Reports: `<test folder>/_reports/<run id>/index.html` (one report, a section per scenario, anchor `#s-<scenario id>`) or `<test folder>/_reports/<run id>/<scenario id>/index.html` (a report per scenario).
+Reports: `.litecode/plugins/ui-test/reports/<run id>/index.html` (one report, a section per scenario, anchor `#s-<scenario id>`) or `.litecode/plugins/ui-test/reports/<run id>/<scenario id>/index.html` (a report per scenario); the guide and PDFs sit in the same run folder.
 
-## Generated code — `<test folder>/<request id>-01.spec.mjs`
+## Generated code — `.litecode/plugins/ui-test/scenarios/<request id>-01.spec.mjs`
 
 Same stem as its scenario. First line:
 
 ```js
-// ui-test source: ui-tests/20261110T110500_01-01.md · fingerprint: <12 hex>
+// ui-test source: .litecode/plugins/ui-test/scenarios/20261110T110500_01-01.md · fingerprint: <12 hex>
 ```
 
 Copy the fingerprint `list` shows for the scenario (`지문 …`) — don't compute it. (It is the first 12 hex characters of SHA-256 over the scenario file's non-empty lines, trailing spaces removed, **before** `## 테스트 방법`, without the front-matter `sources:`, `request:`, `requested:`, `screens:` and `screen-names:` lines, joined with `\n`.) When the scenario changes, `list` marks the code **코드 낡음** until you regenerate it with the new fingerprint. Body: see `step-api.md`.

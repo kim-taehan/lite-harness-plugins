@@ -344,7 +344,7 @@ const PDF_ERRORS = {
 }
 
 const state = {
-  data: undefined, // { project, testDir, baseUrl, browser, rows, screens: Map, requests: Map }
+  data: undefined, // { project, scenarioDir, reportDir, baseUrl, browser, rows, screens: Map, requests: Map }
   error: '', // 목록을 못 읽었다
   view: 'all', // all · screen · request
   query: '',
@@ -404,7 +404,8 @@ const dot = (status) => el('span', { class: `dot ${dotOf(status)}`, role: 'img',
 /** 파일에 맞추고(reindex) 목록을 끝까지 읽는다 — 열 때와 [다시 불러오기] 만 reindex, 삭제 · 실행 뒤에는 목록만 */
 async function load(reindex = false) {
   try {
-    if (reindex) await tool('reindex').catch(() => undefined)
+    let imported = 0
+    if (reindex) imported = (await tool('reindex').catch(() => undefined))?.imported ?? 0
     let first
     const rows = []
     let cursor
@@ -417,8 +418,9 @@ async function load(reindex = false) {
     }
     const screens = new Map((first.screens ?? []).map((item) => [item.route, item]))
     const requests = new Map((first.requests ?? []).map((item) => [item.id, item]))
-    state.data = { project: first.project ?? '', testDir: first.testDir, baseUrl: first.baseUrl, browser: first.browser, rows: sortRows(rows, requests), screens, requests }
+    state.data = { project: first.project ?? '', scenarioDir: first.scenarioDir, reportDir: first.reportDir, baseUrl: first.baseUrl, browser: first.browser, rows: sortRows(rows, requests), screens, requests }
     state.error = ''
+    if (imported) state.notice = { tone: 'ok', text: `옛 ui-tests/ 에서 시나리오 ${imported}개를 가져왔습니다`, detail: '옛 ui-tests/ 는 그대로 있으니 필요 없으면 직접 지우세요' }
     const ids = new Set(rows.map((row) => row.id))
     for (const id of [...state.picked]) if (!ids.has(id)) state.picked.delete(id)
     if (!state.picked.size) state.dock = ''
@@ -601,7 +603,7 @@ const changePrompt = (row) => [
   'ui-test 스킬의 "수정 요청" 규칙대로, 파일을 바꾸기 전에 바뀌는 전 · 후를 보여 주고 물어본 뒤 반영해 줘. 바뀌면 코드를 다시 만들고 실행할지 물어 줘.',
   '변경 내용: ',
 ].join('\n')
-const promptPath = () => `${state.data.testDir.replace(/\/+$/, '')}/_prompt.md`
+const promptPath = () => '.litecode/plugins/ui-test/_prompt.md'
 const rebuildPrompt = () => `UI 테스트 프로젝트 프롬프트(${promptPath()})를 다시 만들어 줘. ui-test 스킬의 "Project prompt" 절대로 프로젝트를 처음부터 다시 조사해 파일을 새로 쓰고, 무엇이 바뀌었는지 보여 줘.`
 
 // ── 목록 ──
@@ -989,7 +991,7 @@ function envDialog(data) {
         'section',
         { 'aria-label': '연결' },
         el('div', { class: 'addr' }, el('span', { class: `live${data.baseUrl ? '' : ' off'}`, title: data.baseUrl ? '대상 주소가 설정돼 있습니다' : '대상 주소가 설정돼 있지 않습니다' }), el('span', { class: 'url' }, data.baseUrl || '(대상 주소 설정 안 됨)'), el('span', { class: 'via' }, data.browser), btn('설정 열기 ↗', openSettings, { class: '' })),
-        el('p', { class: 'where' }, '시나리오 · 결과서는 ', el('code', {}, data.testDir), ' 안(', el('code', {}, '_reports'), ')에 저장됩니다.'),
+        el('p', { class: 'where' }, '시나리오는 ', el('code', {}, data.scenarioDir), ' · 결과서는 ', el('code', {}, data.reportDir), ' 에 저장됩니다. 플러그인을 지우면 이 폴더(.litecode/plugins/ui-test)가 함께 지워집니다.'),
       ),
       el(
         'section',
