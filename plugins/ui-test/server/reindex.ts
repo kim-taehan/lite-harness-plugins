@@ -7,6 +7,7 @@
 
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { importLegacy, readImported, type ImportedRecord } from './legacy.ts'
 import { parseScenario } from './scenario.ts'
 import { importedRequestId, requestIdFor, scenarioIdForFile, type Dropped, type RequestDoc, type Store } from './store.ts'
 import type { Scenario } from './types.ts'
@@ -54,10 +55,12 @@ const same = <T>(a: readonly T[], b: readonly T[]): boolean => a.length === b.le
 
 export async function reindex(store: Store, config: { project: string; pluginDir: string; scenarioDir: string }): Promise<ReindexResult> {
   const result: ReindexResult = { added: 0, updated: 0, removed: 0, imported: 0, dropped: { results: [], runs: [] } }
+  result.imported = await importLegacy(config.project, config.pluginDir, config.scenarioDir)
   if (!(await stat(config.scenarioDir).then((s) => s.isDirectory(), () => false))) return result
   const found = await scanScenarios(config.project, config.scenarioDir)
-  const folderOf = new Map<string, string>()
-  const imported: { suites: Record<string, { name: string; request?: string; created?: string }>; at: number } | undefined = undefined as never
+  // 옛 묶음 폴더 정보 — 가져온 파일 이름(시나리오 폴더 안) → 그 묶음
+  const imported: ImportedRecord | undefined = await readImported(config.pluginDir)
+  const folderOf = new Map((imported?.files ?? []).filter((item) => item.folder).map((item) => [item.to, item.folder!]))
   const existing = new Map((await store.listScenarios()).map((item) => [item.id, item.doc]))
 
   // 요청 태그 — 시나리오마다 정하고, 같은 요청의 시나리오를 모아 requests 한 줄로

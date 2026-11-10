@@ -41,7 +41,7 @@ describe('reindex', () => {
     write('01-정상-렌더링.md', md('x', '정상 렌더링'))
     const { store } = setup()
     const result = await reindex(store, cfg())
-    expect(result).toMatchObject({ added: 2, updated: 0, removed: 0 })
+    expect(result).toMatchObject({ added: 2, updated: 0, removed: 0, imported: 0 })
     const all = new Map((await store.listScenarios()).map((item) => [item.id, item.doc]))
     expect(all.get('login-ok')).toMatchObject({ title: '로그인', kind: '정상', file: '.litecode/plugins/ui-test/scenarios/login-ok.md', screens: [], recent: [] })
     const korean = hashedScenarioId('.litecode/plugins/ui-test/scenarios/01-정상-렌더링.md')
@@ -157,5 +157,96 @@ describe('reindex', () => {
     mkdirSync(scenarioDir)
     expect(await reindex(store, cfg())).toMatchObject({ removed: 1 })
     expect(await store.getScenario('a')).toBeNull()
+  })
+})
+
+describe('옛 ui-tests/ 가져오기', () => {
+  const tree = (dir: string): string[] => readdirSync(dir, { recursive: true }).map(String).sort()
+
+  it('복사한다 — 바로 아래는 원래 이름, 묶음 폴더 파일은 이름이 겹칠 때만 <묶음>-<이름>, 짝 spec 도 같이 · 옛 폴더는 그대로', async () => {
+    legacy('a.md', md('x', 'A'))
+    legacy('a.spec.mjs', '// spec a\n')
+    legacy('join/suite.md', '---\nname: 가입\n---\n')
+    legacy('join/a.md', md('x', '가입 A'))
+    legacy('join/a.spec.mjs', '// spec join a\n')
+    legacy('join/01-가.md', md('x', '가'))
+    legacy('_reports/x/index.md', md('x', 'R'))
+    const before = tree(path.join(project, 'ui-tests'))
+    const { store } = setup()
+    const result = await reindex(store, cfg())
+    expect(result).toMatchObject({ imported: 3, added: 3 })
+    expect(tree(scenarioDir)).toEqual(['01-가.md', 'a.md', 'a.spec.mjs', 'join-a.md', 'join-a.spec.mjs'])
+    expect(readFileSync(path.join(scenarioDir, 'join-a.spec.mjs'), 'utf8')).toBe('// spec join a\n')
+    expect(readFileSync(path.join(scenarioDir, 'a.spec.mjs'), 'utf8')).toBe('// spec a\n')
+    expect(tree(path.join(project, 'ui-tests'))).toEqual(before)
+    const record = JSON.parse(readFileSync(path.join(pluginDir, 'imported.json'), 'utf8'))
+    expect(record.files).toEqual(expect.arrayContaining([{ from: 'ui-tests/a.md', to: 'a.md' }, { from: 'ui-tests/join/a.md', to: 'join-a.md', folder: 'join' }]))
+    expect(record.files).toHaveLength(3)
+  })
+
+  it('두 번째에는 가져오지 않는다 — 옛 폴더에 파일이 늘어도, 새 폴더에서 지워도', async () => {
+    legacy('a.md', md('x', 'A'))
+    const { store } = setup()
+    expect(await reindex(store, cfg())).toMatchObject({ imported: 1 })
+    legacy('b.md', md('x', 'B'))
+    rmSync(path.join(scenarioDir, 'a.md'))
+    expect(await reindex(store, cfg())).toMatchObject({ imported: 0, added: 0, removed: 1 })
+    expect(readdirSync(scenarioDir)).toEqual([])
+  })
+
+  it('가져올 것이 없으면 아무것도 쓰지 않는다 — 옛 폴더가 없거나 시나리오가 없을 때', async () => {
+    const { store } = setup()
+    expect(await reindex(store, cfg())).toMatchObject({ imported: 0 })
+    legacy('notes.md', '# 메모\n')
+    expect(await reindex(store, cfg())).toMatchObject({ imported: 0 })
+    expect(existsSync(path.join(pluginDir, 'imported.json'))).toBe(false)
+  })
+
+  it('시나리오 폴더가 아직 없어도 가져오며 만든다', async () => {
+    rmSync(pluginDir, { recursive: true })
+    legacy('a.md', md('x', 'A'))
+    const { store } = setup()
+    expect(await reindex(store, cfg())).toMatchObject({ imported: 1, added: 1 })
+    expect(existsSync(path.join(scenarioDir, 'a.md'))).toBe(true)
+  })
+
+  it('옛 suite.md 의 폴더 이름 · request: 는 요청 태그가 된다 — 이름이 바뀌어도 이어진다', async () => {
+    legacy('join/suite.md', '---\nname: 가입설계\nrequest: 가입설계 화면 테스트해줘\ncreated: 2026-11-01\n---\n## 시나리오 순서\n1. 01-가.md\n')
+    legacy('join/01-가.md', md('x', '가'))
+    legacy('join/02-나.md', md('x', '나'))
+    legacy('pay/01-다.md', md('x', '다'))
+    const { store } = setup()
+    await reindex(store, cfg())
+    const requestId = importedRequestId('join')
+    expect((await store.getRequest(requestId))!).toMatchObject({ text: '가입설계 화면 테스트해줘', imported: 'join', at: Date.parse('2026-11-01') })
+    const byFile = new Map((await store.listScenarios()).map((item) => [item.doc.file, item.doc]))
+    expect(byFile.get('.litecode/plugins/ui-test/scenarios/01-가.md')!.request).toBe(requestId)
+    expect(byFile.get('.litecode/plugins/ui-test/scenarios/02-나.md')!.request).toBe(requestId)
+    expect(byFile.get('.litecode/plugins/ui-test/scenarios/01-다.md')!.request).toBeUndefined() // suite.md 가 없던 묶음은 요청 태그가 없다
+    expect(await store.getRequest(importedRequestId('pay'))).toBeNull()
+  })
+
+  it('이미 요청 태그가 있는 시나리오는 가져오기가 덮지 않는다', async () => {
+    legacy('join/suite.md', '---\nname: 가입\n---\n')
+    legacy('join/01-가.md', md('x', '가'))
+    const { store } = setup()
+    const id = hashedScenarioId('.litecode/plugins/ui-test/scenarios/01-가.md')
+    await store.upsertScenario(id, { title: '가', file: '.litecode/plugins/ui-test/scenarios/01-가.md', request: 'mine' })
+    await reindex(store, cfg())
+    expect((await store.getScenario(id))!.request).toBe('mine')
+  })
+
+  it('플러그인 폴더가 밖을 가리키는 심볼릭 링크면 거절한다 — 옛 폴더도 밖에도 쓰지 않는다', async () => {
+    const outside = mkdtempSync(path.join(tmpdir(), 'ui-test-outside-'))
+    try {
+      rmSync(pluginDir, { recursive: true })
+      symlinkSync(outside, path.join(project, '.litecode', 'plugins', 'ui-test'))
+      legacy('a.md', md('x', 'A'))
+      const { store } = setup()
+      await expect(reindex(store, cfg())).rejects.toThrow('플러그인 폴더')
+      expect(readdirSync(outside)).toEqual([])
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
   })
 })

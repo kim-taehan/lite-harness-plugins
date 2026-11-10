@@ -425,7 +425,7 @@ describe('도구 — 패널 · AI', () => {
     expect(await tool('shot').run({ run: '../x', name: 'c1-s1.jpg' })).toMatchObject({ isError: true })
     expect(await tool('shot').run({ run: runId, name: '../../x.jpg' })).toMatchObject({ isError: true })
     expect(JSON.parse((await tool('delete').run({ scenarios: ['q-02'] })).text)).toMatchObject({ scenarios: ['q-02'], files: ['.litecode/plugins/ui-test/scenarios/q-02.md', '.litecode/plugins/ui-test/scenarios/q-02.spec.mjs'], runs: 0 })
-    expect(JSON.parse((await tool('reindex').run({})).text)).toEqual({ added: 0, updated: 0, removed: 0 })
+    expect(JSON.parse((await tool('reindex').run({})).text)).toEqual({ added: 0, updated: 0, removed: 0, imported: 0 })
   })
 
   it('newRequest — 요청 id · 파일 이름 · 머리 줄, 따옴표는 작은따옴표로 · 같은 id 의 파일이 있으면 번호를 올린다', async () => {

@@ -252,7 +252,7 @@ export function createTools(deps: ToolDeps): Tool[] {
         const infos = await workspace.infosOf(items)
         const running = workspace.runningId()
         const now = running ? `\n지금 실행 중: ${workspace.current().title} · 수행 id ${running} — report { run } 으로 끝을 기다린다` : ''
-        const synced = (read.added + read.updated + read.removed ? `\n파일에서 다시 읽음: 새로 ${read.added} · 바뀜 ${read.updated} · 지워짐 ${read.removed}` : '')
+        const synced = (read.added + read.updated + read.removed ? `\n파일에서 다시 읽음: 새로 ${read.added} · 바뀜 ${read.updated} · 지워짐 ${read.removed}` : '') + (read.imported ? `\n옛 ui-tests/ 에서 시나리오 ${read.imported}개를 ${config.scenarioDirRel}/ 로 가져왔습니다(복사) — 옛 ui-tests/ 는 그대로 있으니 필요 없으면 직접 지우세요` : '')
         if (infos.length === 0) return { text: `${where}${now}${synced}\n${selectorEmpty(sel) ? '시나리오가 없습니다 — 화면을 정해 시나리오를 만드세요(스킬 ui-test).' : '조건에 맞는 시나리오가 없습니다.'}` }
         const rows = infos.map((item) => {
           const { scenario, hasCode, specFile } = item
@@ -409,12 +409,12 @@ export function createTools(deps: ToolDeps): Tool[] {
 
   const reindexTool: Tool = {
     name: 'reindex',
-    description: 'Panel only: re-read the scenario files and fix the record store (new files added, changed ones updated, deleted ones removed with their records, screenshots and report sections). Returns JSON { added, updated, removed }.',
+    description: 'Panel only: re-read the scenario files and fix the record store (new files added, changed ones updated, deleted ones removed with their records, screenshots and report sections). Also imports the old 0.6.x ui-tests/ folder once (copy). Returns JSON { added, updated, removed, imported }.',
     inputSchema: { type: 'object', properties: {} },
     async run() {
       try {
-        const { added, updated, removed } = await workspace.reindex()
-        return { text: JSON.stringify({ added, updated, removed }) }
+        const { added, updated, removed, imported } = await workspace.reindex()
+        return { text: JSON.stringify({ added, updated, removed, imported }) }
       } catch (error) {
         return fail(error)
       }
