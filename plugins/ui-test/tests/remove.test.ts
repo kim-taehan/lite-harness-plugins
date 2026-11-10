@@ -30,6 +30,15 @@ describe('시나리오 파일 삭제', () => {
     expect(await fs.readdir(path.join(project, '.litecode/plugins/ui-test/reports/20261106T120000_01'))).toEqual(['index.html'])
   })
 
+  it('같은 이름의 수행 기록(.history.md)도 같이 지운다 — 다른 시나리오의 것은 그대로, 수행 기록만 가리켜서는 못 지운다', async () => {
+    await fs.writeFile(path.join(scenarioDir, 'q-01.history.md'), '## 기록\n')
+    await fs.writeFile(path.join(scenarioDir, 'q-02.history.md'), '## 기록\n')
+    const removed = await removeScenarioFiles(project, scenarioDir, '.litecode/plugins/ui-test/scenarios/q-01.md')
+    expect(removed.files).toContain('.litecode/plugins/ui-test/scenarios/q-01.history.md')
+    expect(await names()).toEqual(['join', 'q-02.history.md', 'q-02.md'])
+    await expect(removeScenarioFiles(project, scenarioDir, '.litecode/plugins/ui-test/scenarios/q-02.history.md')).rejects.toThrow('시나리오 폴더 밖')
+  })
+
   it('코드가 없는 시나리오도 지우고, 이미 없는 파일은 건너뛴다', async () => {
     expect((await removeScenarioFiles(project, scenarioDir, '.litecode/plugins/ui-test/scenarios/q-02.md')).files).toEqual(['.litecode/plugins/ui-test/scenarios/q-02.md'])
     expect((await removeScenarioFiles(project, scenarioDir, '.litecode/plugins/ui-test/scenarios/q-02.md')).files).toEqual([])

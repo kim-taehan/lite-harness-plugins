@@ -58,15 +58,6 @@ export interface Rule {
   covers: string[]
 }
 
-/** 옛 묶음 폴더의 suite.md — reindex 가 옛 데이터를 요청 태그로 가져올 때만 읽는다 */
-export interface LegacySuite {
-  /** 폴더 이름 */
-  id: string
-  name: string
-  request?: string
-  created?: string
-}
-
 export type StepStatus = 'passed' | 'failed' | 'db' | 'not-run'
 export type CaseStatus = 'passed' | 'failed' | 'no-code' | 'stopped'
 

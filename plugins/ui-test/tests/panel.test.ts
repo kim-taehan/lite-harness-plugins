@@ -9,7 +9,7 @@ if (!source) throw new Error('index.html 에서 <pure> 구간을 찾지 못했�
 
 type Row = { id: string; title: string; screens: string[]; request: string | null; status: string | null; lastAt: number | null }
 type Group = { key: string; kind?: string; title: string; rows: Row[]; selector?: Record<string, string>; loose?: boolean; shown?: Row[]; lastRun?: { at: number } | null }
-const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPlan, preferredMode, runCount, finishNote, bareTitle }`)() as {
+const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, missedRuns, missedGuides, runCount, finishNote, bareTitle, docKey, docLabel, docChoices, promptOpenMessage }`)() as {
   whenText(ms: number, now?: number): string
   dayText(ms: number): string
   dotOf(status: string): string
@@ -20,11 +20,16 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   matches(row: Row, query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): boolean
   showGroups(groups: Group[], query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): Group[]
   sharedCount(rows: Row[]): number
-  runPlan(count: number): string
-  preferredMode(prefs?: { report?: string }): string
+  runPrompt(rows: unknown[], prompt?: { file: string; exists: boolean }, output?: string): string
+  missedRuns(rows: unknown[], openedAt: number, seen: Set<string>): { run: string; count: number; failed: number; guide: boolean }[]
+  missedGuides(rows: unknown[], openedAt: number, output: string, tried: Set<string>): string[]
   runCount(progress: unknown): { total: number; done: number; at: number; percent: number }
   finishNote(progress: unknown): { text: string; detail: string; report?: { file: string } }
   bareTitle(title: string): string
+  docKey(doc: { run: string; kind: string; scenario?: string }): string
+  docLabel(doc: { kind: string }): string
+  docChoices(noPdf: boolean): string[]
+  promptOpenMessage(error: unknown): string
 }
 
 const at = (d: number, h: number, m: number): number => new Date(2026, 10, d, h, m).getTime()
@@ -100,11 +105,50 @@ describe('패널 순수 로직', () => {
     expect(api.showGroups(api.buildGroups('screen', rows, screens, requests), '없는말', screens, requests)).toEqual([])
   })
 
-  it('질문 흐름 — 1개뿐이면 묻지 않고 바로, 여럿이면 결과서 방식을 묻고 마지막에 고른 것을 미리 선택, 삭제 확인의 "걸친" 개수', () => {
-    expect([0, 1, 2, 9].map(api.runPlan)).toEqual(['now', 'now', 'ask', 'ask'])
-    expect([undefined, {}, { report: 'one' }, { report: 'each' }, { report: 'x' }].map(api.preferredMode)).toEqual(['one', 'one', 'one', 'each', 'one'])
+  it('삭제 확인의 "걸친" 개수', () => {
     expect(api.sharedCount(rows)).toBe(1)
     expect(api.sharedCount([rows[0]!, rows[3]!])).toBe(0)
+  })
+
+  it('실행 요청 글 — 첫 줄 /ui-test-run, 시나리오마다 id · md · 코드 · 수행 기록 경로, 코드 없는 것은 대상에서 뺀다', () => {
+    const text = api.runPrompt([
+      { id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true, hasHistory: false },
+      { id: 'a-03', title: '기록 있는 것', file: '.litecode/plugins/ui-test/scenarios/a-03.md', hasCode: true, hasHistory: true },
+      { id: 'a-02', title: '코드 없는 것', file: '.litecode/plugins/ui-test/scenarios/a-02.md', hasCode: false, hasHistory: false },
+    ])
+    expect(text.split('\n')[0]).toBe('/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.')
+    expect(text).toContain([
+      '- 정상 로그인 (id a-01)',
+      '  - 시나리오 `.litecode/plugins/ui-test/scenarios/a-01.md`',
+      '  - 코드 `.litecode/plugins/ui-test/scenarios/a-01.spec.mjs`',
+      '  - 수행 기록 `.litecode/plugins/ui-test/scenarios/a-01.history.md`(아직 없음)',
+    ].join('\n'))
+    expect(text).toContain('  - 수행 기록 `.litecode/plugins/ui-test/scenarios/a-03.history.md`\n')
+    expect(text).toContain('코드가 없어 실행 대상에서 뺀 것:\n- 코드 없는 것 (id a-02) — 코드 없음')
+    expect(text).not.toContain('a-02.spec.mjs')
+    // 절차 · 정리 규칙 · 파일 내용은 글에 없다 — 스킬(ui-test-run)이 한다
+    expect(text.split('\n').length).toBeLessThan(15)
+    expect(text).not.toContain('다음 수행 때 지킬 것')
+  })
+
+  it('실행 요청 글 — 프로젝트 프롬프트 유무 한 줄(list 가 준 값 그대로), 값이 없으면 줄을 쓰지 않는다', () => {
+    const rows = [{ id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true, hasHistory: false }]
+    const file = '.litecode/plugins/ui-test/_prompt.md'
+    const yes = api.runPrompt(rows, { file, exists: true }).split('\n')
+    expect(yes[0]).toBe('/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.')
+    expect(yes[1]).toBe(`프로젝트 프롬프트: \`${file}\` (있음)`)
+    expect(api.runPrompt(rows, { file, exists: false })).toContain(`프로젝트 프롬프트: \`${file}\` (없음)`)
+    expect(api.runPrompt(rows)).not.toContain('프로젝트 프롬프트')
+  })
+
+  it('실행 요청 글 — 산출물 한 줄(결과서 + 화면 가이드 · 결과서만), 값이 없으면 줄을 쓰지 않는다', () => {
+    const rows = [{ id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true, hasHistory: false }]
+    expect(api.runPrompt(rows, undefined, 'both').split('\n')[1]).toBe('산출물: 결과서 + 화면 가이드')
+    expect(api.runPrompt(rows, undefined, 'report')).toContain('산출물: 결과서만')
+    expect(api.runPrompt(rows)).not.toContain('산출물')
+    expect(api.runPrompt(rows, undefined, 'x')).not.toContain('산출물')
+    const file = '.litecode/plugins/ui-test/_prompt.md'
+    expect(api.runPrompt(rows, { file, exists: true }, 'both').split('\n').slice(0, 3)).toEqual(['/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.', `프로젝트 프롬프트: \`${file}\` (있음)`, '산출물: 결과서 + 화면 가이드'])
   })
 
   it('실행 배너 숫자와 완료 알림 글', () => {
@@ -133,7 +177,7 @@ describe('패널 소스 규칙', () => {
     const direct = [...script.matchAll(/\bcall\('([a-z.]+)'/g)].map((match) => match[1])
     expect([...new Set(direct)].sort()).toEqual(['events.subscribe', 'service.call', 'settings.open'])
     const names = [...script.matchAll(/\btool\('([A-Za-z]+)'/g)].map((match) => match[1])
-    expect([...new Set(names)].sort()).toEqual(['ask', 'delete', 'detail', 'exportPdf', 'guide', 'list', 'openFile', 'prefs', 'progress', 'reindex', 'run', 'shot', 'stop'])
+    expect([...new Set(names)].sort()).toEqual(['ask', 'delete', 'detail', 'exportPdf', 'guide', 'list', 'openFile', 'prefs', 'progress', 'reindex', 'shot', 'stop'])
   })
 
   it('사용자 글은 innerHTML 로 넣지 않는다 — 고정 도판(svg)만, 바깥 리소스 · 하위 iframe 없음', () => {
@@ -146,5 +190,61 @@ describe('패널 소스 규칙', () => {
   it('옛 말투가 없다 — 돌리기 · 묶음 · 수행 ▾', () => {
     const visible = html.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(visible).not.toMatch(/돌리|돌려|묶음|수행 ▾|suite/)
+  })
+})
+
+describe('결과서 · 가이드 링크의 선택', () => {
+  it('같은 수행의 결과서와 가이드, 시나리오마다 키가 다르다 — 한 번에 한 줄만 펼치는 기준', () => {
+    const base = { run: '20261110T161829_01', scenario: 'a' }
+    expect(api.docKey({ ...base, kind: 'report' })).not.toBe(api.docKey({ ...base, kind: 'guide' }))
+    expect(api.docKey({ ...base, kind: 'report' })).not.toBe(api.docKey({ run: base.run, kind: 'report', scenario: 'b' }))
+    expect(api.docKey({ run: 'r', kind: 'report' })).toBe('r:report:')
+  })
+
+  it('이름 — 가이드면 화면 가이드, 아니면 결과서', () => {
+    expect([api.docLabel({ kind: 'guide' }), api.docLabel({ kind: 'report' })]).toEqual(['화면 가이드', '결과서'])
+  })
+
+  it('버튼 — PDF 로 저장 · 열기 · 취소, PDF 저장을 모르는 앱이면 열기 · 취소만', () => {
+    expect(api.docChoices(false)).toEqual(['pdf', 'open', 'cancel'])
+    expect(api.docChoices(true)).toEqual(['open', 'cancel'])
+  })
+})
+
+describe('_prompt.md 열기 실패 글', () => {
+  it('파일이 정말 없을 때만 "아직 없습니다"', () => {
+    for (const message of ['ENOENT: no such file', 'file not found', 'not-found', '파일이 없습니다']) expect(api.promptOpenMessage(new Error(message))).toMatch(/^아직 없습니다/)
+  })
+
+  it('그 밖의 오류는 실제 글을 그대로 보인다 — 창 없음 · 권한 · 앱 거절', () => {
+    expect(api.promptOpenMessage(new Error('no-window'))).toBe('열지 못했습니다 — no-window')
+    expect(api.promptOpenMessage(new Error('permission denied'))).toBe('열지 못했습니다 — permission denied')
+    expect(api.promptOpenMessage('거절됨')).toBe('열지 못했습니다 — 거절됨')
+  })
+
+  it('빈 오류는 일반 문구', () => {
+    expect(api.promptOpenMessage(new Error(''))).toBe('열지 못했습니다')
+    expect(api.promptOpenMessage(undefined)).toBe('열지 못했습니다')
+  })
+})
+
+describe('놓친 수행 맞추기', () => {
+  const row = (id: string, run: string | null, over: Record<string, unknown> = {}) => ({ id, lastRun: run, lastAt: 2000, lastReport: true, lastGuide: false, status: 'passed', ...over })
+
+  it('패널을 연 뒤 끝난 수행만 — 열기 전 수행 · 결과서가 없는 것 · 이미 본 것은 뺀다', () => {
+    const rows = [row('a', 'r1'), row('b', 'r0', { lastAt: 500 }), row('c', 'r2', { lastReport: false }), row('d', 'r3'), row('e', null)]
+    expect(api.missedRuns(rows, 1000, new Set(['r3'])).map((item) => item.run)).toEqual(['r1'])
+  })
+
+  it('여러 시나리오가 한 수행이면 수행 id 로 한 번 — 개수 · 실패 수 · 가이드는 모두 있을 때만 있음', () => {
+    const rows = [row('a', 'r1', { lastGuide: true }), row('b', 'r1', { status: 'failed' }), row('c', 'r2', { lastGuide: true })]
+    expect(api.missedRuns(rows, 1000, new Set())).toEqual([{ run: 'r1', count: 2, failed: 1, guide: false }, { run: 'r2', count: 1, failed: 0, guide: true }])
+  })
+
+  it('가이드는 산출물이 "결과서 + 가이드" 일 때만 · 이미 있으면 · 이미 시도한 수행이면 만들지 않는다', () => {
+    const rows = [row('a', 'r1'), row('b', 'r2', { lastGuide: true }), row('c', 'r3')]
+    expect(api.missedGuides(rows, 1000, 'both', new Set(['r3']))).toEqual(['r1'])
+    expect(api.missedGuides(rows, 1000, 'report', new Set())).toEqual([])
+    expect(api.missedGuides([], 1000, 'both', new Set())).toEqual([])
   })
 })

@@ -28,6 +28,18 @@ export function routePattern(path: string): string {
   return parts.join('/') || '/'
 }
 
+const LOGIN_SEGMENT = /^(login|signin|sign-in|log-in)$/i
+
+/** 로그인 시나리오 — 머리 tags 에 `로그인` 이 있거나, 머리 screens 의 경로 마지막 마디가 login · signin · sign-in · log-in 이다.
+ *  이런 시나리오는 로그인 뒤 이동한 화면(/dashboard 따위)을 화면 태그로 더하지 않는다 — 머리 screens 에 적은 화면만 */
+export function isLoginScenario(scenario: { tags: readonly string[]; screens: readonly string[] }): boolean {
+  if (scenario.tags.some((tag) => tag.trim() === '로그인')) return true
+  return scenario.screens.some((route) => LOGIN_SEGMENT.test(route.split('/').filter(Boolean).pop() ?? ''))
+}
+
+/** 화면 태그를 머리 screens 선언 그대로 두는 시나리오 — 로그인 시나리오이면서 선언이 비어 있지 않다(비어 있으면 수행에서 관찰한 값) */
+export const keepsDeclaredScreens = (scenario: { tags: readonly string[]; screens: readonly string[] }): boolean => scenario.screens.length > 0 && isLoginScenario(scenario)
+
 /** 확인 단계가 본 경로들 → 라우트 패턴 (처음 본 차례 · 겹침 없이) */
 export function routesOf(urls: readonly string[]): string[] {
   const out: string[] = []

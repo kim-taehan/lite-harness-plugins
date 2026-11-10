@@ -117,10 +117,9 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--probe)}
 .dock{position:sticky;bottom:10px;margin:auto -4px 0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;padding:8px 8px 8px 14px;border-radius:12px;background:var(--sheet);box-shadow:0 0 0 1px var(--rule-strong),var(--lift-sm)}
 .dock .q{flex:1 1 140px;font-size:12.5px;min-width:0}
 .dock .q b{font-weight:650}
-.dock.askrun{background:var(--probe-wash);box-shadow:0 0 0 1px var(--probe-ring),var(--lift-sm)}
 .dock.askdel{background:var(--bad-wash);box-shadow:0 0 0 1px var(--bad-ring),var(--lift-sm)}
 .dock.askdel .q b{color:var(--bad)}
-.dock.askrun .q,.dock.askdel .q{flex:1 1 100%}
+.dock.askdel .q{flex:1 1 100%}
 
 /* 상세 */
 .card{background:var(--sheet);border-radius:12px;box-shadow:0 0 0 1px var(--rule);padding:14px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
@@ -286,10 +285,41 @@ function showGroups(groups, query, screens, requests) {
 
 /** 삭제 확인 글에 쓰는 "다른 화면에도 걸친" 개수 */
 const sharedCount = (rows) => rows.filter((row) => row.screens.length > 1).length
-/** 실행 전 질문 — 시나리오가 1개뿐이면 묻지 않고 바로 */
-const runPlan = (count) => (count < 2 ? 'now' : 'ask')
-/** 결과서 방식의 미리 선택 — 마지막에 고른 것(prefs.report), 없으면 하나로 */
-const preferredMode = (prefs) => (prefs?.report === 'each' ? 'each' : 'one')
+/** 패널이 켜져 있는 동안(openedAt 뒤) 끝났는데 패널이 끝나는 순간을 못 본 수행 — AI 가 서버 run 을 직접 불러 서비스의 진행 소식이 없었던 것. 수행 id 마다 한 번(seen 에 있으면 뺀다)
+ *  최근 결과가 결과서까지 만들어진 것만 센다. guide: 그 수행의 가이드가 이미 있는지(시나리오가 여럿이면 모두 있을 때만 true) */
+function missedRuns(rows, openedAt, seen) {
+  const byRun = new Map()
+  for (const row of rows) {
+    if (!row.lastRun || !row.lastReport || seen.has(row.lastRun) || (row.lastAt ?? 0) < openedAt) continue
+    const item = byRun.get(row.lastRun) ?? { run: row.lastRun, count: 0, failed: 0, guide: true }
+    item.count++
+    if (row.status === 'failed') item.failed++
+    if (!row.lastGuide) item.guide = false
+    byRun.set(row.lastRun, item)
+  }
+  return [...byRun.values()]
+}
+/** 산출물 기본값이 "결과서 + 가이드" 일 때 가이드를 만들 수행 id — 놓친 수행 중 가이드가 없는 것 */
+const missedGuides = (rows, openedAt, output, tried) => (output === 'both' ? missedRuns(rows, openedAt, tried).filter((item) => !item.guide).map((item) => item.run) : [])
+/** 실행 요청 글 — [▶ 실행] 이 새 대화에 곧바로 보낸다. 첫 줄이 `/ui-test-run` 이라서 앱이 스킬 본문(절차)을 붙여 보낸다 — 여기에는 시나리오마다 제목 · id · 경로 세 개만 적는다(md · 생성 코드 · 수행 기록). 코드 없는 것은 실행 대상에서 뺀다 */
+function runPrompt(rows, prompt, output) {
+  const ready = rows.filter((row) => row.hasCode)
+  const lacking = rows.filter((row) => !row.hasCode)
+  const block = (row) => [
+    `- ${row.title} (id ${row.id})`,
+    `  - 시나리오 \`${row.file}\``,
+    `  - 코드 \`${row.file.replace(/\.md$/, '.spec.mjs')}\``,
+    `  - 수행 기록 \`${row.file.replace(/\.md$/, '.history.md')}\`${row.hasHistory ? '' : '(아직 없음)'}`,
+  ].join('\n')
+  return [
+    '/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.',
+    ...(prompt ? [`프로젝트 프롬프트: \`${prompt.file}\` (${prompt.exists ? '있음' : '없음'})`] : []),
+    ...(output === 'both' || output === 'report' ? [`산출물: ${output === 'both' ? '결과서 + 화면 가이드' : '결과서만'}`] : []),
+    '',
+    ...ready.map(block),
+    ...(lacking.length ? ['', '코드가 없어 실행 대상에서 뺀 것:', ...lacking.map((row) => `- ${row.title} (id ${row.id}) — 코드 없음`)] : []),
+  ].join('\n')
+}
 
 /** 실행 배너 숫자 — 몇 개 중 몇 번째 · 진행선 너비(%) */
 function runCount(progress) {
@@ -312,6 +342,19 @@ function finishNote(progress) {
 
 /** 단계 제목 앞의 "1. " 는 번호를 직접 붙이므로 뗀다 */
 const bareTitle = (title) => String(title).replace(/^\s*\d+[.)]?\s*/, '')
+
+/** 결과서 · 화면 가이드 링크를 누르면 그 자리에 펼치는 선택 — 한 줄의 키 · 이름 · 버튼(PDF 저장을 모르는 앱이면 열기만) */
+const docKey = (doc) => `${doc.run}:${doc.kind}:${doc.scenario ?? ''}`
+const docLabel = (doc) => (doc.kind === 'guide' ? '화면 가이드' : '결과서')
+const docChoices = (noPdf) => (noPdf ? ['open', 'cancel'] : ['pdf', 'open', 'cancel'])
+
+/** [환경] 팝업의 _prompt.md [열기]가 실패했을 때 보이는 글 — 파일이 정말 없을 때만 "아직 없습니다", 그 밖(창 없음 · 권한 · 앱 거절)은 실제 오류 글 */
+const MISSING_FILE = /not[ -_]?found|ENOENT|no such file|does not exist|없습니다/i
+const promptOpenMessage = (error) => {
+  const message = String(error?.message ?? error ?? '').trim()
+  if (MISSING_FILE.test(message)) return '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'
+  return message ? `열지 못했습니다 — ${message}` : '열지 못했습니다'
+}
 // </pure>
 
 let seq = 0
@@ -351,8 +394,8 @@ const state = {
   folded: new Set(), // 접은 그룹 `view:key`
   picked: new Set(), // 전체 탭에서 고른 시나리오 id
   dock: '', // '' · run · del — 아래 막대가 묻는 중
-  asking: undefined, // 그룹 머리 질문 { kind: 'run' | 'del', key }
-  screen: { name: 'list' }, // list · detail { id } · doc { … }
+  asking: undefined, // 그룹 머리 질문 { kind: 'del', key }
+  screen: { name: 'list' }, // list · detail { id }
   detail: undefined, // { id, loading, data, error }
   delOne: false, // 상세의 삭제 확인
   shots: new Map(), // 스크린샷 키 → { state: 'loading' | 'ok' | 'error', url }
@@ -361,9 +404,13 @@ const state = {
   progress: undefined,
   notice: undefined, // { tone: 'ok' | 'err', text, detail?, report? }
   prefs: { headed: false, output: 'report', report: undefined },
+  prefsRead: false, // 저장된 기본값을 읽었는지 — 못 읽었으면 요청 글에 산출물 줄을 쓰지 않는다
+  openedAt: Date.now(), // 패널을 연 시각 — 이 뒤에 끝난 수행만 놓친 것으로 본다
+  seenRuns: new Set(), // 끝남을 알린 · 가이드를 시도한 수행 id (한 번만)
   env: undefined, // 환경 팝업 { saved, failed, focus }
   noPdf: false, // 앱이 PDF 저장을 모른다(옛 앱)
   pdfBusy: false,
+  docPick: undefined, // 결과서 · 가이드 링크를 눌러 펼친 선택 { key, doc }
 }
 /** 다시 그린 뒤 포커스를 둘 곳(data-fk) */
 let pendingFocus = ''
@@ -401,11 +448,22 @@ const dot = (status) => el('span', { class: `dot ${dotOf(status)}`, role: 'img',
 
 // ── 불러오기 ──
 
+/** 놓친 수행 맞추기 — 패널이 켜져 있는 동안 AI 가 직접 돌려 끝난 수행(진행 소식 없음)을 목록에서 찾아 끝났다고 한 번 알리고, 산출물이 "결과서 + 가이드" 면 가이드도 만든다(수행 id 당 한 번, 실패해도 다시 하지 않는다) */
+function catchUp(rows) {
+  const found = missedRuns(rows, state.openedAt, state.seenRuns)
+  if (!found.length) return
+  const guides = missedGuides(rows, state.openedAt, state.prefs.output, state.seenRuns)
+  for (const item of found) state.seenRuns.add(item.run)
+  const last = found[found.length - 1]
+  if (!state.progress?.running) state.notice = { tone: 'ok', text: `${last.count}개 실행을 마쳤습니다${last.failed ? ` — 실패 ${last.failed}개` : ''}`, detail: guides.includes(last.run) ? '화면 가이드를 만들고 있습니다' : '', runId: last.run }
+  for (const run of guides) {
+    tool('guide', { run }).then(() => load(false, true), (error) => failNotice(error))
+  }
+}
 /** 파일에 맞추고(reindex) 목록을 끝까지 읽는다 — 열 때와 [다시 불러오기] 만 reindex, 삭제 · 실행 뒤에는 목록만 */
 async function load(reindex = false, quiet = false) {
   try {
-    let imported = 0
-    if (reindex) imported = (await tool('reindex').catch(() => undefined))?.imported ?? 0
+    if (reindex) await tool('reindex').catch(() => undefined)
     let first
     const rows = []
     let cursor
@@ -421,13 +479,13 @@ async function load(reindex = false, quiet = false) {
     state.sig = sig
     const screens = new Map((first.screens ?? []).map((item) => [item.route, item]))
     const requests = new Map((first.requests ?? []).map((item) => [item.id, item]))
-    state.data = { project: first.project ?? '', scenarioDir: first.scenarioDir, reportDir: first.reportDir, baseUrl: first.baseUrl, browser: first.browser, rows: sortRows(rows, requests), screens, requests }
+    state.data = { project: first.project ?? '', scenarioDir: first.scenarioDir, reportDir: first.reportDir, baseUrl: first.baseUrl, browser: first.browser, prompt: first.prompt, rows: sortRows(rows, requests), screens, requests }
     state.error = ''
-    if (imported) state.notice = { tone: 'ok', text: `옛 ui-tests/ 에서 시나리오 ${imported}개를 가져왔습니다`, detail: '옛 ui-tests/ 는 그대로 있으니 필요 없으면 직접 지우세요' }
     const ids = new Set(rows.map((row) => row.id))
     for (const id of [...state.picked]) if (!ids.has(id)) state.picked.delete(id)
     if (!state.picked.size) state.dock = ''
     if (state.screen.name === 'detail' && !ids.has(state.screen.id)) state.screen = { name: 'list' }
+    catchUp(rows)
   } catch (error) {
     if (quiet) return
     state.error = errorText(error)
@@ -451,6 +509,8 @@ const setNotice = (notice) => ((state.notice = notice), render())
 const clearNotice = () => ((state.notice = undefined), render())
 const failNotice = (error) => setNotice({ tone: 'err', text: errorText(error) })
 
+/** 실행이 끝난 알림의 결과서 — 링크를 누르면 선택이 그 자리에 펼쳐진다 */
+const finishDoc = (n) => ({ kind: 'report', run: n.runId, file: n.report.file, scenario: n.report.scenario, title: n.title, at: n.at })
 function bannerNode() {
   const p = state.progress
   if (p?.running) {
@@ -468,7 +528,7 @@ function bannerNode() {
   if (!n) return ''
   const close = el('button', { type: 'button', class: 'ico neutral', onclick: clearNotice, 'aria-label': '알림 닫기', title: '알림 닫기' }, icon('x', 14))
   if (n.tone === 'err') return el('div', { class: 'banner err', role: 'alert' }, el('div', { class: 'm' }, el('b', {}, n.text), n.detail ? [el('br'), n.detail] : ''), close)
-  return el('div', { class: 'banner ok', role: 'status' }, el('div', { class: 'm' }, el('b', {}, `✓ ${n.text}`), n.detail ? [el('br'), n.detail] : ''), n.report ? link('결과서 열기', () => openDoc({ kind: 'report', run: n.runId, file: n.report.file, scenario: n.report.scenario, title: n.title, at: n.at })) : '', close)
+  return el('div', { class: 'banner ok', role: 'status' }, el('div', { class: 'm' }, el('b', {}, `✓ ${n.text}`), n.detail ? [el('br'), n.detail] : '', n.report ? docChoice(docKey(finishDoc(n))) : ''), n.report ? link('결과서', () => pickDoc(finishDoc(n)), { 'data-fk': `doc:${docKey(finishDoc(n))}` }) : '', close)
 }
 
 /** 진행을 받아 그린다 — 서비스가 밀어 보내거나(service.progress) 패널을 열 때 한 번 읽는다. 끝났으면 목록을 다시 읽고 알린다 */
@@ -479,6 +539,7 @@ function applyProgress(progress) {
   render()
 }
 function finishRun(progress) {
+  if (progress?.runId) state.seenRuns.add(progress.runId) // 이 길로 알리고 가이드도 만든다 — 목록 맞추기가 다시 하지 않게
   void load()
   if (state.screen.name === 'detail') void loadDetail(state.screen.id)
   if (!progress || progress.cases?.length === 0 || progress.error) {
@@ -509,23 +570,6 @@ function onEvent(event, data) {
 
 // ── 실행 · 삭제 ──
 
-/** 시나리오 고르는 말(selector)로 실행 — 서비스가 시작하고 진행을 밀어 보낸다. 여럿이면 결과서 방식(mode)을 같이 보내고 기억한다 */
-function startRun(selector, mode) {
-  state.picked.clear()
-  state.dock = ''
-  state.asking = undefined
-  state.notice = undefined
-  state.progress = { running: true, cases: [] }
-  tool('run', { ...selector, ...(mode && { report: mode }), headed: state.prefs.headed }).then(
-    () => undefined,
-    (error) => ((state.progress = undefined), failNotice(error)),
-  )
-  if (mode) {
-    state.prefs.report = mode
-    tool('prefs', { set: { report: mode } }).catch(() => undefined)
-  }
-  render()
-}
 const stop = () => void tool('stop').catch(() => undefined)
 
 /** 삭제 — 확인을 받은 뒤 서비스의 delete. 파일 · 결과 · 스크린샷 · 결과서까지 지우고 목록을 다시 읽는다 */
@@ -546,17 +590,42 @@ async function removeNow(selector, done) {
 
 // ── 결과서 · 가이드 · PDF ──
 
-/** 결과서 · 가이드를 앱의 파일 미리보기로 열고, 이 화면에는 PDF 로 저장하는 자리를 둔다. 프로젝트 밖 경로(공유 폴더)는 열 수 없어 경로만 알린다 */
-async function openDoc(doc) {
-  state.screen = { name: 'doc', back: state.screen.name === 'detail' ? { name: 'detail', id: state.screen.id } : { name: 'list' }, ...doc }
+/** 결과서 · 가이드 링크 — 화면을 옮기지 않고 그 자리에 [PDF 로 저장] [열기] 선택을 펼친다(다시 누르면 접힘) */
+function pickDoc(doc) {
+  const key = docKey(doc)
+  state.docPick = state.docPick?.key === key ? undefined : { key, doc }
+  pendingFocus = state.docPick ? (state.noPdf ? 'doc:open' : 'doc:pdf') : `doc:${key}`
   render()
-  scrollTo(0, 0)
+}
+function closeDocPick(key) {
+  state.docPick = undefined
+  pendingFocus = `doc:${key}`
+  render()
+}
+/** 선택 줄 — 링크 바로 아래에 둔다. 프로젝트 밖 경로(공유 폴더)는 열 수 없어 경로만 알린다 */
+function docChoice(key) {
+  const pick = state.docPick
+  if (pick?.key !== key) return ''
+  const { doc } = pick
+  const label = docLabel(doc)
+  const act = {
+    pdf: btn(state.pdfBusy ? 'PDF 만드는 중…' : 'PDF 로 저장', () => savePdf(doc), { class: 'btn pri', disabled: state.pdfBusy, 'data-fk': 'doc:pdf' }),
+    open: btn('열기', () => openDoc(doc), { class: 'btn', 'data-fk': 'doc:open' }),
+    cancel: btn('취소', () => closeDocPick(key), { class: 'btn ghost', 'data-fk': 'doc:cancel' }),
+  }
+  return el('div', { class: 'ask', role: 'group', 'aria-label': `${label} 보는 방법` }, el('div', { class: 'q' }, el('b', {}, `${label} — 어떻게 할까요?`), doc.anchor && !state.noPdf ? 'PDF 는 이 수행의 결과서 전체입니다(시나리오마다 절이 이어집니다).' : ''), docChoices(state.noPdf).map((name) => act[name]))
+}
+/** 앱의 오른쪽 파일 미리보기로 연다 */
+async function openDoc(doc) {
+  state.docPick = undefined
+  render()
   const path = doc.file
   if (path.startsWith('/') || /^[A-Za-z]:/.test(path)) return setNotice({ tone: 'ok', text: `파일 위치: ${path}`, detail: '프로젝트 밖이라 미리보기로 열 수 없습니다' })
   state.notice = undefined
   await tool('openFile', { path }).catch((error) => failNotice(error))
 }
 async function savePdf(doc) {
+  state.docPick = undefined
   state.pdfBusy = true
   state.notice = undefined
   render()
@@ -577,6 +646,15 @@ async function savePdf(doc) {
 
 // ── 대화로 넘기기 ──
 
+/** [▶ 실행] — 서버를 직접 부르지 않고, 실행할 시나리오 · 코드와 함께 테스트 요청 글을 새 대화에 보낸다 */
+async function askRun(rows) {
+  if (!rows.some((row) => row.hasCode)) return setNotice({ tone: 'err', text: '코드가 있는 시나리오가 없어 실행할 수 없습니다', detail: '대화에서 AI 에게 코드를 만들어 달라고 하세요' })
+  state.picked.clear()
+  state.dock = ''
+  state.asking = undefined
+  await ask(runPrompt(rows, state.data?.prompt, state.prefsRead ? state.prefs.output : undefined))
+  render()
+}
 async function ask(text, send = true) {
   state.notice = undefined
   try {
@@ -588,12 +666,12 @@ async function ask(text, send = true) {
 function fixPrompt(row, detail) {
   const fail = detail?.results?.find((item) => item.failure)?.failure ?? {}
   return [
-    `UI 테스트 시나리오 ${row.id} "${row.title}"(${row.file}) 이 지난 실행에서 실패했습니다.`,
+    `/ui-test-run UI 테스트 시나리오 ${row.id} "${row.title}"(${row.file}) 이 지난 실행에서 실패했습니다.`,
     fail.row && `- 행: ${fail.row}`,
     fail.step && `- 실패 단계: ${fail.step}`,
     fail.error && `- 오류: ${fail.error}`,
     fail.kind && `- 갈래(어림): ${fail.kind}`,
-    `ui-test 스킬로 원인을 가려 주세요. 낡은 테스트(셀렉터 · 기다림 · 코드 오류)면 시나리오(${row.file})의 ## 테스트 방법을 먼저 읽고 .spec.mjs 를 고쳐 그 시나리오만 다시 실행해 주세요. 앱 결함으로 보이면 코드를 고치지 말고 근거(단계 · 오류 · 결과서 스크린샷)와 함께 보고해 주세요. 시나리오 md 는 제 확인 없이 고치지 마세요.`,
+    `ui-test-run 스킬의 순서대로 원인을 가려 주세요. 낡은 테스트(셀렉터 · 기다림 · 코드 오류)면 시나리오(${row.file})의 ## 테스트 방법을 먼저 읽고 .spec.mjs 를 고쳐 그 시나리오만 다시 실행해 주세요. 앱 결함으로 보이면 코드를 고치지 말고 근거(단계 · 오류 · 결과서 스크린샷)와 함께 보고해 주세요. 시나리오 md 는 제 확인 없이 고치지 마세요.`,
   ].filter(Boolean).join('\n')
 }
 const enrichPrompt = (row) => [
@@ -601,11 +679,14 @@ const enrichPrompt = (row) => [
   row.changed?.length && `코드 바뀜: ${row.changed.map((change) => change.path + (change.state === 'missing' ? '(없어짐)' : '')).join(', ')} — 기대 메시지 등 바뀐 점도 제안에 넣어 줘.`,
   'ui-test 스킬의 보강 순서대로 빠진 확인 · 데이터 변형 · 변형 시나리오 · 코드 바뀜 제안을 목록으로 보이고, 여러 개 고르기로 물어 본 뒤 고른 것만 반영해 줘.',
 ].filter(Boolean).join('\n')
-/** 변경 요청 — 입력창만 채워 연다(send: false). 사용자가 마지막 줄 뒤에 바꿀 내용을 이어 쓰고 보낸다 */
+/** [수정] — 새 대화에 곧바로 보낸다. 시나리오 · 코드 · 수행 기록 경로를 알려 주고, 무엇을 고칠지는 AI 가 묻는다(`ui-test` 스킬 "수정 요청") */
 const changePrompt = (row) => [
-  `UI 테스트 시나리오 ${row.id} "${row.title}"(${row.file}) 를 변경하려고 해.`,
-  'ui-test 스킬의 "수정 요청" 규칙대로, 파일을 바꾸기 전에 바뀌는 전 · 후를 보여 주고 물어본 뒤 반영해 줘. 바뀌면 코드를 다시 만들고 실행할지 물어 줘.',
-  '변경 내용: ',
+  `UI 테스트 시나리오를 수정하려고 해. ui-test 스킬의 "수정 요청" 규칙대로, 먼저 아래 시나리오를 읽고 어떤 내용을 수정할지 질문 도구로 물어 줘. 바꾸기 전에 전 · 후를 보여 주고 확인받은 뒤 반영하고, 바뀌면 코드를 다시 만든 뒤 실행할지 물어 줘. 묻기 전에는 아무것도 바꾸거나 실행하지 마.`,
+  '',
+  `- ${row.title} (id ${row.id})`,
+  `  - 시나리오 \`${row.file}\``,
+  `  - 코드 \`${row.file.replace(/\.md$/, '.spec.mjs')}\`${row.hasCode ? '' : '(아직 없음)'}`,
+  `  - 수행 기록 \`${row.file.replace(/\.md$/, '.history.md')}\`${row.hasHistory ? '' : '(아직 없음)'}`,
 ].join('\n')
 const promptPath = () => '.litecode/plugins/ui-test/_prompt.md'
 const rebuildPrompt = () => `UI 테스트 프로젝트 프롬프트(${promptPath()})를 다시 만들어 줘. ui-test 스킬의 "Project prompt" 절대로 프로젝트를 처음부터 다시 조사해 파일을 새로 쓰고, 무엇이 바뀌었는지 보여 줘.`
@@ -673,11 +754,6 @@ function backToList(focus) {
   render()
 }
 
-function runAsk(count, label, onPick, dock = false) {
-  const first = preferredMode(state.prefs)
-  const pick = (mode) => btn(mode === 'each' ? '시나리오마다 따로' : '하나로 같이', () => onPick(mode), { class: mode === first ? 'btn pri' : 'btn', 'data-fk': `mode:${mode}` })
-  return [el('div', { class: 'q' }, el('b', {}, `${label}${count}개를 실행합니다`), dock ? ' — 결과서를 어떻게 낼까요?' : '결과서를 어떻게 낼까요?'), btn('취소', () => ((state.asking = undefined), (state.dock = ''), render()), { class: 'btn ghost' }), first === 'each' ? [pick('one'), pick('each')] : [pick('each'), pick('one')]]
-}
 function delAsk(rows, label, onOk, onCancel, dock = false) {
   const shared = sharedCount(rows)
   return [
@@ -700,24 +776,17 @@ function groupNode(group) {
     el('span', { class: 't' }, el('span', { class: `tt${group.kind === 'request' ? ' rq' : ''}`, title: group.title }, group.kind === 'request' && !group.loose ? `“${group.title}”` : group.title), el('small', {}, sub)),
   )
   const report = group.lastRun?.report
+  const groupDoc = report ? { kind: 'report', run: group.lastRun.run, file: report, title: group.title, at: group.lastRun.at } : undefined
   const head = el(
     'div',
     { class: 'gh' },
     toggle,
-    report ? link('결과서', () => openDoc({ kind: 'report', run: group.lastRun.run, file: report, title: group.title, at: group.lastRun.at }), { title: `${whenText(group.lastRun.at)} 에 이 그룹을 같이 실행한 결과서` }) : '',
-    group.loose ? '' : [btn('▶ 실행', () => ((state.asking = undefined), runGroup(group)), { class: 'btn tint', disabled: busy(), 'data-fk': `run:${foldKey}` }), el('span', { class: 'sepv' }), el('button', { type: 'button', class: 'ico', disabled: busy(), 'data-fk': `del:${foldKey}`, 'aria-label': `${label}그룹의 시나리오 삭제`, title: '이 그룹의 시나리오 삭제', onclick: () => ((state.asking = state.asking?.kind === 'del' && state.asking.key === foldKey ? undefined : { kind: 'del', key: foldKey }), (pendingFocus = state.asking ? 'cancel' : `del:${foldKey}`), render()) }, icon('trash'))],
+    groupDoc ? link('결과서', () => pickDoc(groupDoc), { title: `${whenText(group.lastRun.at)} 에 이 그룹을 같이 실행한 결과서`, 'data-fk': `doc:${docKey(groupDoc)}` }) : '',
+    group.loose ? '' : [btn('▶ 실행', () => ((state.asking = undefined), askRun(group.rows)), { class: 'btn tint', disabled: busy(), 'data-fk': `run:${foldKey}` }), el('span', { class: 'sepv' }), el('button', { type: 'button', class: 'ico', disabled: busy(), 'data-fk': `del:${foldKey}`, 'aria-label': `${label}그룹의 시나리오 삭제`, title: '이 그룹의 시나리오 삭제', onclick: () => ((state.asking = state.asking?.kind === 'del' && state.asking.key === foldKey ? undefined : { kind: 'del', key: foldKey }), (pendingFocus = state.asking ? 'cancel' : `del:${foldKey}`), render()) }, icon('trash'))],
   )
   const asked = state.asking?.key === foldKey ? state.asking : undefined
-  const question = asked?.kind === 'run' ? el('div', { class: 'ask' }, runAsk(total, label, (mode) => startRun(group.selector, mode))) : asked?.kind === 'del' ? el('div', { class: 'ask bad' }, delAsk(group.rows, label, () => removeNow(group.selector), () => ((state.asking = undefined), (pendingFocus = `del:${foldKey}`), render()))) : ''
-  return el('div', { class: 'grp' }, head, question, open ? el('div', { class: 'rows' }, group.shown.map((row) => rowNode(row, false))) : '')
-}
-/** 그룹 머리 [▶ 실행] — 1 개뿐이면 묻지 않고 바로, 여럿이면 결과서 방식을 묻는다 */
-function runGroup(group) {
-  const key = `${state.view}:${group.key}`
-  if (runPlan(group.rows.length) === 'now') return startRun(group.selector)
-  state.asking = { kind: 'run', key }
-  pendingFocus = `mode:${preferredMode(state.prefs)}`
-  render()
+  const question = asked?.kind === 'del' ? el('div', { class: 'ask bad' }, delAsk(group.rows, label, () => removeNow(group.selector), () => ((state.asking = undefined), (pendingFocus = `del:${foldKey}`), render()))) : ''
+  return el('div', { class: 'grp' }, head, groupDoc ? docChoice(docKey(groupDoc)) : '', question, open ? el('div', { class: 'rows' }, group.shown.map((row) => rowNode(row, false))) : '')
 }
 
 function emptyNode(title, text, button) {
@@ -753,7 +822,6 @@ function dockNode() {
   const show = n > 0 && state.view === 'all' && state.screen.name === 'list' && !state.error && !busy()
   if (!show) return el('div', { id: 'dock', hidden: true })
   const rows = state.data.rows.filter((row) => state.picked.has(row.id))
-  if (state.dock === 'run') return el('div', { id: 'dock', class: 'dock askrun', role: 'group', 'aria-label': '실행 방식' }, runAsk(n, '', (mode) => startRun({ scenarios: rows.map((row) => row.id) }, mode), true))
   if (state.dock === 'del') return el('div', { id: 'dock', class: 'dock askdel', role: 'group', 'aria-label': '삭제 확인' }, delAsk(rows, '선택한 ', () => removeNow({ scenarios: rows.map((row) => row.id) }), () => ((state.dock = ''), (pendingFocus = 'dock:del'), render()), true))
   return el(
     'div',
@@ -761,7 +829,7 @@ function dockNode() {
     el('div', { class: 'q' }, el('b', {}, `${n}개`), ' 선택'),
     btn('선택 해제', () => (state.picked.clear(), render()), { class: 'btn ghost' }),
     btn('삭제', () => ((state.dock = 'del'), (pendingFocus = 'cancel'), render()), { class: 'btn danger', 'data-fk': 'dock:del' }),
-    btn('▶ 실행', () => (runPlan(n) === 'now' ? startRun({ scenarios: rows.map((row) => row.id) }) : ((state.dock = 'run'), (pendingFocus = `mode:${preferredMode(state.prefs)}`), render())), { class: 'btn pri', 'data-fk': 'dock:run' }),
+    btn('▶ 실행', () => askRun(rows), { class: 'btn pri', 'data-fk': 'dock:run' }),
   )
 }
 
@@ -793,7 +861,7 @@ function detailView() {
       'div',
       { class: 'card' },
       el('div', {}, el('h3', {}, dot(status), el('span', {}, row.title)), el('div', { class: 'meta', title: [screens.join(' · '), request && `“${request.text}”`].filter(Boolean).join(' · ') }, metaText)),
-      el('div', { class: 'acts' }, btn('▶ 실행', () => startRun({ scenarios: [row.id] }), { class: 'btn pri', disabled: busy() || !row.hasCode, title: row.hasCode ? '이 시나리오만 실행합니다' : '코드가 없어 실행할 수 없습니다 — 대화에서 코드를 만들게 하세요' }), btn('삭제', () => ((state.delOne = !state.delOne), (pendingFocus = state.delOne ? 'cancel' : 'del'), render()), { class: 'btn danger end', disabled: busy(), 'data-fk': 'del' })),
+      el('div', { class: 'acts' }, btn('▶ 실행', () => askRun([row]), { class: 'btn pri', disabled: busy() || !row.hasCode, title: row.hasCode ? '이 시나리오만 실행합니다' : '코드가 없어 실행할 수 없습니다 — 대화에서 코드를 만들게 하세요' }), btn('수정', () => ask(changePrompt(row)), { class: 'btn', disabled: busy(), title: '새 대화에서 AI 가 어떤 내용을 수정할지 묻습니다' }), btn('삭제', () => ((state.delOne = !state.delOne), (pendingFocus = state.delOne ? 'cancel' : 'del'), render()), { class: 'btn danger end', disabled: busy(), 'data-fk': 'del' })),
       state.delOne ? el('div', { class: 'ask bad inner' }, el('div', { class: 'q' }, el('b', {}, '이 시나리오를 삭제할까요?'), '결과 · 스크린샷도 함께 지워지고 되돌릴 수 없습니다.'), btn('취소', () => ((state.delOne = false), (pendingFocus = 'del'), render()), { class: 'btn', 'data-fk': 'cancel' }), btn('삭제', () => removeNow({ scenarios: [row.id] }, () => backToList()), { class: 'btn sbad' })) : '',
       warns.length ? el('div', { class: 'warnbox' }, warns.map((text, index) => [index ? el('br') : '', text])) : '',
     ),
@@ -804,7 +872,7 @@ function detailView() {
 
   out.push(el('h2', { class: 'sec' }, '단계'), el('div', { class: 'grp' }, stepList(info, row)))
   const failed = info.latest?.status === 'failed'
-  out.push(el('div', { class: 'tools' }, link('변경 요청', () => ask(changePrompt(row), false), { title: '새 대화의 입력창에 이 시나리오를 채워 엽니다 — 바꿀 내용을 이어 쓰고 보냅니다' }), link('보강', () => ask(enrichPrompt(row)), { title: '새 대화에서 빠진 확인 · 데이터 변형 제안을 받고 고릅니다' }), failed ? link('AI 에게 맡기기', () => ask(fixPrompt(row, info)), { title: '새 대화에서 실패 원인을 가르고, 낡은 테스트면 고칩니다' }) : ''))
+  out.push(el('div', { class: 'tools' }, link('보강', () => ask(enrichPrompt(row)), { title: '새 대화에서 빠진 확인 · 데이터 변형 제안을 받고 고릅니다' }), failed ? link('AI 에게 맡기기', () => ask(fixPrompt(row, info)), { title: '새 대화에서 실패 원인을 가르고, 낡은 테스트면 고칩니다' }) : ''))
   out.push(el('h2', { class: 'sec' }, '최근 결과'), el('div', { class: 'grp' }, resultList(info, row)))
   return out
 }
@@ -862,46 +930,19 @@ function resultList(info, row) {
   if (!results.length) return el('div', { class: 'empty' }, '아직 실행한 적이 없습니다. [▶ 실행] 으로 처음 실행해 보세요.')
   const SHOW = 5
   const list = state.moreResults ? results : results.slice(0, SHOW)
-  const nodes = list.map((item) => {
+  const nodes = list.flatMap((item) => {
     const label = item.status === 'failed' ? el('b', { style: 'color:var(--bad)' }, '실패') : item.status === 'passed' ? '성공' : LABEL[item.status] ?? item.status
     const base = { run: item.run, scenario: row.id, title: row.title, at: item.at }
-    const guide = item.guide
-      ? link('화면 가이드', () => openDoc({ ...base, kind: 'guide', file: item.guide.file }))
+    const guideDoc = item.guide && { ...base, kind: 'guide', file: item.guide.file }
+    const reportDoc = item.report && { ...base, kind: 'report', file: item.report.file, anchor: item.report.anchor }
+    const guide = guideDoc
+      ? link('화면 가이드', () => pickDoc(guideDoc), { 'data-fk': `doc:${docKey(guideDoc)}`, 'aria-expanded': String(state.docPick?.key === docKey(guideDoc)) })
       : el('span', { class: 'link dis', role: 'link', 'aria-disabled': 'true', title: '이 수행은 화면 가이드를 만들지 않았습니다' }, '화면 가이드')
-    const report = item.report ? link('결과서', () => openDoc({ ...base, kind: 'report', file: item.report.file, anchor: item.report.anchor })) : el('span', { class: 'link dis', role: 'link', 'aria-disabled': 'true', title: '결과서 파일이 남아 있지 않습니다' }, '결과서')
-    return el('div', { class: 'hist' }, dot(item.status), el('span', {}, whenText(item.at)), el('span', { class: 'when' }, label), el('span', { class: 'docs' }, guide, report))
+    const report = reportDoc ? link('결과서', () => pickDoc(reportDoc), { 'data-fk': `doc:${docKey(reportDoc)}`, 'aria-expanded': String(state.docPick?.key === docKey(reportDoc)) }) : el('span', { class: 'link dis', role: 'link', 'aria-disabled': 'true', title: '결과서 파일이 남아 있지 않습니다' }, '결과서')
+    return [el('div', { class: 'hist' }, dot(item.status), el('span', {}, whenText(item.at)), el('span', { class: 'when' }, label), el('span', { class: 'docs' }, guide, report)), guideDoc ? docChoice(docKey(guideDoc)) : '', reportDoc ? docChoice(docKey(reportDoc)) : '']
   })
   if (results.length > SHOW && !state.moreResults) nodes.push(el('div', { class: 'hist', style: 'grid-template-columns:1fr;padding:0 6px' }, link(`이전 결과 ${results.length - SHOW}개 더 보기`, () => ((state.moreResults = true), render()))))
   return nodes
-}
-
-// ── 결과서 · 가이드 보기 자리 ──
-
-function leaveDoc() {
-  const back = state.screen.back
-  state.notice = undefined
-  if (back.name === 'detail') return ((state.screen = back), render(), scrollTo(0, 0))
-  backToList()
-  scrollTo(0, 0)
-}
-function docView() {
-  const doc = state.screen
-  const back = doc.back.name === 'detail' ? '‹ 시나리오' : '‹ 목록'
-  const out = [el('div', {}, btn(back, leaveDoc, { class: 'btn ghost back', 'data-fk': 'back' }))]
-  const banner = bannerNode()
-  if (banner) out.push(banner)
-  const guide = doc.kind === 'guide'
-  const meta = [doc.at && `${whenText(doc.at)} 수행`, guide ? '화면 흐름 순서로 풀어 쓴 문서' : doc.anchor ? '여러 시나리오를 한 파일로 낸 결과서' : '실행 결과서', '앱 오른쪽의 미리보기에서 열었습니다'].filter(Boolean).join(' · ')
-  out.push(
-    el(
-      'div',
-      { class: 'card' },
-      el('div', {}, el('h3', {}, el('span', {}, `${guide ? '화면 가이드' : '결과서'} · ${doc.title ?? ''}`)), el('div', { class: 'meta wrap' }, meta)),
-      el('div', { class: 'acts' }, state.noPdf ? '' : btn(state.pdfBusy ? 'PDF 만드는 중…' : 'PDF 로 저장', () => savePdf(doc), { class: 'btn', disabled: state.pdfBusy, 'data-fk': 'pdf' }), btn('미리보기에서 다시 열기', () => tool('openFile', { path: doc.file }).catch((error) => failNotice(error)), { class: 'btn ghost' })),
-      doc.anchor && !state.noPdf ? el('p', { class: 'note' }, 'PDF 는 이 수행의 결과서 전체입니다(시나리오마다 절이 이어집니다).') : '',
-    ),
-  )
-  return out
 }
 
 // ── 환경 팝업 ──
@@ -938,6 +979,7 @@ async function savePref(key, value) {
   try {
     const prefs = await tool('prefs', { set: { [key]: value } })
     state.prefs = { ...state.prefs, headed: prefs.headed === true, output: prefs.output === 'both' ? 'both' : 'report' }
+    state.prefsRead = true
     if (!state.env) return
     state.env.failed = false
     state.env.saved = '저장했습니다'
@@ -1013,7 +1055,7 @@ function envDialog(data) {
           { class: 'pfile' },
           svgSpan('ico', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'),
           el('div', { class: 'meta' }, el('b', {}, promptPath()), el('span', {}, 'AI가 참고하는 이 프로젝트의 테스트 방법')),
-          el('div', { style: 'display:flex;gap:2px' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch(() => ((env.failed = true), (env.saved = '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'), render())), { class: 'quiet' }), btn('다시 만들기', () => (close(), ask(rebuildPrompt())), { class: 'quiet' })),
+          el('div', { style: 'display:flex;gap:2px' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch((error) => ((env.failed = true), (env.saved = promptOpenMessage(error)), render())), { class: 'quiet' }), btn('다시 만들기', () => (close(), ask(rebuildPrompt())), { class: 'quiet' })),
         ),
       ),
     ),
@@ -1034,7 +1076,6 @@ function render() {
   if (!data) {
     main.append(topBar(), state.error ? el('div', { class: 'banner err', role: 'alert' }, el('div', { class: 'm' }, el('b', {}, '시나리오 목록을 불러오지 못했습니다'), el('br'), Object.values(ERRORS).includes(state.error) ? state.error : '서비스가 응답하지 않았습니다. 잠시 뒤 다시 불러오세요. 계속 안 되면 플러그인을 껐다 켜 보세요.'), btn('다시 불러오기', () => load(true))) : el('p', { class: 'quiet-card', role: 'status' }, '불러오는 중…'))
   } else if (state.screen.name === 'detail' && state.data.rows.some((row) => row.id === state.screen.id)) main.append(...detailView())
-  else if (state.screen.name === 'doc' && state.screen.back) main.append(...docView())
   else main.append(topBar(data), tabs(), el('div', { id: 'body', class: 'stack' }, listBody()), dockNode())
   const scroll = scrollY
   app.replaceChildren(main, ...(state.env && data ? [envDialog(data)] : []))
@@ -1054,11 +1095,12 @@ function render() {
 addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
   if (state.env) return ((state.env = undefined), (pendingFocus = 'env'), render())
+  if (state.docPick) return closeDocPick(state.docPick.key)
   if (state.dock) return ((state.dock = ''), (pendingFocus = 'dock:run'), render())
   if (state.asking) {
-    const { kind, key } = state.asking
+    const { key } = state.asking
     state.asking = undefined
-    pendingFocus = `${kind === 'run' ? 'run' : 'del'}:${key}`
+    pendingFocus = `del:${key}`
     return render()
   }
   if (state.delOne) return ((state.delOne = false), (pendingFocus = 'del'), render())
@@ -1068,7 +1110,8 @@ void (async () => {
   try { await call('events.subscribe', { events: ['service.progress', 'service.runError'] }) } catch { /* 권한 없음 */ }
   try {
     const prefs = await tool('prefs')
-    state.prefs = { headed: prefs.headed === true, output: prefs.output === 'both' ? 'both' : 'report', report: prefs.report }
+    state.prefs = { headed: prefs.headed === true, output: prefs.output === 'both' ? 'both' : 'report' }
+    state.prefsRead = true
   } catch { /* 저장된 값 없음 — 화면 없이 · 결과서만 */ }
   await load(true)
   await refreshProgress()

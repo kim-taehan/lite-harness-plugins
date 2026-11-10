@@ -69,63 +69,60 @@ function open(options?: { failPdf?: boolean }, db = fakeDb().db) {
 }
 
 describe('pdf — 결과서 · 가이드를 PDF 로', () => {
-  it('하나로 같이 낸 결과서는 수행 폴더의 index.pdf, 프로젝트 기준 경로와 저장 이름을 돌려준다 — 인쇄 모양(print)으로 file:// 를 열어 쓴다', async () => {
+  it('결과서는 시나리오 폴더의 index.pdf, 프로젝트 기준 경로와 저장 이름을 돌려준다 — 인쇄 모양(print)으로 file:// 를 열어 쓴다', async () => {
     const { space, tool } = open()
     await space.reindex()
-    const { run } = await space.run({ report: 'one' })
-    const out = await tool('pdf').run({ run: run.id, kind: 'report' })
+    const { run } = await space.run({})
+    const out = await tool('pdf').run({ run: run.id, kind: 'report', scenario: 'a-02' })
     expect(out.isError).toBeUndefined()
     const made = JSON.parse(out.text)
-    expect(made).toEqual({ path: `.litecode/plugins/ui-test/reports/${run.id}/index.pdf`, name: '결과서 - 시나리오 2개.pdf' })
+    expect(made.path).toBe(`.litecode/plugins/ui-test/reports/${run.id}/a-02/index.pdf`)
+    expect(made.name).toMatch(/^결과서 - .+\.pdf$/)
     expect(await fs.readFile(path.join(root, made.path), 'utf8')).toContain('%PDF')
     const log = prints.at(-1)!
-    expect(log.url).toBe(`file://${path.join(root, '.litecode/plugins/ui-test/reports', run.id, 'index.html')}`)
+    expect(log.url).toBe(`file://${path.join(root, '.litecode/plugins/ui-test/reports', run.id, 'a-02', 'index.html')}`)
     expect(log.media).toEqual({ media: 'print' })
     expect(log.pdf).toMatchObject({ format: 'A4', printBackground: true, path: path.join(root, made.path) })
-    // 하나로 같이는 scenario 를 줘도 그 결과서 전체
-    expect(JSON.parse((await tool('pdf').run({ run: run.id, kind: 'report', scenario: 'a-02' })).text).path).toBe(made.path)
   })
 
-  it('가이드 · 시나리오마다 따로 낸 수행(scenario 필요, 시나리오 하나뿐이면 생략 가능)', async () => {
+  it('가이드 · 여러 시나리오를 낸 수행은 scenario 가 필요, 시나리오 하나뿐이면 생략 가능', async () => {
     const { space, tool } = open()
     await space.reindex()
-    const { run } = await space.run({ report: 'each' })
+    const { run } = await space.run({})
     await space.writeGuide(run.id)
     expect(await tool('pdf').run({ run: run.id, kind: 'report' })).toMatchObject({ isError: true, text: expect.stringContaining('scenario 가 필요') })
     const made = JSON.parse((await tool('pdf').run({ run: run.id, kind: 'guide', scenario: 'a-02' })).text)
     expect(made).toEqual({ path: `.litecode/plugins/ui-test/reports/${run.id}/a-02/guide.pdf`, name: '화면 가이드 - 시나리오 a-02.pdf' })
     expect(existsSync(path.join(root, made.path))).toBe(true)
-    // 시나리오 하나만 실행한 수행은 따로여도 scenario 없이
-    const single = (await space.run({ scenarios: ['a-01'], report: 'each' })).run
-    expect(JSON.parse((await tool('pdf').run({ run: single.id, kind: 'report' })).text).path).toBe(`.litecode/plugins/ui-test/reports/${single.id}/index.pdf`)
+    // 시나리오 하나만 실행한 수행은 scenario 없이
+    const single = (await space.run({ scenarios: ['a-01'] })).run
+    expect(JSON.parse((await tool('pdf').run({ run: single.id, kind: 'report' })).text).path).toBe(`.litecode/plugins/ui-test/reports/${single.id}/a-01/index.pdf`)
   })
 
   it('틀린 입력 · 없는 파일 · 브라우저 실패는 오류 글로 — 가이드가 없으면 먼저 만들라고', async () => {
     const { space, tool, db } = open()
     await space.reindex()
-    const { run } = await space.run({ report: 'one' })
+    const { run } = await space.run({})
     expect(await tool('pdf').run({ run: run.id, kind: 'x' })).toMatchObject({ isError: true })
     expect(await tool('pdf').run({ run: '../x', kind: 'report' })).toMatchObject({ isError: true })
     expect(await tool('pdf').run({ run: '20200101T000000_01', kind: 'report' })).toMatchObject({ isError: true })
-    expect(await tool('pdf').run({ run: run.id, kind: 'guide' })).toMatchObject({ isError: true, text: expect.stringContaining('가이드 파일이 없습니다') })
+    expect(await tool('pdf').run({ run: run.id, kind: 'guide', scenario: 'a-01' })).toMatchObject({ isError: true, text: expect.stringContaining('가이드 파일이 없습니다') })
     const bad = open({ failPdf: true }, db)
-    expect(await bad.tool('pdf').run({ run: run.id, kind: 'report' })).toMatchObject({ isError: true, text: expect.stringContaining('인쇄 실패') })
+    expect(await bad.tool('pdf').run({ run: run.id, kind: 'report', scenario: 'a-01' })).toMatchObject({ isError: true, text: expect.stringContaining('인쇄 실패') })
   })
 
-  it('PDF 는 결과서 폴더 안에 있어 지울 때 함께 지워지고, 결과서 · 가이드를 다시 쓰면 옛 PDF 는 지운다', async () => {
+  it('PDF 는 시나리오 결과서 폴더 안에 있어 그 시나리오를 지울 때 함께 지워진다', async () => {
     const { space, tool } = open()
     await space.reindex()
-    const { run } = await space.run({ report: 'one' })
+    const { run } = await space.run({})
     await space.writeGuide(run.id)
-    const report = JSON.parse((await tool('pdf').run({ run: run.id, kind: 'report' })).text).path as string
-    const guide = JSON.parse((await tool('pdf').run({ run: run.id, kind: 'guide' })).text).path as string
-    // 시나리오 하나를 지우면 하나로 같이 낸 결과서 · 가이드를 남은 것으로 다시 쓴다 — 옛 PDF 는 낡은 내용이라 지운다
+    const made = async (id: string, kind: 'report' | 'guide') => JSON.parse((await tool('pdf').run({ run: run.id, kind, scenario: id })).text).path as string
+    const first = await made('a-01', 'report')
+    const second = await made('a-02', 'guide')
     await space.remove({ scenarios: ['a-01'] })
-    expect(existsSync(path.join(root, report))).toBe(false)
-    expect(existsSync(path.join(root, guide))).toBe(false)
-    expect(existsSync(path.join(root, report.replace(/\.pdf$/, '.html')))).toBe(true)
+    expect(existsSync(path.join(root, first))).toBe(false)
+    expect(existsSync(path.join(root, second))).toBe(true) // 남은 시나리오 것은 그대로
     // 마지막 시나리오까지 지우면 수행 폴더째
-    await tool('pdf').run({ run: run.id, kind: 'report' })
     await space.remove({ scenarios: ['a-02'] })
     expect(existsSync(path.join(root, '.litecode/plugins/ui-test/reports', run.id))).toBe(false)
   })

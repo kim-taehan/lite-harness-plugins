@@ -11,10 +11,6 @@ export const PLUGIN_DIR = '.litecode/plugins/ui-test'
 export const SCENARIOS_FOLDER = 'scenarios'
 /** 결과서 · 가이드 · PDF — 플러그인 폴더 안, 수행 id 폴더마다 */
 export const REPORTS_FOLDER = 'reports'
-/** 0.6.x 가 쓰던 테스트 폴더 — 가져오기(legacy.ts)에서만 읽는다 */
-export const LEGACY_TEST_DIR = 'ui-tests'
-/** 가져온 기록 — 있으면 다시 가져오지 않는다 */
-export const IMPORTED_FILE = 'imported.json'
 export const KEEP_RUNS = 20
 
 export type Channel = 'chrome' | 'msedge'
