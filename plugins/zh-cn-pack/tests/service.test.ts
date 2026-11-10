@@ -28,6 +28,18 @@ describe('zh-cn-pack 서비스', () => {
     expect(Object.values(messages).every((value) => typeof value === 'string')).toBe(true)
   })
 
+  it('앱의 한도 안이다 — 키 5,000개 · 값 하나 2,000자(넘으면 앱이 말없이 버린다)', () => {
+    expect(Object.keys(messages).length).toBeLessThanOrEqual(5000)
+    expect(Math.max(...Object.values(messages).map((value) => value.length))).toBeLessThanOrEqual(2000)
+  })
+
+  it('번역이 비어 있지 않고 한글이 섞이지 않았다', () => {
+    for (const [key, value] of Object.entries(messages)) {
+      expect(value.trim(), key).not.toBe('')
+      expect(/[\uAC00-\uD7A3]/.test(value), `${key} 에 한글`).toBe(false)
+    }
+  })
+
   it('서비스를 내리면 등록한 번역도 걷힌다', async () => {
     const fake = createFakeHost({ id: 'zh-cn-pack', scope: 'app' })
     fake.mount(bundle)

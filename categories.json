@@ -11,5 +11,5 @@
   "token-pet": "game",
   "ui-test": "dev-tool",
   "vi-pack": "unlisted",
-  "zh-cn-pack": "unlisted"
+  "zh-cn-pack": "locale"
 }
