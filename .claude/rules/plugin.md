@@ -9,7 +9,7 @@
 ## manifest
 1. **[필수]** 폴더는 `plugins/<id>/` 하나 — 폴더 이름과 manifest 의 `id` 가 같다. 분류별 하위 폴더를 만들지 않는다. — 테스트
 2. **[필수]** `id` 는 소문자·숫자·`-` 로 3~40자, `version` 은 `주.부.수`. — 테스트
-3. **[필수]** manifest 에는 앱이 아는 필드만 쓴다. 모르는 필드가 하나라도 있으면 설치가 거절된다 — 메모·분류(`category`)·`changes` 를 넣지 않는다. 분류는 `categories.json`, 업데이트 글은 `changes.txt`. — 테스트
+3. **[필수]** manifest 에는 앱이 아는 필드만 쓴다. 모르는 필드가 하나라도 있으면 설치가 거절된다 — 메모·분류(`category`)·`changes` 를 넣지 않는다. 분류는 `categories.json`, 업데이트 글은 `changes.txt`. — 테스트 `name` 80자 · `description` 300자 · `details` 2000자를 넘으면 설치가 거절된다(`text-invalid`).
 4. **[필수]** 새 플러그인의 manifest 파일 이름은 `plugin.json`. `extension.json` 은 옛 플러그인에만 남는다.
 5. **[필수]** `permissions` 는 앱이 아는 값만(`network` · `secrets` · `project` · `projectWrite` · `chat` · `tools` · `mcp` · `usage` · `llm` · `lsp` · `service`). `tools` · `mcp` · `lsp` · `service` 는 같은 이름의 선언과 권한이 둘 다 있거나 둘 다 없다. — 테스트
    서비스가 `host.mcp.register` · `host.tools.register` 로 올린 서버 · 도구는 `service` 권한만 필요하다(`mcp` · `tools` 권한과 선언은 필요 없다). 서비스는 `host.call('secrets.get')` 을 부를 수 없다 — 비밀은 8번.

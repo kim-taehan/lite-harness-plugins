@@ -1,67 +1,58 @@
-import { existsSync } from 'node:fs'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { configFromEnv } from '../server/config.ts'
-import { driverFor, WebDriver, type BrowserLike, type Launch } from '../server/driver.ts'
-import { addRun, compareLine, compareRuns } from '../server/history.ts'
+import { describe, expect, it } from 'vitest'
+import { browserEnv, driverFor, WebDriver, type BrowserLike, type Launch } from '../server/driver.ts'
+import { compareFor, compareLine, compareWithLast } from '../server/history.ts'
 import { renderReport } from '../server/report.ts'
-import { Workspace } from '../server/runner.ts'
 import { parseScenario } from '../server/scenario.ts'
 import { createExpect, runCase, type PageLike } from '../server/steps.ts'
-import { createTools } from '../server/tools.ts'
 import type { CaseResult, RunRecord } from '../server/types.ts'
 
-// UI 테스트 (#1248) — 지난 수행과 비교 · 이력 20개 · 결과서 · 단계 API · 드라이버 고르기 · 실행기(가짜 브라우저, 진짜 브라우저는 띄우지 않는다) · 프로젝트마다 이력
+// UI 테스트 (#1248) — 지난 실행과 비교 · 결과서 · 단계 API · 드라이버 고르기. 실행기(가짜 브라우저, 진짜 브라우저는 띄우지 않는다)는 workspace.test.ts
 
 const SECRET = 'pa55-W0rd!'
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9])
 
 const caseOf = (id: string, status: CaseResult['status']): CaseResult => ({ id, title: id, status, durationMs: 10, steps: [] })
-const runOf = (id: string, cases: CaseResult[]): RunRecord => ({ id, suite: 's', startedAt: 0, durationMs: 1, headed: true, browser: 'Chrome', baseUrl: 'http://a', cases, report: `/r/s/${id}/index.html` })
+const runOf = (id: string, cases: CaseResult[]): RunRecord => ({ id, startedAt: 0, durationMs: 1, headed: true, browser: 'Chrome', baseUrl: 'http://a', cases, report: `/r/${id}/index.html` })
 
-describe('지난 수행과 비교', () => {
+/** 시나리오마다 마지막으로 실제 실행한 결과(저장소의 scenarios.last)를 비교 기준으로 만든다 */
+const beforeOf = (entries: Record<string, 'passed' | 'failed'>): Map<string, 'passed' | 'failed'> => new Map(Object.entries(entries))
+
+describe('지난 실행과 비교', () => {
   it('새로 실패 · 고쳐짐 · 그대로 실패 — 지난번에 없던 시나리오의 실패는 새로 실패', () => {
-    const previous = runOf('20261105-162000', [caseOf('01', 'passed'), caseOf('02', 'failed'), caseOf('03', 'failed'), caseOf('04', 'passed')])
-    const compare = compareRuns(previous, [caseOf('01', 'failed'), caseOf('02', 'passed'), caseOf('03', 'failed'), caseOf('04', 'passed'), caseOf('05', 'failed'), caseOf('06', 'no-code')])
-    expect(compare).toEqual({ previousId: '20261105-162000', newFail: ['01', '05'], fixed: ['02'], stillFail: ['03'] })
+    const before = beforeOf({ '01': 'passed', '02': 'failed', '03': 'failed', '04': 'passed' })
+    const compare = compareWithLast(before, '20261105T162000_01', [caseOf('01', 'failed'), caseOf('02', 'passed'), caseOf('03', 'failed'), caseOf('04', 'passed'), caseOf('05', 'failed'), caseOf('06', 'no-code')])
+    expect(compare).toEqual({ previousId: '20261105T162000_01', newFail: ['01', '05'], fixed: ['02'], stillFail: ['03'] })
     expect(compareLine(compare!)).toBe('새로 실패 2 · 고쳐짐 1 · 그대로 실패 1')
-    expect(compareRuns(undefined, [caseOf('01', 'failed')])).toBeUndefined()
+    expect(compareWithLast(new Map(), undefined, [caseOf('01', 'failed')])).toBeUndefined()
+    expect(compareWithLast(new Map(), '20261105T162000_01', [caseOf('01', 'failed')])).toBeUndefined()
   })
 
-  it('일부만 돌린 수행이 끼어도 — 직전 수행에 없던 시나리오는 더 오래된 기록의 마지막 결과와 견준다', () => {
-    const older = runOf('20261105-100000', [caseOf('01', 'failed'), caseOf('02', 'passed')]) // 전체 수행
-    const previous = runOf('20261105-110000', [caseOf('02', 'passed')]) // 02 만 다시 수행
-    // 01 은 older 에서 이미 실패 중이었으니 이번에도 실패면 "그대로 실패"(새로 실패가 아니다)
-    expect(compareRuns(previous, [caseOf('01', 'failed')], [older])).toEqual({ previousId: '20261105-110000', newFail: [], fixed: [], stillFail: ['01'] })
-    // 01 이 이번에 통과하면 "고쳐짐"
-    expect(compareRuns(previous, [caseOf('01', 'passed')], [older])?.fixed).toEqual(['01'])
-    // 멈춤 · 코드 없음은 돈 게 아니라 이전 결과를 덮지 않는다
-    const stopped = runOf('20261105-120000', [{ ...caseOf('01', 'stopped') }])
-    expect(compareRuns(stopped, [caseOf('01', 'failed')], [older])?.stillFail).toEqual(['01'])
-    // older 를 안 주면(옛 동작) 직전에 없던 01 의 실패는 새로 실패
-    expect(compareRuns(previous, [caseOf('01', 'failed')])?.newFail).toEqual(['01'])
+  it('일부만 실행한 수행이 끼어도 — 기준은 시나리오마다 마지막으로 실제 실행한 결과(멈춤 · 코드 없음은 기준에 없다)', () => {
+    // 01 은 어제 실패했고 그 뒤 일부만 실행한 수행에는 없었다 — 이번에도 실패면 "그대로 실패"
+    expect(compareWithLast(beforeOf({ '01': 'failed' }), '20261105T110000_01', [caseOf('01', 'failed')])).toEqual({ previousId: '20261105T110000_01', newFail: [], fixed: [], stillFail: ['01'] })
+    expect(compareWithLast(beforeOf({ '01': 'failed' }), '20261105T110000_01', [caseOf('01', 'passed')])?.fixed).toEqual(['01'])
+    // 멈춤 · 코드 없음은 돈 게 아니라 비교에 끼지 않는다
+    expect(compareWithLast(beforeOf({ '01': 'failed' }), 'x', [caseOf('01', 'stopped'), caseOf('02', 'no-code')])).toEqual({ previousId: 'x', newFail: [], fixed: [], stillFail: [] })
   })
 
-  it('이력은 최근 20개 — 넘친 것을 돌려준다(그 스크린샷 · 결과서를 지운다)', () => {
-    let runs: RunRecord[] = []
-    const dropped: string[] = []
-    for (let index = 0; index < 23; index++) {
-      const result = addRun(runs, runOf(`r${index}`, []))
-      runs = result.runs
-      dropped.push(...result.dropped.map((run) => run.id))
-    }
-    expect(runs).toHaveLength(20)
-    expect(runs[0]!.id).toBe('r22')
-    expect(dropped).toEqual(['r0', 'r1', 'r2'])
+  it('compareFor — 시나리오마다 따로 낸 결과서에는 그 시나리오 몫만(데이터 행 포함)', () => {
+    const compare = { previousId: 'p', newFail: ['a', 'b#2'], fixed: ['b#1', 'c'], stillFail: ['a#3'] }
+    expect(compareFor(compare, 'b')).toEqual({ previousId: 'p', newFail: ['b#2'], fixed: ['b#1'], stillFail: [] })
+    expect(compareFor(compare, 'a')).toEqual({ previousId: 'p', newFail: ['a'], fixed: [], stillFail: ['a#3'] })
+    expect(compareFor(undefined, 'a')).toBeUndefined()
+  })
+})
+
+describe('브라우저에 넘기는 환경변수', () => {
+  it('기록 저장소 번호표(LITECODE_DB_*)는 넘기지 않는다', () => {
+    expect(browserEnv({ PATH: '/bin', LITECODE_DB_URL: 'http://127.0.0.1:1', LITECODE_DB_TOKEN: 'tok', HOME: '/h' })).toEqual({ PATH: '/bin', HOME: '/h' })
   })
 })
 
 describe('결과서 HTML', () => {
   const scenario = parseScenario('01-정상', `---\nname: 정상 로그인\nkind: 정상\n---\n1. 로그인한다\n2. 확인: 환영 글\n3. 확인(DB): 이력 행\n\n## 테스트 방법\n- 사전 조건: 계정 user\n- 입력 데이터: 아이디 tester\n- 마지막 성공: 2026-11-06 · 1.0초\n`)
   const run: RunRecord = {
-    ...runOf('20261106-114200', []),
+    ...runOf('20261106T114200_01', []),
     cases: [
       {
         id: '01-정상',
@@ -76,9 +67,9 @@ describe('결과서 HTML', () => {
         ],
       },
     ],
-    compare: { previousId: '20261105-162000', newFail: ['01-정상'], fixed: [], stillFail: [] },
+    compare: { previousId: '20261105T162000_01', newFail: ['01-정상'], fixed: [], stillFail: [] },
   }
-  const html = renderReport({ run, project: 'ins-sales', suiteName: '로그인 화면', user: 'tester', scenarios: new Map([[scenario.id, scenario]]), files: [{ scenario: 'ui-tests/login/01-정상.md', spec: 'ui-tests/login/01-정상.spec.mjs' }], image: () => JPEG, secrets: [SECRET] })
+  const html = renderReport({ run, project: 'ins-sales', title: '로그인 화면', user: 'tester', scenarios: new Map([[scenario.id, scenario]]), files: [{ scenario: '.litecode/plugins/ui-test/scenarios/login/01-정상.md', spec: '.litecode/plugins/ui-test/scenarios/login/01-정상.spec.mjs' }], image: () => JPEG, secrets: [SECRET] })
 
   it('한 파일 — 머리 · 비교 줄 · 단계 표 · 스크린샷이 파일 안에 · 인쇄용 스타일', () => {
     expect(html).toMatch(/^<!doctype html>/)
@@ -99,7 +90,7 @@ describe('결과서 HTML', () => {
   it('케이스마다 테스트 방법 · 끝에 시나리오 원문과 코드 위치', () => {
     expect(html).toContain('테스트 방법</h3>')
     expect(html).toContain('<li><b>사전 조건</b><span>계정 user</span></li>')
-    expect(html).toContain('ui-tests/login/01-정상.spec.mjs')
+    expect(html).toContain('.litecode/plugins/ui-test/scenarios/login/01-정상.spec.mjs')
     expect(html).toContain('<summary>01-정상.md</summary>')
   })
 
@@ -118,7 +109,7 @@ describe('결과서 HTML', () => {
 
   it('실패가 없으면 링크 줄이 없고, 여럿이면 요약 목록 행이 링크 · 앵커 id 는 공백과 따옴표를 거른다', () => {
     const ok = (id: string, status: 'passed' | 'failed'): CaseResult => ({ id, title: id, status, durationMs: 1, steps: [] })
-    const input = { project: 'p', suiteName: 's', user: 'u', scenarios: new Map(), files: [], image: () => undefined, secrets: [] }
+    const input = { project: 'p', title: 's', user: 'u', scenarios: new Map(), files: [], image: () => undefined, secrets: [] }
     const clean = renderReport({ ...input, run: { ...run, compare: undefined, cases: [ok('a', 'passed'), ok('b', 'passed')] } })
     expect(clean).not.toContain('class="fails"')
     expect(clean).toContain('id="sum"')
@@ -176,6 +167,8 @@ describe('단계 API', () => {
     expect(result.steps[0]!.used).toEqual(['goto("/")'])
     expect(result.steps[1]!.used).toEqual(['getByLabel("비밀번호")'])
     expect(result.steps[2]!.used).toEqual(['getByText("환영")', 'expect.toBeVisible()'])
+    // 화면 태그 재료 — "확인:" 단계를 실행한 순간의 주소(경로만)
+    expect(result.steps.map((step) => step.url)).toEqual([undefined, undefined, '/main', undefined, undefined])
     expect(JSON.stringify(result)).not.toContain(SECRET)
     expect(saved).toEqual(['c1-s1.jpg', 'c1-s2.jpg', 'c1-s3.jpg'])
   })
@@ -296,139 +289,3 @@ describe('드라이버', () => {
 function fakeBrowser(visible = true): BrowserLike {
   return { newContext: async () => ({ newPage: async () => fakePage(visible), close: async () => undefined }), close: async () => undefined }
 }
-
-describe('실행기 — 묶음 · 이력 · 결과서 (가짜 브라우저)', () => {
-  let dir: string
-  beforeEach(async () => {
-    dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ui-test-')))
-  })
-  afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true })
-  })
-
-  async function project(name: string, okText: string): Promise<string> {
-    const root = path.join(dir, name)
-    const suite = path.join(root, 'ui-tests', 'login')
-    await fs.mkdir(suite, { recursive: true })
-    await fs.mkdir(path.join(root, 'ui-tests', '_reports'), { recursive: true })
-    await fs.writeFile(path.join(suite, 'suite.md'), `---\nname: 로그인 ${name}\nrequest: 로그인 테스트\n---\n## 시나리오 순서\n1. 02-b.md\n2. 01-a.md\n`)
-    await fs.writeFile(path.join(suite, '01-a.md'), '---\nname: 에이\n---\n1. 연다\n2. 확인: 보인다\n')
-    // 결과는 globalThis.__uiTestOk[이름] 로 바꾼다 (vitest 는 다시 쓴 .mjs 를 다시 읽지 않는다)
-    ;((globalThis as Record<string, unknown>)['__uiTestOk'] ??= {} as Record<string, boolean>)
-    ;((globalThis as Record<string, unknown>)['__uiTestOk'] as Record<string, boolean>)[name] = okText === 'ok'
-    await fs.writeFile(path.join(suite, '01-a.spec.mjs'), `export default async ({ step, page, expect }) => {\n  await step('1. 연다', async () => page.goto('/'))\n  await step('2. 확인: 보인다', async () => { if (!globalThis.__uiTestOk[${JSON.stringify(name)}]) throw new Error('안 보임') })\n}\n`)
-    await fs.writeFile(path.join(suite, '02-b.md'), '---\nname: 비\n---\n1. 연다\n')
-    return root
-  }
-
-  const workspace = (root: string, launch: Launch = async () => fakeBrowser()) => new Workspace(configFromEnv({ UI_TEST_BASE_URL: 'http://a', UI_TEST_PASSWORD: SECRET, UI_TEST_USER: 'tester', UI_TEST_DATA_DIR: path.join(dir, 'data') }, root), launch)
-
-  it('시나리오를 지우면 그 시나리오의 이력 · 결과서 내용이 빠지고, 묶음을 지우면 결과서 · 이력 · 스크린샷이 전부 사라진다', async () => {
-    const root = await project('p', 'ok')
-    const space = workspace(root)
-    const first = await space.run({ suite: 'login' })
-    const reportDir = path.dirname(first.run.report)
-    const shots = space.history.shotsDir('login', first.run.id)
-    expect(await fs.readFile(first.run.report, 'utf8')).toContain('에이')
-
-    await space.removeScenario('login', '01-a')
-    const runs = await space.history.runs('login')
-    expect(runs[0]!.cases.map((item) => item.id)).toEqual(['02-b'])
-    expect(await fs.readFile(first.run.report, 'utf8')).not.toContain('에이')
-
-    // 남은 결과가 없는 수행은 통째로 사라진다
-    await space.removeScenario('login', '02-b')
-    expect(await space.history.runs('login')).toEqual([])
-    expect(existsSync(reportDir)).toBe(false)
-    expect(existsSync(shots)).toBe(false)
-  })
-
-  it('묶음 삭제는 결과서 폴더 · 스크린샷 · 이력 파일까지 지운다', async () => {
-    const root = await project('p', 'ok')
-    const space = workspace(root)
-    const first = await space.run({ suite: 'login' })
-    const suiteReports = path.join(root, 'ui-tests', '_reports', 'login')
-    expect(existsSync(suiteReports)).toBe(true)
-    await space.removeSuite('login')
-    expect(existsSync(suiteReports)).toBe(false)
-    expect(existsSync(space.history.shotsDir('login', first.run.id))).toBe(false)
-    expect(await space.history.runs('login')).toEqual([])
-  })
-
-  it('브라우저는 기본으로 화면 없이 — headed: true 일 때만 보이게', async () => {
-    const root = await project('p', 'ok')
-    const space = workspace(root)
-    expect((await space.run({ suite: 'login' })).run.headed).toBe(false)
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    expect((await space.run({ suite: 'login', headed: true })).run.headed).toBe(true)
-  })
-
-  it('묶음 순서대로 · 코드 없는 시나리오는 "코드 없음" · 결과서는 결과서 폴더 · 처음 결과서에 .gitignore 제안 한 번', async () => {
-    const root = await project('p', 'ok')
-    const space = workspace(root)
-    expect(await space.suiteIds()).toEqual(['login'])
-    const first = await space.run({ suite: 'login', headed: false })
-    expect(first.run.cases.map((item) => [item.id, item.status])).toEqual([
-      ['02-b', 'no-code'],
-      ['01-a', 'passed'],
-    ])
-    expect(first.run.report).toMatch(new RegExp(`${root}/ui-tests/_reports/login/\\d{8}-\\d{6}/index\\.html$`))
-    const html = await fs.readFile(first.run.report, 'utf8')
-    expect(html).toContain('data:image/jpeg;base64,')
-    expect(html).not.toContain(SECRET)
-    expect(first.suggestGitignore).toBe('ui-tests/_reports/')
-    // 이미 물었으면 다시 묻지 않는다 · .gitignore 에 있으면 묻지 않는다
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    expect((await space.run({ suite: 'login', headed: false })).suggestGitignore).toBeUndefined()
-    await fs.writeFile(path.join(root, '.gitignore'), 'node_modules\n/ui-tests/_reports\n')
-    expect(await space.gitignoreHint()).toBeUndefined()
-  })
-
-  it('실패만 다시 · 고른 시나리오 · 없는 이름은 거절 · 도구 결과에 비교 줄과 테스트 방법 재료, 비밀 값 없음', async () => {
-    const root = await project('p', 'no')
-    const space = workspace(root)
-    await space.run({ suite: 'login', headed: false })
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    ;((globalThis as Record<string, unknown>)['__uiTestOk'] as Record<string, boolean>)['p'] = true
-    const tools = createTools({ workspace: space, checkDriver: () => driverFor('web', { channel: 'chrome' }), serverFile: '/plugins/ui-test/server/ui-test.mjs' })
-    const run = tools.find((tool) => tool.name === 'run')!
-    const result = await run.run({ suite: 'login', scenarios: 'failed', headed: false })
-    expect(result.isError).toBeUndefined()
-    expect(result.text).toContain('새로 실패 0 · 고쳐짐 1 · 그대로 실패 0')
-    expect(result.text).toContain('쓴 것: goto("/")')
-    expect(result.text).not.toContain(SECRET)
-    expect((await run.run({ suite: 'login', scenarios: ['09'] })).text).toContain('묶음에 없는 시나리오: 09')
-    const list = await tools.find((tool) => tool.name === 'list')!.run({})
-    expect(list.text).toContain('AI 없이: node "/plugins/ui-test/server/ui-test.mjs" run "login" --headless')
-    expect(list.text).toContain('테스트 계정: tester')
-    expect(list.text).not.toContain(SECRET)
-    expect((await tools.find((tool) => tool.name === 'report')!.run({ suite: 'login' })).text).toContain('이력 (최근 2)')
-  })
-
-  it('프로젝트마다 이력 — 같은 묶음 이름이어도 섞이지 않는다', async () => {
-    const one = workspace(await project('one', 'ok'))
-    const two = workspace(await project('two', 'no'))
-    await one.run({ suite: 'login', headed: false })
-    await two.run({ suite: 'login', headed: false })
-    const [runsOne, runsTwo] = [await one.history.runs('login'), await two.history.runs('login')]
-    expect(runsOne).toHaveLength(1)
-    expect(runsTwo).toHaveLength(1)
-    expect(runsOne[0]!.cases.find((item) => item.id === '01-a')!.status).toBe('passed')
-    expect(runsTwo[0]!.cases.find((item) => item.id === '01-a')!.status).toBe('failed')
-    expect(runsOne[0]!.report.startsWith(path.join(dir, 'one'))).toBe(true)
-    expect((await one.suite('login')).suite.name).toBe('로그인 one')
-  })
-
-  it('멈추기 — 브라우저를 닫고 남은 케이스는 멈춤', async () => {
-    const root = await project('p', 'ok')
-    await fs.writeFile(path.join(root, 'ui-tests/login/02-b.spec.mjs'), `export default async ({ step }) => { await step('1. 연다', async () => new Promise((r) => setTimeout(r, 300))) }\n`)
-    const space = workspace(root)
-    const running = space.run({ suite: 'login', headed: false })
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(space.current().running).toBe(true)
-    expect(await space.stop()).toBe(true)
-    const { run } = await running
-    expect(run.cases.map((item) => item.status)).toEqual(['passed', 'stopped'])
-    expect(space.current().running).toBe(false)
-  })
-})

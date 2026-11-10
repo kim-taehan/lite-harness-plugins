@@ -1,11 +1,20 @@
 // 설정 칸 → 실행 값 (#1248). 앱이 plugin.json 의 mcp.env 자리표시로 넘긴다. 작업 폴더 = 그 프로젝트.
-// 폴더 설정은 테스트 폴더 하나(프로젝트 안만, 기본 ui-tests) — 결과서는 그 안 `_reports` 에 둔다
+// 프로젝트 안 산출물은 모두 `<프로젝트>/.litecode/plugins/ui-test/` 아래에 둔다 — 앱이 플러그인을 지울 때 그 폴더를 통째로 지운다.
+// 위치는 설정으로 바꾸지 않는다(바꾸면 삭제 때 정리가 안 된다). 폴더 이름은 여기 상수에서만 정한다.
 
+import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
-export const DEFAULT_TEST_DIR = 'ui-tests'
-/** 결과서는 테스트 폴더 안 이 이름의 폴더에 둔다 */
-export const REPORTS_FOLDER = '_reports'
+/** 프로젝트 기준 플러그인 폴더 — 앱이 정한 이름(`.litecode/plugins/<플러그인 id>`) */
+export const PLUGIN_DIR = '.litecode/plugins/ui-test'
+/** 시나리오 md · 생성 코드 — 플러그인 폴더 안, 하위 폴더 없이 */
+export const SCENARIOS_FOLDER = 'scenarios'
+/** 결과서 · 가이드 · PDF — 플러그인 폴더 안, 수행 id 폴더마다 */
+export const REPORTS_FOLDER = 'reports'
+/** 0.6.x 가 쓰던 테스트 폴더 — 가져오기(legacy.ts)에서만 읽는다 */
+export const LEGACY_TEST_DIR = 'ui-tests'
+/** 가져온 기록 — 있으면 다시 가져오지 않는다 */
+export const IMPORTED_FILE = 'imported.json'
 export const KEEP_RUNS = 20
 
 export type Channel = 'chrome' | 'msedge'
@@ -17,17 +26,18 @@ export interface Config {
   channel: Channel
   user: string
   password: string
-  /** 절대 경로 */
-  testDir: string
+  /** 절대 경로 — 플러그인 폴더(프로젝트 `.litecode/plugins/ui-test`) · 시나리오 · 결과서 */
+  pluginDir: string
+  scenarioDir: string
   reportDir: string
   dataDir: string
   /** 백엔드 코드 폴더 (절대 경로) — 화면 뒤 서버 코드가 프로젝트 밖(다른 저장소)일 때. 없으면 [] */
   backendDirs: string[]
   /** 설정에 적혔지만 절대 경로가 아니라 쓰지 않는 것 — [연결 확인] 이 알린다 */
   backendIgnored: string[]
-  /** 설정에 적힌 그대로 (화면용) */
-  testDirSetting: string
-  reportDirSetting: string
+  /** 프로젝트 기준 경로 (화면 · 글용) */
+  scenarioDirRel: string
+  reportDirRel: string
 }
 
 export function channelOf(value: string | undefined): Channel {
@@ -42,6 +52,26 @@ export function insideProject(project: string, value: string, label: string): st
   const resolved = path.resolve(project, value)
   if (resolved !== project && !resolved.startsWith(project + path.sep)) throw new Error(`${label}가 프로젝트 밖을 가리킵니다: ${value}`)
   return resolved
+}
+
+/** 쓰기 · 지우기 전에 실제 경로(realpath)가 프로젝트 `.litecode/plugins/ui-test` 안인지 본다 — 심볼릭 링크가 밖을 가리키면 던진다.
+ *  아직 없는 경로는 있는 가장 가까운 윗 폴더의 실제 경로에 나머지를 붙여 본다 */
+export async function guardPluginPath(project: string, target: string): Promise<string> {
+  const base = path.join(await realpath(project), PLUGIN_DIR)
+  let existing = path.resolve(target)
+  const tail: string[] = []
+  let real: string | undefined
+  while (real === undefined) {
+    real = await realpath(existing).catch(() => undefined)
+    if (real !== undefined) break
+    const parent = path.dirname(existing)
+    if (parent === existing) throw new Error(`경로를 확인하지 못했습니다: ${target}`)
+    tail.unshift(path.basename(existing))
+    existing = parent
+  }
+  const full = path.join(real, ...tail)
+  if (full !== base && !full.startsWith(base + path.sep)) throw new Error(`플러그인 폴더(${PLUGIN_DIR}) 밖입니다: ${target}`)
+  return target
 }
 
 /** 백엔드 코드 폴더 설정 — 쉼표 · 세미콜론으로 여럿. 절대 경로만 쓰고 나머지는 ignored 로 (던지지 않는다 — 서버는 설정이 틀려도 떠서 도구 목록을 답해야 한다).
@@ -63,9 +93,9 @@ export function sourceFile(config: Pick<Config, 'project' | 'backendDirs'>, valu
 }
 
 export function configFromEnv(env: NodeJS.ProcessEnv, project: string): Config {
-  const testDirSetting = env['UI_TEST_DIR']?.trim() || DEFAULT_TEST_DIR
-  const testDir = insideProject(project, testDirSetting, '테스트 폴더')
-  const reportDir = path.join(testDir, REPORTS_FOLDER)
+  const pluginDir = path.join(project, ...PLUGIN_DIR.split('/'))
+  const scenarioDir = path.join(pluginDir, SCENARIOS_FOLDER)
+  const reportDir = path.join(pluginDir, REPORTS_FOLDER)
   const backend = backendFolders(env['UI_TEST_BACKEND_DIRS'])
   return {
     project,
@@ -73,14 +103,15 @@ export function configFromEnv(env: NodeJS.ProcessEnv, project: string): Config {
     channel: channelOf(env['UI_TEST_BROWSER']),
     user: env['UI_TEST_USER']?.trim() ?? '',
     password: env['UI_TEST_PASSWORD'] ?? '',
-    testDir,
+    pluginDir,
+    scenarioDir,
     reportDir,
     // 앱은 플러그인 데이터 폴더를 준다 — 앱 밖(CI)에서 돌리면 결과서 폴더 안 .history
     dataDir: env['UI_TEST_DATA_DIR']?.trim() || path.join(reportDir, '.history'),
     backendDirs: backend.dirs,
     backendIgnored: backend.ignored,
-    testDirSetting,
-    reportDirSetting: `${testDirSetting.replace(/[\\/]+$/, '')}/${REPORTS_FOLDER}`,
+    scenarioDirRel: `${PLUGIN_DIR}/${SCENARIOS_FOLDER}`,
+    reportDirRel: `${PLUGIN_DIR}/${REPORTS_FOLDER}`,
   }
 }
 

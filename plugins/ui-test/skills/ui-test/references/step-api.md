@@ -3,7 +3,7 @@
 A spec is an ES module with **no imports**. It exports one async function; the runner passes everything in:
 
 ```js
-// ui-test source: ui-tests/가입설계-화면/01-정상-가입설계.md · fingerprint: 3f2a9c1b7d04
+// ui-test source: .litecode/plugins/ui-test/scenarios/01-정상-가입설계.md · fingerprint: 3f2a9c1b7d04
 export default async ({ step, page, expect, data, account, baseUrl }) => {
   await step('1. 로그인한다', async () => {
     await page.goto('/login')
@@ -34,7 +34,7 @@ export default async ({ step, page, expect, data, account, baseUrl }) => {
 ## What you get
 
 - `step(title, fn)` — one per numbered scenario line, **title copied exactly** including its number. The runner times it, takes a screenshot when it ends, and on failure takes one more and stops the case. A step without `fn` (or whose text starts with `확인(DB):`) is not run and is reported as "대화에서만 확인". Scenario lines you don't write a step for are reported as "수행 안 함" — write them all.
-- `page` — a Playwright `Page` (playwright-core, the PC's Chrome/Edge, viewport 1280×800, fresh context per case). `page.goto('/path')` is relative to the target address (suite.md `url` or the settings). The runner records the selector/wait calls you make on `page` (`getByLabel(...)`, `locator(...)`, `waitForURL(...)` …) for the run result — values you type are not recorded.
+- `page` — a Playwright `Page` (playwright-core, the PC's Chrome/Edge, viewport 1280×800, fresh context per case). `page.goto('/path')` is relative to the target address (the settings). The runner records the selector/wait calls you make on `page` (`getByLabel(...)`, `locator(...)`, `waitForURL(...)` …) for the run result — values you type are not recorded.
 - `expect(x)` — a small Playwright-style expect. On a locator it retries until the timeout (default 5 s, `{ timeout }` to change): `toBeVisible` · `toBeHidden` · `toBeEnabled` · `toBeDisabled` · `toBeChecked` · `toHaveText` (exact or RegExp) · `toContainText` · `toHaveValue` · `toHaveCount`. On `page`: `toHaveURL` (substring or RegExp) · `toHaveTitle`. On plain values (no retry): `toBe` · `toEqual` · `toContain` · `toBeTruthy`. Each has `.not`.
 - `data` — `data.today` (`YYYY-MM-DD`), `data.stamp` (`YYYYMMDD-HHmmss`) for unique titles like `` `자동화 ${data.stamp}` ``. If the scenario has a `## 데이터` table, the spec runs once per row and `data` also has every column of that row (`data.나이`, `data.기대` — values are strings), `data.row` (1-based) and `data.label`.
 - Screenshots are JPEG at 960×600 (the page is laid out at 1280×800 with a 0.75 device scale) so a report with many steps stays small.
@@ -44,7 +44,7 @@ export default async ({ step, page, expect, data, account, baseUrl }) => {
 ## Data tables
 
 ```js
-// ui-test source: ui-tests/가입설계-화면/04-가입-나이.md · fingerprint: 7c1d02e9a4b3
+// ui-test source: .litecode/plugins/ui-test/scenarios/04-가입-나이.md · fingerprint: 7c1d02e9a4b3
 export default async ({ step, page, expect, data }) => {
   await step('1. 가입설계를 연다', async () => {
     await page.goto('/join/design')

@@ -1,10 +1,11 @@
-// 시나리오 · 묶음 md 읽기 (#1248, 계획 §2-1 · §2-3a) — 파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다.
-// 시나리오: 머리(--- name · kind · targets · tags · account ---) + 번호 단계 + (선택) `## 테스트 방법`
-// 묶음 suite.md: 머리(name · request · created · target · url · browser) + `## 시나리오 순서` 의 번호 목록 + (선택) `## 규칙`
+// 시나리오 md 읽기 (#1248, 계획 §2-1) — 파일은 AI 가 자기 파일 도구로 쓰고, 서버는 읽기만 한다.
+// 시나리오: 머리(--- name · kind · targets · tags · account · request · requested · screens · screen-names · sources ---) + 번호 단계 + (선택) `## 테스트 방법`
+// 옛 묶음 suite.md 는 reindex 가 옛 데이터를 요청 태그로 가져올 때만 읽는다(parseSuite)
 // 2 단계: 시나리오의 `## 데이터` 표(한 행마다 한 번 돈다) · 머리 `sources: [경로@지문, …]`(쓸 때 읽은 코드 — 바뀌면 "코드 바뀜")
 
 import { createHash } from 'node:crypto'
-import type { DataTable, Rule, Scenario, ScenarioStep, SourceRef, StepKind, Suite } from './types.ts'
+import { normalizeRoute } from './tag.ts'
+import type { DataTable, LegacySuite, Scenario, ScenarioStep, SourceRef, StepKind } from './types.ts'
 
 const METHOD_HEADING = /^##\s*테스트\s*방법\s*$/
 const DATA_HEADING = /^##\s*데이터\s*$/
@@ -18,9 +19,10 @@ export function splitFrontMatter(text: string): { head: Record<string, string | 
   if (!match) return { head: {}, body: normalized }
   const head: Record<string, string | string[]> = {}
   for (const line of match[1]!.split('\n')) {
-    const pair = /^([A-Za-z_][\w-]*)\s*:\s*(.*)$/.exec(line.replace(/\s+#.*$/, ''))
+    const pair = /^([A-Za-z_][\w-]*)\s*:\s*(.*)$/.exec(line)
     if (!pair) continue
-    const value = pair[2]!.trim()
+    // 따옴표로 시작한 값은 그대로(요청 원문에 ` #12` 가 있어도 주석으로 자르지 않는다), 아니면 ` # 주석` 을 뗀다
+    const value = (/^["']/.test(pair[2]!) ? pair[2]! : pair[2]!.replace(/\s+#.*$/, '')).trim()
     const list = /^\[(.*)\]$/.exec(value)
     head[pair[1]!] = list ? list[1]!.split(',').map((item) => unquote(item.trim())).filter(Boolean) : unquote(value)
   }
@@ -85,7 +87,21 @@ function parseSources(value: string | string[] | undefined): SourceRef[] {
   })
 }
 
-/** 시나리오 md — id 는 파일 이름(.md 뺀 것). 단계는 첫 `##` 제목 앞의 번호 줄 */
+/** 머리 `screen-names: {/login: 로그인, /admin/menu: 메뉴 관리}` → 경로 → 이름 */
+export function parseScreenNames(value: string | string[] | undefined): Record<string, string> {
+  const raw = typeof value === 'string' ? value.trim().replace(/^\{/, '').replace(/\}$/, '') : ''
+  const out: Record<string, string> = {}
+  for (const item of raw.split(',')) {
+    const at = item.indexOf(':')
+    if (at <= 0) continue
+    const route = unquote(item.slice(0, at).trim())
+    const name = unquote(item.slice(at + 1).trim())
+    if (route && name) out[normalizeRoute(route)] = name
+  }
+  return out
+}
+
+/** 시나리오 md — id 는 부르는 쪽이 정한다(store.ts scenarioIdForFile). 단계는 첫 `##` 제목 앞의 번호 줄 */
 export function parseScenario(id: string, source: string): Scenario {
   const { head, body } = splitFrontMatter(source)
   const lines = body.split('\n')
@@ -101,12 +117,18 @@ export function parseScenario(id: string, source: string): Scenario {
   const data = dataLines && parseDataTable(dataLines)
   const kind = text(head['kind'])
   const account = text(head['account'])
+  const request = text(head['request'])
+  const requested = text(head['requested'])
   return {
     id,
     name: text(head['name']) ?? id,
     ...(kind && { kind }),
     targets: list(head['targets']).length ? list(head['targets']) : ['web'],
     tags: list(head['tags']),
+    ...(request && { request }),
+    ...(requested && { requested }),
+    screens: list(head['screens']).map(normalizeRoute),
+    screenNames: parseScreenNames(head['screen-names']),
     ...(account && { account }),
     steps,
     ...(data && { data }),
@@ -117,14 +139,14 @@ export function parseScenario(id: string, source: string): Scenario {
   }
 }
 
-/** 머리 · 단계 · 데이터 표의 지문 (12자) — 테스트 방법 · 빈 줄 · 끝 공백 · 머리의 sources 줄이 바뀌어도 같다
- *  (sources 는 코드 바뀜을 보는 기록이라, 그것을 고쳐도 생성 코드가 낡지 않게) */
+/** 머리 · 단계 · 데이터 표의 지문 (12자) — 테스트 방법 · 빈 줄 · 끝 공백 · 머리의 sources · request · requested · screens · screen-names 줄이 바뀌어도 같다
+ *  (코드 바뀜을 보는 기록 · 태그라서, 그것을 고쳐도 생성 코드가 낡지 않게) */
 export function fingerprint(source: string): string {
   const lines = source.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')
   const headEnd = lines[0] === '---' ? lines.indexOf('---', 1) : -1
   const methodAt = lines.findIndex((line) => METHOD_HEADING.test(line.trim()))
   const kept = (methodAt === -1 ? lines : lines.slice(0, methodAt))
-    .filter((line, index) => !(index > 0 && index < headEnd && /^sources\s*:/.test(line)))
+    .filter((line, index) => !(index > 0 && index < headEnd && /^(sources|request|requested|screens|screen-names)\s*:/.test(line)))
     .map((line) => line.trimEnd())
     .filter(Boolean)
   return createHash('sha256').update(kept.join('\n')).digest('hex').slice(0, 12)
@@ -135,62 +157,12 @@ export function sourceFingerprint(content: string): string {
   return createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex').slice(0, 12)
 }
 
-/** `## 규칙` 한 줄 — `- [검증] 이름은 필수 — 02, 03` · `- [업무] 가입 나이 15~70세 — (없음)` */
-export function parseRule(line: string): Rule | undefined {
-  const match = /^\s*[-*]\s*\[\s*(검증|업무)[^\]]*\]\s*(.+?)\s*$/.exec(line)
-  if (!match) return undefined
-  const [ruleText, coverText = ''] = match[2]!.split(/\s+(?:—|–|->|→)\s+/)
-  const covers = coverText
-    .split(/[,\s·]+/)
-    .map((item) => item.replace(/\.md$/, '').trim())
-    .filter((item) => item && !/^\(?없음\)?$/.test(item))
-  return { kind: match[1] === '검증' ? 'validation' : 'business', text: ruleText!.trim(), covers }
-}
-
-export interface Coverage {
-  validation: { covered: number; total: number }
-  business: { covered: number; total: number }
-  uncovered: Rule[]
-}
-
-/** 규칙이 묶음의 시나리오로 다뤄지는가 — 어림값(AI 가 코드에서 뽑은 규칙 목록 기준, 코드 커버리지가 아니다). 없는 시나리오를 가리키면 안 다룬 것 */
-export function coverage(rules: Rule[], scenarioIds: string[]): Coverage | undefined {
-  if (rules.length === 0) return undefined
-  const exists = (want: string): boolean => scenarioIds.some((id) => id === want || id.split('-')[0] === want)
-  const out: Coverage = { validation: { covered: 0, total: 0 }, business: { covered: 0, total: 0 }, uncovered: [] }
-  for (const rule of rules) {
-    const bucket = out[rule.kind]
-    bucket.total++
-    if (rule.covers.some(exists)) bucket.covered++
-    else out.uncovered.push(rule)
-  }
-  return out
-}
-
-/** suite.md — 순서 목록이 없으면 order 는 빈 배열(부르는 쪽이 파일 이름순) */
-export function parseSuite(id: string, source: string): Suite {
-  const { head, body } = splitFrontMatter(source)
-  const order: string[] = []
-  const rules: Rule[] = []
-  let inOrder = false
-  let inRules = false
-  for (const line of body.split('\n')) {
-    if (/^##\s/.test(line)) {
-      inOrder = /시나리오\s*순서/.test(line)
-      inRules = /^##\s*규칙\s*$/.test(line.trim())
-    } else if (inRules) {
-      const rule = parseRule(line)
-      if (rule) rules.push(rule)
-    } else if (inOrder) {
-      const file = /([^\s`*()[\]]+\.md)\b/.exec(line)
-      if (/^\s*(\d+[.)]|[-*])\s/.test(line) && file && !order.includes(file[1]!)) order.push(file[1]!)
-    }
-  }
+/** 옛 suite.md — 머리의 이름 · request · created 만 읽는다(순서 · 규칙 · 대상은 쓰지 않는다) */
+export function parseSuite(id: string, source: string): LegacySuite {
+  const { head } = splitFrontMatter(source)
   const request = text(head['request'])
   const created = text(head['created'])
-  const url = text(head['url'])
-  const browser = text(head['browser'])
-  return { id, name: text(head['name']) ?? id, ...(request && { request }), ...(created && { created }), target: text(head['target']) ?? 'web', ...(url && { url }), ...(browser && { browser }), order, rules }
+  return { id, name: text(head['name']) ?? id, ...(request && { request }), ...(created && { created }) }
 }
 
 /** 생성 코드 머리말 — `// ui-test source: <시나리오 경로> · fingerprint: <지문>` */
