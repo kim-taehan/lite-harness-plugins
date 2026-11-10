@@ -70,6 +70,11 @@ describe('service', () => {
     const run = readFileSync(path.join(here, 'skills/ui-test-run/SKILL.md'), 'utf8')
     expect(/^name:\s*ui-test-run\s*$/m.test(run)).toBe(true)
     expect(existsSync(path.join(here, 'skills/ui-test-run/references/history.md'))).toBe(true)
+    // _prompt.md 유무는 AI 가 짐작하지 않고 서버가 알려 준 값(list 의 prompt.exists · 요청 글의 (있음|없음))을 따른다
+    expect(skill).toContain('prompt.exists')
+    expect(skill).toContain('프로젝트 프롬프트: <path> (있음|없음)')
+    expect(run).toContain('prompt.exists')
+    expect(run).toContain('프로젝트 프롬프트: … (있음)')
     const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')) as Record<string, unknown>
     expect(manifest.skills).toBeUndefined()
     // 서버(mcp) · 스킬을 서비스가 올리므로 manifest 에 tools · mcp · lsp 선언과 권한이 없다. 비밀번호는 secret 설정 칸 + 서버 env 라 secrets 권한도 필요 없다

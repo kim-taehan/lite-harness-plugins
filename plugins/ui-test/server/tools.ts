@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { channelLabel, scrub } from './config.ts'
+import { channelLabel, PLUGIN_DIR, scrub } from './config.ts'
 import type { Driver } from './driver.ts'
 import { FAIL_HINT, FAIL_LABEL } from './failure.ts'
 import { compareLine, unitLabel } from './history.ts'
@@ -199,6 +199,9 @@ export function createTools(deps: ToolDeps): Tool[] {
     return { run: runId, at: run.at, mode: run.report, ...(run.report === 'one' && docs.report && { report: docs.report.file }) }
   }
 
+  /** 프로젝트 프롬프트(_prompt.md)의 유무 — 서버가 직접 확인한다(읽지는 않는다). AI 가 짐작하지 않게 list 가 알려 준다 */
+  const promptInfo = (): { file: string; exists: boolean } => ({ file: `${PLUGIN_DIR}/_prompt.md`, exists: existsSync(path.join(config.pluginDir, '_prompt.md')) })
+
   const list: Tool = {
     name: 'list',
     description:
@@ -208,7 +211,7 @@ export function createTools(deps: ToolDeps): Tool[] {
       try {
         const store = workspace.needStore()
         const sel = selectorOf(args)
-        const where = `시나리오 폴더: ${config.scenarioDirRel} · 결과서 폴더: ${config.reportDirRel} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'} · 백엔드 코드: ${config.backendDirs.length ? config.backendDirs.join(', ') : '(프로젝트 안만)'}`
+        const where = `시나리오 폴더: ${config.scenarioDirRel} · 결과서 폴더: ${config.reportDirRel} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'} · 프로젝트 프롬프트: ${promptInfo().file} (${promptInfo().exists ? '있음' : '없음'}) · 백엔드 코드: ${config.backendDirs.length ? config.backendDirs.join(', ') : '(프로젝트 안만)'}`
         if (args['json'] === true) {
           const cursor = typeof args['cursor'] === 'string' && args['cursor'] ? args['cursor'] : undefined
           const page = selectorEmpty(sel) ? await store.scenarioPage(cursor) : { items: (await workspace.selectDocs(sel)).items, cursor: undefined }
@@ -242,6 +245,7 @@ export function createTools(deps: ToolDeps): Tool[] {
               baseUrl: config.baseUrl,
               browser: channelLabel(config.channel),
               running: workspace.runningId() ?? null,
+              prompt: promptInfo(),
               scenarios,
               ...(page.cursor && { cursor: page.cursor }),
               ...(screens && { screens }),

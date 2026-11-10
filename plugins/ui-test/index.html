@@ -286,7 +286,7 @@ function showGroups(groups, query, screens, requests) {
 /** 삭제 확인 글에 쓰는 "다른 화면에도 걸친" 개수 */
 const sharedCount = (rows) => rows.filter((row) => row.screens.length > 1).length
 /** 실행 요청 글 — [▶ 실행] 이 새 대화에 곧바로 보낸다. 첫 줄이 `/ui-test-run` 이라서 앱이 스킬 본문(절차)을 붙여 보낸다 — 여기에는 시나리오마다 제목 · id · 경로 세 개만 적는다(md · 생성 코드 · 수행 기록). 코드 없는 것은 실행 대상에서 뺀다 */
-function runPrompt(rows) {
+function runPrompt(rows, prompt) {
   const ready = rows.filter((row) => row.hasCode)
   const lacking = rows.filter((row) => !row.hasCode)
   const block = (row) => [
@@ -297,6 +297,7 @@ function runPrompt(rows) {
   ].join('\n')
   return [
     '/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.',
+    ...(prompt ? [`프로젝트 프롬프트: \`${prompt.file}\` (${prompt.exists ? '있음' : '없음'})`] : []),
     '',
     ...ready.map(block),
     ...(lacking.length ? ['', '코드가 없어 실행 대상에서 뺀 것:', ...lacking.map((row) => `- ${row.title} (id ${row.id}) — 코드 없음`)] : []),
@@ -446,7 +447,7 @@ async function load(reindex = false, quiet = false) {
     state.sig = sig
     const screens = new Map((first.screens ?? []).map((item) => [item.route, item]))
     const requests = new Map((first.requests ?? []).map((item) => [item.id, item]))
-    state.data = { project: first.project ?? '', scenarioDir: first.scenarioDir, reportDir: first.reportDir, baseUrl: first.baseUrl, browser: first.browser, rows: sortRows(rows, requests), screens, requests }
+    state.data = { project: first.project ?? '', scenarioDir: first.scenarioDir, reportDir: first.reportDir, baseUrl: first.baseUrl, browser: first.browser, prompt: first.prompt, rows: sortRows(rows, requests), screens, requests }
     state.error = ''
     const ids = new Set(rows.map((row) => row.id))
     for (const id of [...state.picked]) if (!ids.has(id)) state.picked.delete(id)
@@ -617,7 +618,7 @@ async function askRun(rows) {
   state.picked.clear()
   state.dock = ''
   state.asking = undefined
-  await ask(runPrompt(rows))
+  await ask(runPrompt(rows, state.data?.prompt))
   render()
 }
 async function ask(text, send = true) {

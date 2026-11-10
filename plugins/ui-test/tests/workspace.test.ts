@@ -364,6 +364,20 @@ describe('도구 — 패널 · AI', () => {
     expect(JSON.parse((await tool('list').run({ json: true, screen: '/admin/menu/:id' })).text).scenarios).toEqual([])
   })
 
+  it('list — _prompt.md 유무를 서버가 직접 알려 준다(JSON prompt · 글 머리) — 파일은 읽지 않는다', async () => {
+    const { tool } = await setup()
+    const file = '.litecode/plugins/ui-test/_prompt.md'
+    expect(JSON.parse((await tool('list').run({ json: true })).text).prompt).toEqual({ file, exists: false })
+    expect((await tool('list').run({})).text).toContain(`프로젝트 프롬프트: ${file} (없음)`)
+    // 읽을 수 없는 파일(폴더)이어도 있다고만 본다 — 내용을 읽지 않는다는 뜻
+    await fs.mkdir(path.join(root, file), { recursive: true })
+    expect(JSON.parse((await tool('list').run({ json: true })).text).prompt).toEqual({ file, exists: true })
+    await fs.rm(path.join(root, file), { recursive: true })
+    await fs.writeFile(path.join(root, file), '# 프롬프트\n')
+    expect(JSON.parse((await tool('list').run({ json: true })).text).prompt).toEqual({ file, exists: true })
+    expect((await tool('list').run({})).text).toContain(`프로젝트 프롬프트: ${file} (있음)`)
+  })
+
   it('list 글(AI) — 파일을 먼저 읽고, 시나리오 · 화면별 · 요청별', async () => {
     const { tool } = await setup()
     const text = (await tool('list').run({})).text

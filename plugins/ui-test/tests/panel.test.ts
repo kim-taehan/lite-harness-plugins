@@ -20,7 +20,7 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   matches(row: Row, query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): boolean
   showGroups(groups: Group[], query: string, screens: Map<string, { name: string }>, requests: Map<string, { text: string }>): Group[]
   sharedCount(rows: Row[]): number
-  runPrompt(rows: unknown[]): string
+  runPrompt(rows: unknown[], prompt?: { file: string; exists: boolean }): string
   runCount(progress: unknown): { total: number; done: number; at: number; percent: number }
   finishNote(progress: unknown): { text: string; detail: string; report?: { file: string } }
   bareTitle(title: string): string
@@ -127,6 +127,16 @@ describe('패널 순수 로직', () => {
     // 절차 · 정리 규칙 · 파일 내용은 글에 없다 — 스킬(ui-test-run)이 한다
     expect(text.split('\n').length).toBeLessThan(15)
     expect(text).not.toContain('다음 수행 때 지킬 것')
+  })
+
+  it('실행 요청 글 — 프로젝트 프롬프트 유무 한 줄(list 가 준 값 그대로), 값이 없으면 줄을 쓰지 않는다', () => {
+    const rows = [{ id: 'a-01', title: '정상 로그인', file: '.litecode/plugins/ui-test/scenarios/a-01.md', hasCode: true, hasHistory: false }]
+    const file = '.litecode/plugins/ui-test/_prompt.md'
+    const yes = api.runPrompt(rows, { file, exists: true }).split('\n')
+    expect(yes[0]).toBe('/ui-test-run 아래 시나리오를 실행하고 결과를 알려 주세요.')
+    expect(yes[1]).toBe(`프로젝트 프롬프트: \`${file}\` (있음)`)
+    expect(api.runPrompt(rows, { file, exists: false })).toContain(`프로젝트 프롬프트: \`${file}\` (없음)`)
+    expect(api.runPrompt(rows)).not.toContain('프로젝트 프롬프트')
   })
 
   it('실행 배너 숫자와 완료 알림 글', () => {
