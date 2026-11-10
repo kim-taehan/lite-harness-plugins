@@ -110,7 +110,7 @@ export default (host) =>
 
 - **생성자에서 던지면** 그 서비스는 올라오지 않고 `failed` 로 남습니다(다른 서비스는 갑니다). 선언하지 않은 소식을 `ctx.on` 하면 던집니다.
 - 쓸 수 있는 `ctx` 는 `on` · `get` · `effect` · `logger` 와 시간 도우미(`setTimeout` · `setInterval` · `sleep`)입니다. `root` · `emit` · `scope` · `fiber` 는 없습니다.
-- `host` 로 오는 것: `host.Service` · `host.id` · `host.call` · `host.panel` · `host.tools` · `host.mcp` · `host.fetch` · `host.settings` · `host.enabledIn` · `host.projects` · `host.locale` · `host.skills` · `host.agents` · `host.lsp`.
+- `host` 로 오는 것: `host.Service` · `host.id` · `host.call` · `host.panel` · `host.tools` · `host.mcp` · `host.fetch` · `host.settings` · `host.enabledIn` · `host.projects` · `host.locale` · `host.skills` · `host.agents` · `host.lsp` · `host.db`(호스트 API 2 앱만 — [3-1](#3-1-문서-저장소--hostdb)).
 - 게임 규칙 같은 공유 코드(`game.js`)는 `import` 하면 번들에 같이 묶입니다. 한 파일이어야 하므로 **옆 파일을 실행 때 읽는 코드**(`import.meta.url` · `import.meta.dirname` 기준 경로)는 쓰지 못합니다 — 앱이 번들 바이트를 자료 폴더의 사본에서 올리기 때문입니다.
 
 ## 3. 상태는 서비스가 들고 패널은 읽는다
@@ -120,7 +120,30 @@ export default (host) =>
 1. **권장 — 서비스가 상태를 들고, 패널은 `service.call` 로만 읽습니다.** 패널은 그 상태를 자기 저장소에 쓰지 않습니다. token-pet 이 이 방식입니다(패널이 예전에 쓰던 `storage` 키 `state` 를 서비스가 그대로 이어받아 키우던 빛톨이 이어집니다).
 2. 둘 다 써야 하면 **키를 나눕니다.** 서비스 몫과 패널 몫이 같은 키를 쓰지 않게 합니다.
 
-서비스용 영구 저장소(`host.storage`)는 아직 없습니다. 영구 값은 `host.call('storage.get' | 'storage.set', { key, … })` 로 패널과 같은 저장 칸에 두고(JSON, 전체 64KB), 설정 칸 값은 `host.settings()` 로 읽습니다. 서비스가 내려가 있거나 그 프로젝트에서 꺼져 있으면 패널이 받는 실패 코드(`service-off` · `not-on`)에 대비해, 패널은 화면용 마지막 값을 자기 키에 따로 둘 수 있습니다.
+작은 영구 값은 `host.call('storage.get' | 'storage.set', { key, … })` 로 패널과 같은 저장 칸에 두고(JSON, 전체 64KB), 설정 칸 값은 `host.settings()` 로 읽습니다. 목록으로 쌓고 조건으로 찾고 지워야 하는 자료(이력 · 색인 · 상태)는 문서 저장소 `host.db` 에 둡니다(아래 [3-1](#3-1-문서-저장소--hostdb)). 서비스가 내려가 있거나 그 프로젝트에서 꺼져 있으면 패널이 받는 실패 코드(`service-off` · `not-on`)에 대비해, 패널은 화면용 마지막 값을 자기 키에 따로 둘 수 있습니다.
+
+### 3-1. 문서 저장소 — host.db
+
+플러그인마다 따로 쓰는 JSON 문서 저장소입니다(**베타**, 호스트 API 2 — desktop #1701). 자세한 규칙은 `sdk/README.md` 의 "문서 저장소 — host.db", 타입은 `sdk/litecode-service.d.ts` 가 정본입니다.
+
+```js
+const at = { directory } // 프로젝트별(scope: "project") 서비스는 늘 넘긴다
+await host.db.set('runs', runId, { suite: 'login', at: Date.now(), ok: true }, at)
+const doc = await host.db.get('runs', runId, at) // 없으면 null
+const page = await host.db.query('runs', { where: [{ field: 'suite', op: '=', value: 'login' }], orderBy: { field: 'at', dir: 'desc' }, limit: 20 }, at)
+// { docs: [{ id, doc }], cursor? } — cursor 가 있으면 다음 호출에 그대로 넘긴다
+await host.db.batch([{ op: 'set', collection: 'runs', id: newId, doc }, { op: 'delete', collection: 'runs', id: oldId }], at) // 원자적, 최대 50 연산
+const { bytes, docs, limits } = await host.db.usage(at)
+```
+
+- **서비스 전용입니다.** 패널은 `service.call` 로 서비스에 맡기고, `host.mcp.register` 로 올린 **MCP 서버 프로세스에서도 못 씁니다** — 서버가 만든 값은 도구 결과로 서비스에 돌려주고 서비스가 씁니다. 권한은 따로 없습니다(`storage` 와 같은 급).
+- **범위:** 플러그인마다 따로, 프로젝트별 서비스는 프로젝트(실제 경로)마다 또 따로입니다. 플러그인을 지우면 같이 지워지고 업데이트 · 재설치로는 지워지지 않습니다.
+- **한도:** 문서 하나 256KB · 컬렉션 20개 · 컬렉션당 문서 50,000개 · 플러그인 총 200MB · `list`/`query` 한 번 최대 200개(기본 50) · `batch` 50 연산. 넘으면 `ServiceCallError` 의 `code`(`doc-too-big` · `collection-limit` · `collection-full` · `db-full`). 그 밖에 `params-invalid` · `no-project` · `not-on`.
+- **조건:** `=` `!=` `<` `<=` `>` `>=` `in` `prefix`(모두 AND), 정렬 필드 하나, `cursor` 로 이어 읽기(건너뛰기가 아니라 마지막 값 뒤부터).
+- **느려지는 때:** 색인 선언이 없습니다. id 순 `list` 와 조건 · 정렬 없는 `query` 는 기본키를 타 문서가 많아도 1ms 안쪽이지만, 조건이나 `orderBy` 를 주면 컬렉션을 훑어 크기에 비례합니다(문서 ~1KB 5만 개 34~58ms, ~2KB 면 쪽당 약 200ms). **조회는 앱 메인 프로세스에서 동기로 돌아 그동안 앱 전체가 멈춥니다.** 큰 컬렉션은 id 를 시각으로 시작하게 지어(`2026-11-10T09-00-00_<번호>`) `list` 의 id 순이 곧 시간순이 되게 하고, `query` 를 연달아 부르지 않습니다.
+- **깨지면 빈 채로 다시 시작합니다**(앱이 옆으로 치움). 그래서 다시 만들 수 있는 색인 · 이력 · 상태만 둡니다. 사람이나 AI 가 쓴 원본(시나리오 · 결과서)은 지금처럼 파일입니다.
+- **옛 앱에는 없습니다.** `service.api: 2` 를 적으면 옛 앱(api 1)에서 설치가 거절됩니다(`service-incompatible`). 옛 앱에서도 돌아야 하면 `api: 1` 로 두고 `if (host.db)` 로 확인해 대체 길로 물러납니다.
+- 가짜 host(`createFakeHost`)가 같은 `host.db` 를 메모리로 흉내 냅니다(한도 시험은 `createFakeHost({ dbLimits: { totalBytes: 1000 } })`).
 
 ## 4. 앱 소식 받기
 

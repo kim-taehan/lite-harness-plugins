@@ -71,7 +71,7 @@ export default bundle
 2. 둘 다 써야 하면 **키를 나눈다.** 서비스 몫과 패널 몫이 같은 키를 쓰지 않게 한다.
 
 패널이 부르는 길은 `service.call`(`{ name, params }`)과 `service.list` 다(그 밖에 화면 전용 표면 `panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `chat.current` 와 소식 받기 `events.subscribe`). 서비스가 내려가 있거나 그 프로젝트에서 꺼져 있으면 실패 코드(`service-off` · `not-on`)가 오니, 패널은 화면용 마지막 값을 자기 키에 따로 둘 수 있다. `expose` 한 값은 JSON 으로 오가므로 함수·순환 값은 줄 수 없다.
-서비스용 영구 저장소(`host.storage`)는 아직 없다 — 호스트에 생기면 이 안내와 가짜 host 에 같이 더한다. 지금은 서비스 안에 메모리로 들고, 필요한 만큼만 `host.settings()` 의 설정 칸을 쓴다.
+서비스가 이력·요약·상태를 오래 남기려면 문서 저장소 `host.db`(아래 "문서 저장소 — host.db")를 쓴다. 작은 값 몇 개는 `host.settings()` 의 설정 칸이나 `host.call('storage.get' · 'storage.set')`(64KB)로도 충분하다.
 
 ## 프로젝트 자원은 projectOn · ctx.effect 로 되돌린다
 
@@ -208,6 +208,62 @@ const items = JSON.parse(await response.text())
 
 **설치 검사가 번들을 훑는다.** 번들 글자에 `fetch(` · `new WebSocket` · `node:http` · `https` · `http2` · `net` · `tls` · `dns` · `dgram` · `undici` 를 쓴 흔적이 있으면 설치가 거절된다(`service-network-direct`). 올릴 때도 같은 점검을 한다. 글자 점검이라 완전하지 않고(일부러 가린 코드는 못 잡는다), 반대로 `fetch(` 라는 이름의 메서드도 걸릴 수 있다 — 그때는 이름을 바꾼다.
 
+## 문서 저장소 — host.db
+
+이력·요약·상태처럼 목록으로 쌓고 조건으로 찾고 지워야 하는 자료를 두는 곳이다(**베타** — 한도는 써 보며 조정한다). 작은 값 몇 개는 `storage`(64KB 하나)로 충분하다. 이 저장소는 `storage` 를 대체하지 않는다.
+
+```ts
+await host.db.set('runs', runId, { suite: 'login', at: Date.now(), ok: true }, { directory })
+const doc = await host.db.get('runs', runId, { directory }) // 없으면 null
+await host.db.delete('runs', runId, { directory })
+
+// 조건 조회 — 최신순 20개
+const page = await host.db.query('runs', {
+  where: [{ field: 'suite', op: '=', value: 'login' }, { field: 'at', op: '>=', value: since }],
+  orderBy: { field: 'at', dir: 'desc' },
+  limit: 20,
+}, { directory })
+// { docs: [{ id, doc }], cursor? } — cursor 가 있으면 더 있다
+await host.db.list('runs', { limit: 50, cursor: page.cursor }, { directory }) // id 순 목록
+
+// 한꺼번에 — 원자적: 하나라도 안 되면 아무것도 안 된다(최대 50 연산)
+await host.db.batch([
+  { op: 'set', collection: 'runs', id: newId, doc },
+  { op: 'delete', collection: 'runs', id: oldestId },
+], { directory })
+
+const { bytes, docs, collections, limits } = await host.db.usage({ directory }) // db-full 이 나기 전에 스스로 오래된 것을 지운다
+```
+
+`host.db.get` · `set` · `delete` · `list` · `query` · `batch` · `usage` 는 `host.call('db.get' …)` 위의 얇은 막이다(`host.fetch` 와 같다). **서비스 전용**이라 패널은 직접 부르지 못한다 — 패널은 `service.call` 로 서비스에 맡긴다. `host.mcp.register` 로 올린 MCP 서버 프로세스(별도 프로세스)에서도 쓸 수 없다 — 서버가 저장해야 할 값은 도구 결과로 서비스에 돌려주고, 서비스가 `host.db` 에 쓴다. 권한은 따로 없다(`storage` 와 같은 급).
+
+**범위.** 플러그인마다 따로 — 다른 플러그인의 문서는 열 길이 없다. `scope: "project"` 서비스는 프로젝트(실제 경로)마다 또 따로이고 `{ directory }` 가 있어야 한다(없으면 `host.call` 과 같이 `not-on`). `scope: "app"` 서비스는 하나다. 프로젝트 폴더를 옮기면 새 프로젝트로 보인다(다른 프로젝트별 자료와 같은 한계).
+
+**문서와 이름.** 문서는 JSON 객체다(`{ … }`, 배열·글·숫자 하나는 안 된다). 컬렉션 이름은 `A-Za-z0-9_.-` 64자 이하, 문서 id 는 같은 글자로 128자 이하. 컬렉션은 문서를 처음 쓸 때 생기고 문서가 하나도 없으면 없는 것으로 센다. `set` 은 같은 id 를 통째로 바꾼다. 없는 문서를 `delete` 해도 오류가 아니다.
+
+**조건.** 연산자는 `=` `!=` `<` `<=` `>` `>=` `in` `prefix` 뿐이고 조건은 모두 AND 다(부분 일치 `contains` 는 없다 — 느린 전체 훑기를 부르기 쉽다). 필드는 점 경로(`meta.size`, 깊이 5까지, 마디는 글자나 `_` 로 시작하는 `A-Za-z0-9_`)이고 값은 글·숫자·참거짓이다.
+- 필드가 없거나 `null`·객체·배열이면 어떤 조건에도 맞지 않는다(`!=` 도). 값의 종류가 다르면(글 필드에 숫자 조건) 맞지 않는다.
+- 글은 코드 포인트 순으로 비교하고, 참거짓은 `=` `!=` `in` 만 쓴다. `in` 은 같은 종류의 값 100개까지, `prefix` 는 글 필드의 앞부분(대소문자 구분).
+- 정렬은 필드 하나(`orderBy`) — 값이 없는 문서가 먼저, 그다음 숫자·참거짓, 글 순이고 같으면 id 순이다. 정렬을 안 주면 id 순. 조건은 10개까지.
+- `limit` 기본 50 · 최대 200. 더 있으면 결과에 `cursor` 가 온다 — 다음 호출에 그대로 넘기되(같은 조건·같은 `orderBy` 로) 뜻은 모르는 글로 다룬다. 건너뛰기가 아니라 "마지막으로 본 정렬 값·id 바로 뒤"에서 이어 읽어서, 쪽을 넘겨도 쪽마다 느려지지 않고 이어 보는 사이 문서가 바뀌어도 겹치지 않는다(이미 지나온 자리에 새로 생긴 문서는 이번 이어 보기에 안 보인다). `cursor` 는 4096자까지라, 정렬 필드가 아주 긴 글이면 이어 보기가 `params-invalid` 로 막힌다 — 정렬 필드는 짧은 값(시각·숫자·이름)으로 둔다.
+- **느려지는 때.** 이 저장소에는 색인 선언이 없다. id 순 `list` 와 정렬·조건이 없는 `query` 는 기본키 색인을 타서 문서가 많아도 1ms 안쪽이지만, **조건이나 정렬(`orderBy`)을 주면 그 컬렉션을 훑으므로 컬렉션 크기(문서 수 × 문서 크기)에 비례해 느려진다.** 앱에서 잰 값(문서 ~1KB): 1만 개 7ms · 5만 개 34ms(다음 쪽 58ms) · 10만 개 66ms(다음 쪽 135ms), 문서 ~2KB 5만 개 105ms(다음 쪽 200ms). 조건을 10개 걸면 몇 배 더 걸린다. **조회는 앱의 메인 프로세스에서 동기로 돌아서, 그 시간 동안 앱의 다른 일(대화 스트림 등)도 같이 멈춘다** — 쪽당 최대 약 200ms(문서 ~2KB 기준). 호출 횟수·시간 제한은 아직 없으니 `query` 를 연달아 부르지 말고, 큰 컬렉션은 `list` 로 쪽을 나눠 읽는다. 컬렉션이 크면 정렬·조건 `query` 대신 `list`(id 순)를 쓰거나, 서비스가 id 를 시간순으로 지어(`2026-11-10T09-00-00_<번호>`처럼 앞에 시각) id 순 그대로가 최신·오래된 순이 되게 한다.
+
+**한도와 오류.** 넘으면 `ServiceCallError` 의 `code` 로 온다.
+
+| 한도 | 값 | 오류 코드 |
+| --- | --- | --- |
+| 문서 하나(JSON 글자의 UTF-8 바이트) | 256KB | `doc-too-big` |
+| 컬렉션 수(플러그인·프로젝트당) | 20개 | `collection-limit` |
+| 컬렉션당 문서 수 | 50,000개 | `collection-full` |
+| 플러그인 총 용량(모든 프로젝트 몫의 합, 문서 바이트 합) | 200MB | `db-full` |
+| `list`·`query` 한 번 / `batch` 한 번 | 최대 200개 / 50 연산 | `params-invalid` |
+
+그 밖에 인자 모양이 틀리면(이름·필드·연산자·값 종류·한도 밖 limit) `params-invalid`, 서비스가 꺼져 있거나 지워지는 중이면 `not-on`, 프로젝트별 서비스에 프로젝트가 없으면 `no-project`. 총 용량은 가득 차도 값을 줄이는 쓰기와 지우기는 된다. 같은 값을 `host.db.usage()` 가 알려 준다(`bytes` 는 플러그인 전체, `docs`·`collections` 는 그 프로젝트 몫, `limits` 에 한도).
+
+**지우기와 깨짐.** 플러그인을 지우면 자료 폴더째 사라진다. 업데이트·재설치로는 지우지 않는다. 저장소 파일이 깨지면(앱을 켤 때 열다가, 또는 쓰는 중에 발견해도) 앱이 `db.sqlite.corrupt-<시각>` 으로 옆으로 치우고 빈 채로 시작한다 — 쓰는 중에 발견한 호출은 `io-failed` 로 한 번 끝나고 다음 호출부터 정상이다. 치운 파일은 최근 2개만 남긴다. 그래서 여기에는 "다시 만들 수 있는 색인·이력·상태"만 둔다.
+
+**옛 앱에는 없다.** 이 저장소는 호스트 API 2 부터 있다(`SERVICE_API_LATEST` = 2). 옛 앱(api 1)의 `host` 에는 `db` 가 없고(`.d.ts` 에서 선택 필드), 그런 앱에 `service.api: 2` 를 적은 플러그인은 설치가 거절된다(`service-incompatible`). 옛 앱에서도 돌아야 하면 `service.api` 를 1 로 두고 `host.db` 가 있나 보고(`if (host.db)`) 파일 같은 대체 길로 물러난다.
+
 ## 앱 없이 가짜 host 로 시험하기
 
 ```ts
@@ -231,6 +287,7 @@ await fake.dispose() // 해제 함수·ctx.effect 정리·소식 구독 해제
 - `host.call` 의 값: 앞문(허용 목록 · `scope` 의 `not-on`)만 진짜와 같고, 돌려줄 값은 `createFakeHost({ calls: { 'project.info': () => … } })` 로 준다. 권한(`permissions`)·창 응답은 흉내 내지 않는다. 부른 기록은 `fake.calls`.
 - `host.tools` · `host.mcp`: 가짜 host 는 이름·모양 검사와 올림·걷기만 같다. 도구는 `fake.tools()` · `fake.callTool(이름, 인자, { directory })`(그 프로젝트에서 켜진 때만), 서버는 `fake.mcpServers()` 로 보고 띄우지는 않는다.
 - `host.dir` 은 `createFakeHost({ dir: '/시험용/폴더' })` 로 정한다(기본 `/fake/plugin`). `host.grammars.register` 는 `scope: "app"` 만 되고(아니면 던진다) id 겹침을 보며, 올린 것은 `fake.grammars()` 로 본다(모양 · 내장 확장자 거름은 진짜 앱이 한다). `host.locale` · `skills` · `agents` · `lsp` 도 `fake.locales()` · `skills()` · `agents()` · `lspServers()` 로 본다.
+- `host.db`: 가짜 host 가 메모리로 같은 `host.db` 를 흉내 낸다 — 인자 검사 · 조건 계산 · 한도 · 오류 코드는 진짜 앱과 같은 코드를 쓰고 같은 사례를 양쪽에 돌려 확인한다(프로젝트별 서비스는 `directory` 글자 그대로 이름 공간, 파일은 쓰지 않는다). 한도를 줄여 `db-full` 같은 길을 시험하려면 `createFakeHost({ dbLimits: { totalBytes: 1000 } })`. `calls: { 'db.get': … }` 로 직접 흉내 내면 그것이 먼저다.
 - `host.panel.emit` 은 패널에 가지 않고 `fake.pushes()` 에 쌓인다(이름 검사 · JSON 복사 · 64KB · 초당 20번은 진짜와 같다).
 - `static inject` 가 manifest 밖 키를 쓰는지 따지는 일.
 - 1초 정리 기한·읽기 기한.
