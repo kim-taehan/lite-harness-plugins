@@ -47,7 +47,7 @@ UI 테스트 (베타) — 화면 소스를 읽어 시나리오 초안을 대화�
 - `server/steps.ts` — 생성 코드가 쓰는 단계 API(`step` · `page` · `expect` · `data` · `account` · `baseUrl`), 단계마다 스크린샷, page 호출(셀렉터 · 기다림)과 expect 를 적어 테스트 방법 재료로 돌려준다(입력 값은 적지 않는다)
 - `server/remove.ts` — 삭제: 시나리오 하나(md · 생성 코드 · suite.md 의 순서 · 규칙) 또는 묶음 전체. 이 플러그인 파일(suite.md · 시나리오 .md · .spec.mjs)만 지우고 폴더에 다른 파일이 있으면 폴더를 남긴다. 묶음 삭제는 이어서 결과서 · 가이드 · 스크린샷 · 수행 이력까지 모두 지우고(runner.removeSuite), 시나리오 삭제는 그 시나리오의 수행 이력 · 스크린샷을 지우고 결과서를 남은 시나리오로 다시 쓴다(runner.removeScenario). 수행 중인 묶음은 거절
 - `server/guide.ts` — 가이드형 결과물 `guide.html` (결과서와 같은 입력)
-- `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 케이스마다 단계 표 · 오류 · 테스트 방법
+- `server/report.ts` — 결과서 한 파일(스크린샷은 data: URL), 인쇄용 스타일, 카드 · 라이트/다크 · 좁은 폭은 표 없이 줄, 수행 정보 아래 실패한 시나리오 링크 줄, 시나리오마다 `id="s-<id>"` 앵커 · 단계 줄 · 오류 · 테스트 방법
 - `server/history.ts` — 이력 · 지난 수행과 비교(새로 실패 · 고쳐짐 · 그대로 실패)
 - `server/scenario.ts` — 시나리오 · suite.md 읽기, 지문
 - `server/store.ts` — 0.7.0 저장 계층(1 단계 — 아직 아무도 부르지 않는다, 2 단계에서 서버에 연결). host.db 컬렉션 `scenarios` · `requests` · `runs` · `results` · `screens` 의 문서 모양과 읽고 쓰는 함수: 시나리오 upsert · 쪽 읽기(200개) · 삭제(results 까지, batch 50개씩) · 요청 · 수행 기록 · 마지막 결과 · 시나리오별 최근 20개만 남기는 정리(`pruneResults` — 지운 results · runs 를 돌려주고 스크린샷 · 결과서 파일 삭제는 부르는 쪽) · id 만들기 · 검증(`A-Za-z0-9_.-` 128자, 한글 불가). 서버가 DB 를 못 쓰면(`createDbClient()` 가 undefined) `db-unavailable`, 파일 대체 길은 없다. 원본은 파일이고 DB 는 색인 · 기록이다(`scenarios.file` 은 한글 파일명 id 를 위한 색인 값)

@@ -3,7 +3,7 @@
 // 안전: 비밀번호 · 접속 주소 · 호스트 · 계정은 넣지 않고(scrub), 바인드 값 중 문자열은 길이만(maskBind), 데이터 행은 받지 않는다(compare 의 행 수 · 체크섬 · 시간만).
 // 시안: scratchpad sql-tuning-report.html — CSS 와 마크업을 그대로 옮기고, 코드 비교(diff)는 시안처럼 AI 가 HTML 을 짜지 않고 두 SQL 에서 서버가 만든다.
 
-import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { redact } from './guard.ts'
 
@@ -875,6 +875,35 @@ export async function writeReport(cwd: string, html: string, now: Date, meta?: (
     return path.relative(root, file).split(path.sep).join('/')
   }
   throw new Error('Could not pick a free report folder name.')
+}
+
+/** 결과서 폴더 이름(<날짜>-<시각>[-n]) — 삭제는 이 모양의 폴더만 지운다 */
+export const REPORT_ID = /^\d{8}-\d{6}(-\d+)?$/
+
+/** 결과서 하나(폴더째)를 지운다 — 패널의 [삭제]. 실패는 `코드: 설명` 글로 던진다(bad-id · not-found · unsafe).
+ *  이름이 REPORT_ID 모양이어야 하고, 링크를 따라 프로젝트 밖으로 나가면 지우지 않는다. 다른 결과서 · .gitignore-asked 는 건드리지 않는다 */
+export async function removeReport(cwd: string, id: string): Promise<string[]> {
+  if (typeof id !== 'string' || !REPORT_ID.test(id)) throw new Error('bad-id: the report id must look like 20261110-090333.')
+  const root = await realpath(cwd)
+  const base = path.join(root, REPORT_DIR)
+  let baseReal: string
+  try {
+    baseReal = await realpath(base)
+  } catch {
+    throw new Error(`not-found: there is no ${REPORT_DIR} folder.`)
+  }
+  if (!inside(root, baseReal)) throw new Error(`unsafe: ${REPORT_DIR} resolves outside the project folder.`)
+  const dir = path.join(baseReal, id)
+  let info
+  try {
+    info = await lstat(dir)
+  } catch {
+    throw new Error(`not-found: report ${id} does not exist.`)
+  }
+  if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`unsafe: ${id} is not a plain report folder.`)
+  const names = await readdir(dir)
+  await rm(dir, { recursive: true })
+  return names
 }
 
 /** 결과서 폴더가 .gitignore 에 없고 처음이면 제안 글 — 플러그인은 .gitignore 를 고치지 않는다 (ui-test 와 같은 방식). 물어 본 표시는 폴더 안 .gitignore-asked */

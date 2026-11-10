@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileS
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { buildMeta, diffLines, hiddenValues, maskBinds, maskLabel, parseReport, renderReport, scrub, writeReport } from '../server/report.ts'
+import { buildMeta, removeReport, diffLines, hiddenValues, maskBinds, maskLabel, parseReport, renderReport, scrub, writeReport } from '../server/report.ts'
 import type { ReportInput } from '../server/report.ts'
 import { createTools } from '../server/tools.ts'
 import type { Adapter } from '../server/types.ts'
@@ -97,6 +97,50 @@ describe('결과서 렌더러', () => {
     expect(maskLabel('최근 7일 · 결제 완료', { days: 7 })).toBe('최근 7일 · 결제 완료')
     const html = render({ ...win, compare: [{ ...win.compare[0]!, label: '{"email":"kim@example.com"}', binds: { email: 'kim@example.com' } }] })
     expect(html).not.toContain('kim@example.com')
+  })
+
+  it('removeReport — 그 결과서 폴더만 지우고(meta.json 포함), 다른 결과서 · 점 파일은 남긴다', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sqlt-del-'))
+    dirs.push(dir)
+    const a = await writeReport(dir, '<html>a</html>', new Date(2026, 10, 9, 14, 32, 5), (id) => buildMeta(win, id, at, []))
+    const b = await writeReport(dir, '<html>b</html>', new Date(2026, 10, 10, 9, 3, 33), (id) => buildMeta(win, id, at, []))
+    writeFileSync(path.join(dir, 'sql-tuning-reports', '.gitignore-asked'), '')
+    const idA = path.basename(path.dirname(a))
+    expect(await removeReport(dir, idA)).toEqual(expect.arrayContaining(['index.html', 'meta.json']))
+    expect(readdirSync(path.join(dir, 'sql-tuning-reports')).sort()).toEqual(['.gitignore-asked', path.basename(path.dirname(b))].sort())
+  })
+
+  it('removeReport — 모양이 틀린 이름 · 없는 결과서 · 링크는 거절하고 아무것도 지우지 않는다', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sqlt-del-'))
+    dirs.push(dir)
+    const file = await writeReport(dir, '<html></html>', at, (id) => buildMeta(win, id, at, []))
+    const id = path.basename(path.dirname(file))
+    for (const bad of ['..', '../x', '20261110', `${id}/..`, '.gitignore-asked', '']) await expect(removeReport(dir, bad)).rejects.toThrow(/^bad-id/)
+    await expect(removeReport(dir, '20200101-000000')).rejects.toThrow(/^not-found/)
+    const outside = mkdtempSync(path.join(tmpdir(), 'sqlt-out-'))
+    dirs.push(outside)
+    writeFileSync(path.join(outside, 'keep.txt'), 'x')
+    symlinkSync(outside, path.join(dir, 'sql-tuning-reports', '20261111-111111'))
+    await expect(removeReport(dir, '20261111-111111')).rejects.toThrow(/^unsafe/)
+    expect(readFileSync(path.join(outside, 'keep.txt'), 'utf8')).toBe('x')
+    expect(readdirSync(path.join(dir, 'sql-tuning-reports'))).toContain(id)
+    await expect(removeReport(path.join(dir, 'nothing-here'), id)).rejects.toThrow()
+  })
+
+  it('delete_report 도구 — 지우고 알린다, 틀린 이름은 오류 글로 돌려준다', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sqlt-del-'))
+    dirs.push(dir)
+    const adapter = { async query() { throw new Error('no') } } as unknown as Adapter
+    const tools = createTools(async () => adapter, { rowLimit: 5, timeoutMs: 1000, report: { cwd: dir, now: () => at } } as never)
+    const made = await tools.find((tool) => tool.name === 'report')!.run({ ...win })
+    const id = /sql-tuning-reports\/([^/\s]+)\//.exec(made.text)![1]!
+    const del = tools.find((tool) => tool.name === 'delete_report')!
+    const ok = await del.run({ id })
+    expect(ok.isError).toBeUndefined()
+    expect(ok.text).toContain(`Deleted report ${id}`)
+    expect(readdirSync(path.join(dir, 'sql-tuning-reports')).filter((name) => /^\d/.test(name))).toEqual([])
+    expect((await del.run({ id })).isError).toBe(true)
+    expect((await del.run({ id: '../x' })).text).toMatch(/^bad-id/)
   })
 
   it('meta.json — 결과서 옆에 목록용 요약(판정 · 비용 · 비교 요약)만 쓰고 비밀 · 접속 정보 · 데이터 행은 넣지 않는다', async () => {

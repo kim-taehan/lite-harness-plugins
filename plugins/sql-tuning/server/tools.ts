@@ -2,7 +2,7 @@
 // 실제 데이터 행은 query 만 돌려준다(승인은 엔진 권한 규칙이 매번 묻는다 — README)
 
 import { bindsFor, checkReadOnly } from './guard.ts'
-import { buildMeta, gitignoreHint, hiddenValues, parseReport, renderReport, writeReport } from './report.ts'
+import { buildMeta, gitignoreHint, hiddenValues, parseReport, removeReport, renderReport, writeReport } from './report.ts'
 import type { Adapter, Binds, CapturedSql, ImpactInfo, Plan, PlanStep, RunStats, TableInfo, TopBy, TopQuery } from './types.ts'
 
 export interface ToolResult {
@@ -404,6 +404,19 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
         const hint = await gitignoreHint(cwd)
         if (hint) lines.push('', `The report folder \`${hint}\` is not in .gitignore — ask the user whether to add it so reports are not committed (this plugin does not edit .gitignore).`)
         return { text: lines.join('\n') }
+      },
+    },
+    {
+      name: 'delete_report',
+      description: 'Panel only (after the user confirmed): delete one saved tuning report folder (sql-tuning-reports/<id>/). Not for the AI — never call it yourself.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Report folder name, for example 20261110-090333.' } }, required: ['id'] },
+      async run(args) {
+        try {
+          const names = await removeReport(options.report?.cwd ?? process.cwd(), String(args['id'] ?? ''))
+          return { text: `Deleted report ${String(args['id'])} (${names.join(', ') || 'empty'}).` }
+        } catch (error) {
+          return fail(error instanceof Error ? error.message : String(error))
+        }
       },
     },
     {
