@@ -329,6 +329,14 @@ const bareTitle = (title) => String(title).replace(/^\s*\d+[.)]?\s*/, '')
 const docKey = (doc) => `${doc.run}:${doc.kind}:${doc.scenario ?? ''}`
 const docLabel = (doc) => (doc.kind === 'guide' ? '화면 가이드' : '결과서')
 const docChoices = (noPdf) => (noPdf ? ['open', 'cancel'] : ['pdf', 'open', 'cancel'])
+
+/** [환경] 팝업의 _prompt.md [열기]가 실패했을 때 보이는 글 — 파일이 정말 없을 때만 "아직 없습니다", 그 밖(창 없음 · 권한 · 앱 거절)은 실제 오류 글 */
+const MISSING_FILE = /not[ -_]?found|ENOENT|no such file|does not exist|없습니다/i
+const promptOpenMessage = (error) => {
+  const message = String(error?.message ?? error ?? '').trim()
+  if (MISSING_FILE.test(message)) return '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'
+  return message ? `열지 못했습니다 — ${message}` : '열지 못했습니다'
+}
 // </pure>
 
 let seq = 0
@@ -1008,7 +1016,7 @@ function envDialog(data) {
           { class: 'pfile' },
           svgSpan('ico', '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'),
           el('div', { class: 'meta' }, el('b', {}, promptPath()), el('span', {}, 'AI가 참고하는 이 프로젝트의 테스트 방법')),
-          el('div', { style: 'display:flex;gap:2px' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch(() => ((env.failed = true), (env.saved = '아직 없습니다 — 대화에서 UI 테스트를 처음 요청하면 만들어집니다'), render())), { class: 'quiet' }), btn('다시 만들기', () => (close(), ask(rebuildPrompt())), { class: 'quiet' })),
+          el('div', { style: 'display:flex;gap:2px' }, btn('열기', () => tool('openFile', { path: promptPath() }).catch((error) => ((env.failed = true), (env.saved = promptOpenMessage(error)), render())), { class: 'quiet' }), btn('다시 만들기', () => (close(), ask(rebuildPrompt())), { class: 'quiet' })),
         ),
       ),
     ),

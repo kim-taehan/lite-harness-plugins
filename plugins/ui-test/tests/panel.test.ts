@@ -9,7 +9,7 @@ if (!source) throw new Error('index.html 에서 <pure> 구간을 찾지 못했�
 
 type Row = { id: string; title: string; screens: string[]; request: string | null; status: string | null; lastAt: number | null }
 type Group = { key: string; kind?: string; title: string; rows: Row[]; selector?: Record<string, string>; loose?: boolean; shown?: Row[]; lastRun?: { at: number } | null }
-const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, runCount, finishNote, bareTitle, docKey, docLabel, docChoices }`)() as {
+const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, runCount, finishNote, bareTitle, docKey, docLabel, docChoices, promptOpenMessage }`)() as {
   whenText(ms: number, now?: number): string
   dayText(ms: number): string
   dotOf(status: string): string
@@ -27,6 +27,7 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   docKey(doc: { run: string; kind: string; scenario?: string }): string
   docLabel(doc: { kind: string }): string
   docChoices(noPdf: boolean): string[]
+  promptOpenMessage(error: unknown): string
 }
 
 const at = (d: number, h: number, m: number): number => new Date(2026, 10, d, h, m).getTime()
@@ -185,5 +186,22 @@ describe('결과서 · 가이드 링크의 선택', () => {
   it('버튼 — PDF 로 저장 · 열기 · 취소, PDF 저장을 모르는 앱이면 열기 · 취소만', () => {
     expect(api.docChoices(false)).toEqual(['pdf', 'open', 'cancel'])
     expect(api.docChoices(true)).toEqual(['open', 'cancel'])
+  })
+})
+
+describe('_prompt.md 열기 실패 글', () => {
+  it('파일이 정말 없을 때만 "아직 없습니다"', () => {
+    for (const message of ['ENOENT: no such file', 'file not found', 'not-found', '파일이 없습니다']) expect(api.promptOpenMessage(new Error(message))).toMatch(/^아직 없습니다/)
+  })
+
+  it('그 밖의 오류는 실제 글을 그대로 보인다 — 창 없음 · 권한 · 앱 거절', () => {
+    expect(api.promptOpenMessage(new Error('no-window'))).toBe('열지 못했습니다 — no-window')
+    expect(api.promptOpenMessage(new Error('permission denied'))).toBe('열지 못했습니다 — permission denied')
+    expect(api.promptOpenMessage('거절됨')).toBe('열지 못했습니다 — 거절됨')
+  })
+
+  it('빈 오류는 일반 문구', () => {
+    expect(api.promptOpenMessage(new Error(''))).toBe('열지 못했습니다')
+    expect(api.promptOpenMessage(undefined)).toBe('열지 못했습니다')
   })
 })
