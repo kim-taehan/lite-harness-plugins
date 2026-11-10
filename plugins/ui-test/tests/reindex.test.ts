@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { reindex } from '../server/reindex.ts'
-import { hashedScenarioId, importedRequestId, openStore, toResultDoc, type RunDoc } from '../server/store.ts'
+import { hashedScenarioId, importedRequestId, openStore, requestIdFor, toResultDoc, type RunDoc } from '../server/store.ts'
 import { fakeDb } from './store-helper.ts'
 
 // 다시 채우기 — 임시 프로젝트 폴더의 ui-tests/ 를 훑어 가짜 host.db 의 scenarios 를 맞춘다
@@ -124,6 +124,43 @@ describe('reindex', () => {
     await store.upsertScenario(id, { title: '가', file: 'ui-tests/join/01-가.md', request: 'mine' })
     await reindex(store, { project, testDir })
     expect((await store.getScenario(id))!.request).toBe('mine')
+  })
+
+  it('요청 태그 — 머리 request · requested 에서, 파일 이름이 <요청 id>-<번호> 면 그 앞이 요청 id', async () => {
+    const head = (title: string) => `---\nname: ${title}\nrequest: "메뉴 관리 화면 진행해줘 #12"\nrequested: 2026-11-10T01:05:00.000Z\n---\n1. 연다\n2. 확인: 보인다\n`
+    write('20261110T110500_01-01.md', head('목록'))
+    write('20261110T110500_01-02.md', head('저장'))
+    write('옛이름.md', head('한글 파일명도 같은 요청 글이면 같은 요청'))
+    write('sub/other.md', md('x', '요청 머리 없음'))
+    const { store } = setup()
+    await reindex(store, { project, testDir })
+    const id = '20261110T110500_01'
+    const request = (await store.getRequest(id))!
+    expect(request).toMatchObject({ text: '메뉴 관리 화면 진행해줘 #12', at: Date.parse('2026-11-10T01:05:00.000Z'), scenarios: ['20261110T110500_01-01', '20261110T110500_01-02'] })
+    expect((await store.getScenario('20261110T110500_01-02'))!.request).toBe(id)
+    // 규칙에 안 맞는 파일 이름은 요청 글 · 시각의 해시 — 같은 글이어도 규칙에 맞는 이름과는 다른 요청
+    const byText = requestIdFor(hashedScenarioId('ui-tests/옛이름.md'), '메뉴 관리 화면 진행해줘 #12', '2026-11-10T01:05:00.000Z')
+    expect(byText).toMatch(/^q-[0-9a-f]{12}$/)
+    expect((await store.getScenario(hashedScenarioId('ui-tests/옛이름.md')))!.request).toBe(byText)
+    expect((await store.getScenario(hashedScenarioId('ui-tests/sub/other.md')))!.request).toBeUndefined()
+  })
+
+  it('화면 태그 — 한 번도 안 돈 시나리오는 머리 screens, 수행이 정한 뒤로는 덮지 않는다 · screen-names 는 screens 컬렉션에', async () => {
+    write('a.md', `---\nname: A\nscreens: [/login, /admin/menu/12]\nscreen-names: {/login: 로그인, /admin/menu/12: 메뉴 관리}\n---\n1. 연다\n2. 확인: 보인다\n`)
+    const { store } = setup()
+    await reindex(store, { project, testDir })
+    expect((await store.getScenario('a'))!.screens).toEqual(['/login', '/admin/menu/:id'])
+    expect((await store.getScreen('/login'))).toMatchObject({ route: '/login', name: '로그인' })
+    expect((await store.getScreen('/admin/menu/:id'))).toMatchObject({ name: '메뉴 관리' })
+    // 머리가 바뀌면 (아직 안 돌았으니) 따라간다
+    write('a.md', `---\nname: A\nscreens: [/login]\n---\n1. 연다\n2. 확인: 보인다\n`)
+    await reindex(store, { project, testDir })
+    expect((await store.getScenario('a'))!.screens).toEqual(['/login'])
+    // 수행이 정한 뒤 — observed
+    await store.upsertScenario('a', { screens: ['/seen'], observed: true })
+    write('a.md', `---\nname: A\nscreens: [/login, /other]\n---\n1. 연다\n2. 확인: 보인다\n`)
+    await reindex(store, { project, testDir })
+    expect((await store.getScenario('a'))!.screens).toEqual(['/seen'])
   })
 
   it('DB 가 비면 파일에서 다시 채운다 — 수행 기록만 잃는다', async () => {

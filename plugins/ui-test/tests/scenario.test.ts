@@ -57,18 +57,31 @@ describe('parseScenario', () => {
   })
 })
 
-describe('parseSuite · 머리말', () => {
-  it('suite.md — 요청 · 만든 날 · 대상 · 주소 · 시나리오 순서', () => {
+describe('옛 suite.md · 머리말', () => {
+  it('parseSuite — reindex 의 옛 데이터 가져오기용: 이름 · 요청 · 만든 날만 읽는다', () => {
     const suite = parseSuite(
       '가입설계-화면',
-      `---\nname: 가입설계 화면\nrequest: "가입설계 화면 테스트 구성해 줘"\ncreated: 2026-11-06\ntarget: web\nurl: http://dev.local/join\nbrowser: Chrome\n---\n## 시나리오 순서\n1. 02-필수값-누락.md\n2. \`01-정상.md\`\n\n## AI 없이 돌리기\n- node x.mjs run a.md\n`,
+      `---\nname: 가입설계 화면\nrequest: "가입설계 화면 테스트 구성해 줘"\ncreated: 2026-11-06\ntarget: web\nurl: http://dev.local/join\nbrowser: Chrome\n---\n## 시나리오 순서\n1. 02-필수값-누락.md\n\n## 규칙\n- [검증] 이름 필수 — 01\n`,
     )
-    expect(suite).toEqual({ id: '가입설계-화면', name: '가입설계 화면', request: '가입설계 화면 테스트 구성해 줘', created: '2026-11-06', target: 'web', url: 'http://dev.local/join', browser: 'Chrome', order: ['02-필수값-누락.md', '01-정상.md'], rules: [] })
+    expect(suite).toEqual({ id: '가입설계-화면', name: '가입설계 화면', request: '가입설계 화면 테스트 구성해 줘', created: '2026-11-06' })
   })
 
-  it('머리 없는 suite.md 는 이름 = 폴더, 대상 web, 순서 없음', () => {
-    expect(parseSuite('a', '# 묶음\n')).toEqual({ id: 'a', name: 'a', target: 'web', order: [], rules: [] })
+  it('머리 없는 suite.md 는 이름 = 폴더', () => {
+    expect(parseSuite('a', '# 묶음\n')).toEqual({ id: 'a', name: 'a' })
     expect(splitFrontMatter('no head').head).toEqual({})
+  })
+
+  it('시나리오 머리 — request · requested · screens · screen-names (태그의 재료)', () => {
+    const scenario = parseScenario('q-01', `---\nname: 로그인\nrequest: "메뉴 관리 화면에 대해서 진행해줘 #12 (급해요)"\nrequested: 2026-11-10T01:05:00.000Z\nscreens: [/admin/menu/12, login/]\nscreen-names: {/admin/menu/12: 메뉴 관리, /login: "로그인: 화면"}\n---\n1. 연다\n`)
+    expect(scenario).toMatchObject({ request: '메뉴 관리 화면에 대해서 진행해줘 #12 (급해요)', requested: '2026-11-10T01:05:00.000Z', screens: ['/admin/menu/:id', '/login'], screenNames: { '/admin/menu/:id': '메뉴 관리', '/login': '로그인: 화면' } })
+    expect(parseScenario('x', '---\nname: a\n---\n1. 연다\n')).toMatchObject({ screens: [], screenNames: {} })
+    expect(parseScenario('x', '1. 연다\n').request).toBeUndefined()
+  })
+
+  it('요청 · 화면 줄을 고쳐도 지문(코드 낡음)은 그대로', () => {
+    const base = fingerprint('---\nname: a\n---\n1. 연다\n')
+    expect(fingerprint('---\nname: a\nrequest: "x"\nrequested: 2026-11-10T00:00:00Z\nscreens: [/a]\nscreen-names: {/a: 에이}\n---\n1. 연다\n')).toBe(base)
+    expect(fingerprint('---\nname: b\n---\n1. 연다\n')).not.toBe(base)
   })
 
   it('생성 코드 머리말에서 출처 · 지문', () => {

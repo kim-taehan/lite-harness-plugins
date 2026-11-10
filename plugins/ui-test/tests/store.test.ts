@@ -71,6 +71,36 @@ describe('openStore', () => {
     expect(await store.newRunId()).toBe('20261110T110500_02')
   })
 
+  it('시간 id 는 정리로 지워진 id 를 다시 내지 않는다(id 순이 시간순)', async () => {
+    const fixed = new Date(2026, 10, 10, 11, 5, 0)
+    const { db } = fakeDb()
+    const store = openStore(db, { now: () => fixed })
+    const first = await store.newRunId()
+    await store.recordRun(first, run([]), [])
+    const second = await store.newRunId()
+    await store.recordRun(second, run([]), [])
+    await db.delete('runs', first) // 정리가 오래된 수행을 지웠다
+    expect(await store.newRunId()).toBe('20261110T110500_03')
+  })
+
+  it('toResultDoc — 단계의 확인 주소(url)에서 본 주소를 모은다', () => {
+    const result: CaseResult = { id: 'a', title: 'A', status: 'passed', durationMs: 1, steps: [{ title: '1. 연다', status: 'passed', durationMs: 1, used: [] }, { title: '2. 확인: x', status: 'passed', durationMs: 1, url: '/a/1', used: [] }, { title: '3. 확인: y', status: 'passed', durationMs: 1, url: '/a/1', used: [] }, { title: '4. 확인: z', status: 'passed', durationMs: 1, url: '/b', used: [] }] }
+    expect(toResultDoc('r', 1, result).urls).toEqual(['/a/1', '/b'])
+    expect(toResultDoc('r', 1, result).steps[1]!.url).toBe('/a/1')
+  })
+
+  it('markGroupRun — 요청 · 화면 그룹의 마지막 수행을 적는다(화면 문서가 없으면 만든다)', async () => {
+    const store = openStore(fakeDb().db)
+    await store.putRequest('q1', { text: '요청', at: 1, scenarios: ['a'] })
+    await store.markGroupRun({ kind: 'request', value: 'q1' }, 'r1')
+    await store.markGroupRun({ kind: 'screen', value: '/login' }, 'r2')
+    await store.markGroupRun({ kind: 'scenarios' }, 'r3')
+    await store.markGroupRun({ kind: 'request', value: 'none' }, 'r4')
+    expect((await store.getRequest('q1'))!.lastRun).toBe('r1')
+    expect(await store.getScreen('/login')).toMatchObject({ route: '/login', name: '/login', rules: [], lastRun: 'r2' })
+    expect(await store.getRequest('none')).toBeNull()
+  })
+
   it('recordRun — 결과는 파일 이름만, recent 에 수행 id', async () => {
     const store = openStore(fakeDb().db)
     await store.upsertScenario('a', doc())

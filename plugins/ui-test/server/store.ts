@@ -33,8 +33,10 @@ const ERROR_TEXT_MAX = 2000
 export interface ScenarioDoc {
   title: string
   kind?: string
-  /** 화면 태그 — "확인:" 단계를 실행한 주소의 라우트 패턴 (서버가 수행하며 채운다, 1 단계는 빈 배열) */
+  /** 화면 태그 — "확인:" 단계를 실행한 주소의 라우트 패턴. 수행하면 서버가 채우고(observed), 한 번도 안 돈 시나리오는 md 머리 `screens:` 에서 온다 */
   screens: string[]
+  /** 수행이 화면 태그를 정했다 — 그 뒤로 reindex 는 md 머리의 screens 로 덮지 않는다 */
+  observed?: boolean
   /** 만든 요청의 id (요청 태그) */
   request?: string
   fingerprint: string
@@ -51,6 +53,8 @@ export interface RequestDoc {
   scenarios: string[]
   /** 옛 suite.md 에서 가져왔으면 그 폴더 이름 */
   imported?: string
+  /** 이 요청의 시나리오를 그룹으로 마지막에 같이 실행한 수행 id */
+  lastRun?: string
 }
 
 export type RunTarget = { kind: 'screen' | 'request'; value: string } | { kind: 'scenarios' }
@@ -64,6 +68,11 @@ export interface RunDoc {
   compare?: Comparison
   /** 결과서 방식 — 하나로 / 시나리오마다 */
   report: 'one' | 'each'
+  /** 결과서 · 가이드 제목 */
+  title?: string
+  headed?: boolean
+  browser?: string
+  baseUrl?: string
   /** 끝까지 못 돌고 중단됨 — 까닭 */
   interrupted?: string
 }
@@ -91,6 +100,8 @@ export interface ScreenDoc {
   route: string
   name: string
   rules: Rule[]
+  /** 이 화면의 시나리오를 그룹으로 마지막에 같이 실행한 수행 id */
+  lastRun?: string
   coverage?: { validation: { covered: number; total: number }; business: { covered: number; total: number } }
 }
 
@@ -125,6 +136,12 @@ export function scenarioIdForFile(file: string, topLevel: boolean): string {
 /** 새로 만드는 시나리오의 id (= 파일 이름) — `<요청 id>-<번호>` */
 export const newScenarioId = (requestId: string, no: number): string => `${requestId}-${pad(no)}`
 
+const REQUEST_STEM = /^(\d{8}T\d{6}_\d{2,})-\d+$/
+/** md 머리의 요청 글이 가리키는 요청 id — 시나리오 id 가 `<요청 id>-<번호>` 면 그 앞, 아니면 요청 글 · 시각의 해시 */
+export function requestIdFor(scenarioId: string, request: string, requested?: string): string {
+  return REQUEST_STEM.exec(scenarioId)?.[1] ?? `q-${hash12(`${request}\n${requested ?? ''}`)}`
+}
+
 /** 옛 suite.md 폴더에서 가져온 요청의 id */
 export const importedRequestId = (folder: string): string => `q-${hash12(folder)}`
 
@@ -139,12 +156,14 @@ const base = (file: string | undefined): string | undefined => (file ? file.slic
 const cut = (text: string | undefined, max: number): string | undefined => (text !== undefined && text.length > max ? text.slice(0, max) + '…' : text)
 
 /** 수행 기록(CaseResult)을 결과 문서로 — 스크린샷은 파일 이름만 */
-export function toResultDoc(runId: string, at: number, result: CaseResult, urls: string[] = []): ResultDoc {
+export function toResultDoc(runId: string, at: number, result: CaseResult, urls?: string[]): ResultDoc {
   const shots: string[] = []
+  const seen: string[] = []
   const names = (step: StepResult): StepResult => {
     const { shot, failShot, ...rest } = step
     const s = base(shot)
     const f = base(failShot)
+    if (step.url) seen.push(step.url)
     if (s) shots.push(s)
     if (f) shots.push(f)
     return { ...rest, ...(s && { shot: s }), ...(f && { failShot: f }) }
@@ -161,9 +180,10 @@ export function toResultDoc(runId: string, at: number, result: CaseResult, urls:
     ...(result.failKind && { failKind: result.failKind }),
     ...(result.rows && { rows: result.rows.map((row) => ({ ...row, steps: row.steps.map(names) })) }),
     shots: [],
-    urls,
+    urls: [],
   }
   doc.shots = [...new Set(shots)]
+  doc.urls = urls ?? [...new Set(seen)]
   return doc
 }
 
@@ -226,12 +246,20 @@ export function openStore(db: Db | undefined, options: StoreOptions = {}) {
     return out
   }
 
-  /** 시간 id 중 비어 있는 것 — 같은 초면 번호를 올린다 */
+  /** 컬렉션마다 이 서버가 마지막으로 낸 시간 id — 정리로 지워진 id 를 다시 내지 않는다(id 순이 시간순이어야 recent · 정렬이 맞다) */
+  const lastTimeId = new Map<string, string>()
+
+  /** 시간 id 중 비어 있는 것 — 같은 초면 번호를 올린다. 이미 낸 것 뒤의 id 만 낸다 */
   async function freeTimeId(collection: string): Promise<string> {
     const at = now()
     for (let seq = 1; ; seq++) {
       const id = timeId(at, seq)
-      if (!(await db!.get(collection, id))) return id
+      const previous = lastTimeId.get(collection)
+      if (previous !== undefined && id <= previous) continue
+      if (!(await db!.get(collection, id))) {
+        lastTimeId.set(collection, id)
+        return id
+      }
     }
   }
 
@@ -264,6 +292,11 @@ export function openStore(db: Db | undefined, options: StoreOptions = {}) {
 
   async function takeResults(scenario: string, runIds: string[]): Promise<ResultDoc[]> {
     const docs = await Promise.all(runIds.map((runId) => readDoc<ResultDoc>(C.results, resultId(scenario, runId))))
+    return docs.filter((doc): doc is ResultDoc => doc !== null)
+  }
+
+  async function resultsAtRun(scenarios: string[], runId: string): Promise<ResultDoc[]> {
+    const docs = await Promise.all(scenarios.map((scenario) => readDoc<ResultDoc>(C.results, resultId(scenario, runId))))
     return docs.filter((doc): doc is ResultDoc => doc !== null)
   }
 
@@ -362,6 +395,23 @@ export function openStore(db: Db | undefined, options: StoreOptions = {}) {
       const runs = await emptiedRuns(droppedRuns, cache)
       await batchAll(runs.map((runId): DbOp => ({ op: 'delete', collection: C.runs, id: runId })))
       return { results, runs }
+    },
+
+    /** 수행 하나의 결과 — 아직 남아 있는 것만 (정리로 지워진 시나리오 몫은 빠진다) */
+    resultsOfRun: (run: RunDoc, runId: string) => resultsAtRun(run.scenarios, runId),
+    /** 시나리오 하나의 남은 결과들 — 최근 것이 앞 */
+    async resultsOfScenario(id: string, recent: string[]): Promise<ResultDoc[]> {
+      return (await takeResults(id, recent)).sort((a, b) => (a.run < b.run ? 1 : -1))
+    },
+    /** 그룹(화면 · 요청)을 마지막으로 같이 실행한 수행을 적는다 — 그룹 머리의 "결과서" 링크가 찾는다 */
+    async markGroupRun(target: RunTarget, runId: string): Promise<void> {
+      if (target.kind === 'request') {
+        const request = await readDoc<RequestDoc>(C.requests, target.value)
+        if (request) await db.set(C.requests, target.value, { ...request, lastRun: runId } as unknown as Record<string, unknown>)
+      } else if (target.kind === 'screen') {
+        const screen = (await readDoc<ScreenDoc>(C.screens, screenId(target.value))) ?? { route: target.value, name: target.value, rules: [] }
+        await db.set(C.screens, screenId(target.value), { ...screen, lastRun: runId } as unknown as Record<string, unknown>)
+      }
     },
 
     // 화면

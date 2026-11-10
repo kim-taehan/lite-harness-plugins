@@ -10,12 +10,19 @@ export interface ScenarioStep {
 }
 
 export interface Scenario {
-  /** 파일 이름에서 .md 뺀 것 (예: 01-정상-가입설계) — 생성 코드와 같은 이름 */
+  /** 시나리오 id — 저장소(host.db)의 키이자 결과서 앵커 · 결과 문서 이름의 재료 (파일 이름에서 정해진다: store.ts scenarioIdForFile) */
   id: string
   name: string
   kind?: string
   targets: string[]
   tags: string[]
+  /** 머리 `request:` (채팅 요청 원문) · `requested:` (그 시각, ISO) — 요청 태그의 재료 */
+  request?: string
+  requested?: string
+  /** 머리 `screens: [/login]` — AI 가 쓴 화면 태그(한 번도 안 돈 시나리오가 쓴다) */
+  screens: string[]
+  /** 머리 `screen-names: {/login: 로그인}` — 화면 이름 */
+  screenNames: Record<string, string>
   account?: string
   steps: ScenarioStep[]
   /** `## 데이터` 표 (2 단계) — 있으면 한 행마다 한 번 돈다 */
@@ -43,27 +50,21 @@ export interface SourceRef {
   fingerprint: string
 }
 
-/** suite.md `## 규칙` 한 줄 — AI 가 코드에서 뽑은 화면의 규칙과 그것을 다루는 시나리오 (어림값) */
+/** 화면의 규칙 한 줄 — AI 가 코드에서 뽑은 화면의 규칙과 그것을 다루는 시나리오 (screens 컬렉션의 자리, 아직 채우는 쪽이 없다) */
 export interface Rule {
   kind: 'validation' | 'business'
   text: string
-  /** 다루는 시나리오 — 번호(02) 또는 id */
+  /** 다루는 시나리오 id */
   covers: string[]
 }
 
-export interface Suite {
+/** 옛 묶음 폴더의 suite.md — reindex 가 옛 데이터를 요청 태그로 가져올 때만 읽는다 */
+export interface LegacySuite {
   /** 폴더 이름 */
   id: string
   name: string
   request?: string
   created?: string
-  target: string
-  url?: string
-  browser?: string
-  /** 시나리오 파일 이름(.md) 순서 */
-  order: string[]
-  /** `## 규칙` — 없으면 빈 배열 */
-  rules: Rule[]
 }
 
 export type StepStatus = 'passed' | 'failed' | 'db' | 'not-run'
@@ -76,6 +77,8 @@ export interface StepResult {
   title: string
   status: StepStatus
   durationMs: number
+  /** "확인:" 단계를 실행한 순간의 주소 경로(주소의 호스트 · 쿼리 없이) — 화면 태그의 재료 */
+  url?: string
   /** 단계 끝 스크린샷 — 수행 폴더 기준 상대 경로 */
   shot?: string
   /** 실패 순간 스크린샷 */
@@ -111,17 +114,16 @@ export interface CaseResult {
   rows?: RowResult[]
 }
 
-/** 묶음 한 번 수행의 기록 — 데이터 폴더(이 PC)에 묶음마다 최근 20개 */
+/** 수행 한 번의 기록 — 결과서 · 가이드가 그리는 입력이자 실행 결과. 저장은 host.db 의 runs · results(store.ts) */
 export interface RunRecord {
   id: string
-  suite: string
   startedAt: number
   durationMs: number
   headed: boolean
   browser: string
   baseUrl: string
   cases: CaseResult[]
-  /** 결과서 index.html 절대 경로 */
+  /** 결과서 index.html 절대 경로 — 하나로 같이면 수행 폴더의 것, 시나리오마다 따로면 첫 시나리오의 것 */
   report: string
   compare?: Comparison
   /** 끝까지 못 돌고 중단됨 — 까닭 (대화에서 멈춤 · 서버가 내려감). 남은 케이스는 멈춤 */
