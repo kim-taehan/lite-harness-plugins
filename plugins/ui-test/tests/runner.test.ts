@@ -69,7 +69,7 @@ describe('결과서 HTML', () => {
     ],
     compare: { previousId: '20261105T162000_01', newFail: ['01-정상'], fixed: [], stillFail: [] },
   }
-  const html = renderReport({ run, project: 'ins-sales', title: '로그인 화면', user: 'tester', scenarios: new Map([[scenario.id, scenario]]), files: [{ scenario: 'ui-tests/login/01-정상.md', spec: 'ui-tests/login/01-정상.spec.mjs' }], image: () => JPEG, secrets: [SECRET] })
+  const html = renderReport({ run, project: 'ins-sales', title: '로그인 화면', user: 'tester', scenarios: new Map([[scenario.id, scenario]]), files: [{ scenario: '.litecode/plugins/ui-test/scenarios/login/01-정상.md', spec: '.litecode/plugins/ui-test/scenarios/login/01-정상.spec.mjs' }], image: () => JPEG, secrets: [SECRET] })
 
   it('한 파일 — 머리 · 비교 줄 · 단계 표 · 스크린샷이 파일 안에 · 인쇄용 스타일', () => {
     expect(html).toMatch(/^<!doctype html>/)
@@ -90,7 +90,7 @@ describe('결과서 HTML', () => {
   it('케이스마다 테스트 방법 · 끝에 시나리오 원문과 코드 위치', () => {
     expect(html).toContain('테스트 방법</h3>')
     expect(html).toContain('<li><b>사전 조건</b><span>계정 user</span></li>')
-    expect(html).toContain('ui-tests/login/01-정상.spec.mjs')
+    expect(html).toContain('.litecode/plugins/ui-test/scenarios/login/01-정상.spec.mjs')
     expect(html).toContain('<summary>01-정상.md</summary>')
   })
 

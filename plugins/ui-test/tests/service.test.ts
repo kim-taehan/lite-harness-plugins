@@ -159,10 +159,10 @@ describe('service', () => {
 
   it('openFile · ask 는 앱 기능을 그 프로젝트로 부른다', async () => {
     const { fake } = start({})
-    await fake.call('openFile', { path: 'ui-tests/_reports/a/index.html' }, { directory: DIR })
+    await fake.call('openFile', { path: '.litecode/plugins/ui-test/reports/a/index.html' }, { directory: DIR })
     await fake.call('ask', { text: '보강해 줘' }, { directory: DIR })
     expect(fake.calls).toEqual([
-      { method: 'project.openFile', params: { path: 'ui-tests/_reports/a/index.html' }, directory: DIR },
+      { method: 'project.openFile', params: { path: '.litecode/plugins/ui-test/reports/a/index.html' }, directory: DIR },
       { method: 'chat.compose', params: { text: '보강해 줘', send: true }, directory: DIR },
     ])
   })
@@ -199,17 +199,17 @@ describe('service', () => {
   })
 
   it('guide — 서버의 guide 도구에 json 으로 부르고 파일 목록을 돌려준다', async () => {
-    const { fake, calls } = start({ guide: () => ({ text: '{"files":["ui-tests/_reports/r1/guide.html"]}' }) })
-    expect(await fake.call('guide', { run: 'r1', x: 1 }, { directory: DIR })).toEqual({ files: ['ui-tests/_reports/r1/guide.html'] })
+    const { fake, calls } = start({ guide: () => ({ text: '{"files":[".litecode/plugins/ui-test/reports/r1/guide.html"]}' }) })
+    expect(await fake.call('guide', { run: 'r1', x: 1 }, { directory: DIR })).toEqual({ files: ['.litecode/plugins/ui-test/reports/r1/guide.html'] })
     expect(calls).toEqual([{ tool: 'guide', args: { run: 'r1', json: true } }])
   })
 
   it('exportPdf — 서버가 만든 PDF 를 project.exportFile 로 저장 창에 넘기고, 저장 · 취소 · 오류를 값으로 돌려준다', async () => {
-    const made = { text: '{"path":"ui-tests/_reports/r1/index.pdf","name":"결과서 - 로그인.pdf"}' }
+    const made = { text: '{"path":".litecode/plugins/ui-test/reports/r1/index.pdf","name":"결과서 - 로그인.pdf"}' }
     const saved = start({ pdf: () => made }, () => ({ saved: true, name: '내 결과서.pdf' }))
     expect(await saved.fake.call('exportPdf', { run: 'r1', kind: 'report', scenario: 'a-01', evil: 1 }, { directory: DIR })).toEqual({ saved: true, name: '내 결과서.pdf' })
     expect(saved.calls).toEqual([{ tool: 'pdf', args: { run: 'r1', kind: 'report', scenario: 'a-01' } }])
-    expect(saved.exported).toEqual([{ path: 'ui-tests/_reports/r1/index.pdf', name: '결과서 - 로그인.pdf' }])
+    expect(saved.exported).toEqual([{ path: '.litecode/plugins/ui-test/reports/r1/index.pdf', name: '결과서 - 로그인.pdf' }])
     const cancelled = start({ pdf: () => made }, () => ({ saved: false }))
     expect(await cancelled.fake.call('exportPdf', { run: 'r1', kind: 'report' }, { directory: DIR })).toEqual({ saved: false })
     for (const code of ['busy', 'export-limit', 'permission-missing', 'too-big']) {

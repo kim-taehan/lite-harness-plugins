@@ -1,7 +1,7 @@
 // 실행기 (#1248, 0.7.0) — 시나리오를 고르고(직접 · 화면 · 요청 · 실패한 것), 드라이버로 실행하고, 결과서를 쓰고, 기록을 남긴다.
-//   <테스트 폴더>/…/<시나리오>.md · <시나리오>.spec.mjs(생성 코드, 시나리오 옆에 같은 이름) — 하위 폴더는 뜻 없는 그냥 폴더
-//   결과서: <테스트 폴더>/_reports/<수행 id>/index.html (하나로 같이 — 시나리오마다 절 `#s-<시나리오 id>`)
-//          <테스트 폴더>/_reports/<수행 id>/<시나리오 id>/index.html (시나리오마다 따로)
+//   <프로젝트>/.litecode/plugins/ui-test/scenarios/<시나리오>.md · <시나리오>.spec.mjs(생성 코드, 시나리오 옆에 같은 이름) — 하위 폴더 없음
+//   결과서: <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/index.html (하나로 같이 — 시나리오마다 절 `#s-<시나리오 id>`)
+//          <프로젝트>/.litecode/plugins/ui-test/reports/<수행 id>/<시나리오 id>/index.html (시나리오마다 따로)
 //   스크린샷: 앱 데이터 폴더 shots/<수행 id>/
 //   기록 · 색인: host.db (store.ts) — 서버가 DB 를 못 쓰면(앱 밖 실행) 실행 · 결과서는 되고 기록 · 비교만 건너뛴다
 // 한 번에 수행 하나. 진행은 패널이 progress 로 본다. 수행은 start 로 시작만 하고 바로 돌아온다 — 엔진의 MCP 도구 호출 기한(5분)보다 긴 수행도 돌게, 도구는 wait 로 끝을 기다린다.
@@ -12,7 +12,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { Config } from './config.ts'
-import { scrub, sourceFile } from './config.ts'
+import { guardPluginPath, scrub, sourceFile } from './config.ts'
 import { driverFor, type Driver, type Launch } from './driver.ts'
 import { DataFiles, isRunId } from './files.ts'
 import { renderGuide } from './guide.ts'
@@ -205,7 +205,7 @@ export class Workspace {
   }
 
   private async scanInfos(): Promise<ScenarioInfo[]> {
-    const found: Found[] = await scanScenarios(this.config.project, this.config.testDir).catch(() => [])
+    const found: Found[] = await scanScenarios(this.config.project, this.config.scenarioDir).catch(() => [])
     return Promise.all(found.map((item) => this.locate(item.id, item.file, undefined, item.scenario)))
   }
 
@@ -531,14 +531,22 @@ export class Workspace {
       if (gone.has(result.run) || !store) continue
       const run = await store.getRun(result.run)
       if (!run) continue
-      if (run.report === 'each' && isValidId(result.scenario)) await fs.rm(path.join(this.config.reportDir, result.run, result.scenario), { recursive: true, force: true })
+      if (run.report === 'each' && isValidId(result.scenario)) await this.removeReports(result.run, result.scenario)
       else rewrite.add(result.run)
     }
     for (const runId of gone) {
-      await fs.rm(path.join(this.config.reportDir, runId), { recursive: true, force: true })
+      await this.removeReports(runId)
       await fs.rm(this.files.shotsDir(runId), { recursive: true, force: true })
     }
     for (const runId of rewrite) await this.rewriteRun(runId)
+  }
+
+  /** 결과서 폴더 안 수행 폴더(또는 그 안 시나리오 폴더)를 지운다 — 수행 id · 시나리오 id 모양일 때만, 실제 경로가 플러그인 폴더 안일 때만(심볼릭 링크가 밖을 가리키면 건너뛴다) */
+  private async removeReports(runId: string, scenarioId?: string): Promise<void> {
+    if (!isRunId(runId) || (scenarioId !== undefined && !isValidId(scenarioId))) return
+    const dir = path.join(this.config.reportDir, runId, ...(scenarioId ? [scenarioId] : []))
+    if (await guardPluginPath(this.config.project, dir).then(() => false, () => true)) return // 밖을 가리키면 지우지 않고 넘어간다(정리가 던지면 삭제가 반쯤 끝난 채 멈춘다)
+    await fs.rm(dir, { recursive: true, force: true })
   }
 
   /** 저장소의 수행 하나를 결과서 · 가이드 입력으로 되돌린다 — 정리로 일부 시나리오 결과가 빠진 수행도 남은 것으로 */
@@ -601,6 +609,7 @@ export class Workspace {
     for (const target of targets) {
       const subset: RunRecord = target.scenario ? { ...run, cases: run.cases.filter((item) => item.id === target.scenario), compare: compareFor(run.compare, target.scenario), report: target.file } : { ...run, report: target.file }
       const input = this.reportInput(subset, target.scenario ? (subset.cases[0]?.title ?? title) : title, located)
+      await guardPluginPath(this.config.project, target.file)
       await fs.mkdir(path.dirname(target.file), { recursive: true })
       await fs.writeFile(target.file, render(input))
       await fs.rm(pdfOf(target.file), { force: true }) // 옛 내용으로 만든 PDF 는 남기지 않는다
@@ -650,6 +659,7 @@ export class Workspace {
     if (picked.mode === 'each' && !id) throw new Error('시나리오마다 따로 낸 수행입니다 — scenario 가 필요합니다')
     if (id && !isValidId(id)) throw new Error(`시나리오 id 가 틀렸습니다: ${id}`)
     const html = path.join(this.config.reportDir, runId, ...(id ? [id] : []), kind === 'report' ? 'index.html' : 'guide.html')
+    await guardPluginPath(this.config.project, html)
     if (!existsSync(html)) throw new Error(`${kind === 'report' ? '결과서' : '가이드'} 파일이 없습니다: ${this.rel(html)}`)
     const out = pdfOf(html)
     await driverFor('web', { channel: this.config.channel }, this.launch).pdf(html, out)
@@ -659,9 +669,9 @@ export class Workspace {
 
   // ── 저장소 맞추기 · 삭제 ──
 
-  /** 테스트 폴더의 시나리오 파일로 저장소를 맞춘다 — 사용자가 지운 파일의 줄 · 기록 · 스크린샷 · 결과서 절도 같이 지운다 */
+  /** 시나리오 폴더의 시나리오 파일로 저장소를 맞춘다(처음에는 옛 ui-tests/ 를 가져온다) — 사용자가 지운 파일의 줄 · 기록 · 스크린샷 · 결과서 절도 같이 지운다 */
   async reindex(): Promise<ReindexResult> {
-    const result = await reindex(this.needStore(), { project: this.config.project, testDir: this.config.testDir })
+    const result = await reindex(this.needStore(), { project: this.config.project, pluginDir: this.config.pluginDir, scenarioDir: this.config.scenarioDir })
     await this.cleanup(result.dropped)
     return result
   }
@@ -677,7 +687,7 @@ export class Workspace {
     const files: string[] = []
     const dropped: Dropped = { results: [], runs: [] }
     for (const { id, doc } of items) {
-      files.push(...(await removeScenarioFiles(this.config.project, this.config.testDir, doc.file)).files)
+      files.push(...(await removeScenarioFiles(this.config.project, this.config.scenarioDir, doc.file)).files)
       const part = await store.deleteScenario(id)
       dropped.results.push(...part.results)
       dropped.runs.push(...part.runs)

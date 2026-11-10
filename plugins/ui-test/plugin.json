@@ -16,8 +16,7 @@
     { "key": "browser", "label": "브라우저", "type": "select", "options": ["Chrome", "Edge"] },
     { "key": "user", "label": "테스트 계정 아이디", "type": "text" },
     { "key": "password", "label": "테스트 계정 비밀번호", "type": "secret" },
-    { "key": "backendDirs", "label": "백엔드 코드 폴더 (선택 — 화면 뒤 서버 코드가 다른 저장소면 절대 경로, 여럿은 쉼표)", "type": "text" },
-    { "key": "testDir", "label": "테스트 폴더 (비우면 ui-tests — 프로젝트 안. 시나리오 · 결과서(_reports)가 모두 여기에 저장됩니다)", "type": "text" }
+    { "key": "backendDirs", "label": "백엔드 코드 폴더 (선택 — 화면 뒤 서버 코드가 다른 저장소면 절대 경로, 여럿은 쉼표)", "type": "text" }
   ],
   "settingsCheck": "check",
   "settingsPer": "project",

@@ -124,7 +124,7 @@ export function runSummary(outcome: Summary, workspace: Workspace): string {
   if (db.length) lines.push('확인(DB) 단계는 실행기가 실행하지 않았습니다 — DB 조회 MCP 가 켜져 있으면 대화에서 확인하고, 없으면 사용자에게 확인을 부탁하세요:', ...[...new Set(db)].map((line) => `- ${line}`), '')
   if (run.cases.some((item) => item.status === 'passed')) lines.push('성공한 시나리오에 `## 테스트 방법` 이 없거나 이번에 방법이 바뀌었으면 위 "쓴 것" · 시간으로 시나리오 md 에 쓰세요(비밀번호는 쓰지 않는다). "본 화면" 은 이 시나리오의 화면 태그가 됩니다.')
   if (run.cases.some((item) => item.status === 'no-code')) lines.push('코드 없음: 시나리오 옆에 같은 이름의 .spec.mjs 를 먼저 만드세요.')
-  if (outcome.suggestGitignore) lines.push(`결과서 폴더 \`${outcome.suggestGitignore}\` 가 .gitignore 에 없습니다 — 저장소에 올리지 않으려면 .gitignore 에 넣을지 사용자에게 물어 보세요(플러그인은 .gitignore 를 고치지 않습니다).`)
+  if (outcome.suggestGitignore) lines.push(`결과서 폴더 \`${outcome.suggestGitignore}\` (결과서 · 가이드가 쌓입니다) 가 .gitignore 에 없습니다 — 저장소에 올리지 않으려면 .gitignore 에 넣을지 사용자에게 물어 보세요(플러그인은 .gitignore 를 고치지 않습니다).`)
   return lines.filter((line, index) => index > 0 || line).join('\n').trim()
 }
 
@@ -201,13 +201,13 @@ export function createTools(deps: ToolDeps): Tool[] {
   const list: Tool = {
     name: 'list',
     description:
-      'List the UI test scenarios of this project (test folder from settings, default ui-tests/) — the scenario is the only unit; screens (routes) and requests are tags. For each scenario: id, title, screens it ran on, the chat request that made it, fingerprint (copy it into the spec header), whether generated code exists and is stale (scenario changed after the code was generated), whether the source files recorded in the scenario (sources:) changed, data tables, "## 테스트 방법" and the last real run (pass/fail). Then the groups by screen and by request. Reads the scenario files first, so new files are picked up. Optional filters: scenarios, screen, request, failed.',
+      'List the UI test scenarios of this project (scenario folder .litecode/plugins/ui-test/scenarios/) — the scenario is the only unit; screens (routes) and requests are tags. For each scenario: id, title, screens it ran on, the chat request that made it, fingerprint (copy it into the spec header), whether generated code exists and is stale (scenario changed after the code was generated), whether the source files recorded in the scenario (sources:) changed, data tables, "## 테스트 방법" and the last real run (pass/fail). Then the groups by screen and by request. Reads the scenario files first, so new files are picked up. Optional filters: scenarios, screen, request, failed.',
     inputSchema: { type: 'object', properties: { ...SELECTOR_PROPS, json: JSON_ARG, cursor: { type: 'string', description: 'JSON only: the cursor of the previous page (200 scenarios per page).' } } },
     async run(args) {
       try {
         const store = workspace.needStore()
         const sel = selectorOf(args)
-        const where = `테스트 폴더: ${config.testDirSetting} · 결과서 폴더: ${config.reportDirSetting} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'} · 백엔드 코드: ${config.backendDirs.length ? config.backendDirs.join(', ') : '(프로젝트 안만)'}`
+        const where = `시나리오 폴더: ${config.scenarioDirRel} · 결과서 폴더: ${config.reportDirRel} · 대상 주소: ${config.baseUrl || '(설정 안 됨)'} · 브라우저: ${channelLabel(config.channel)} · 테스트 계정: ${config.user || '(없음)'} · 백엔드 코드: ${config.backendDirs.length ? config.backendDirs.join(', ') : '(프로젝트 안만)'}`
         if (args['json'] === true) {
           const cursor = typeof args['cursor'] === 'string' && args['cursor'] ? args['cursor'] : undefined
           const page = selectorEmpty(sel) ? await store.scenarioPage(cursor) : { items: (await workspace.selectDocs(sel)).items, cursor: undefined }
@@ -235,8 +235,8 @@ export function createTools(deps: ToolDeps): Tool[] {
           return {
             text: JSON.stringify({
               project: path.basename(config.project),
-              testDir: config.testDirSetting,
-              reportDir: config.reportDirSetting,
+              scenarioDir: config.scenarioDirRel,
+              reportDir: config.reportDirRel,
               baseUrl: config.baseUrl,
               browser: channelLabel(config.channel),
               running: workspace.runningId() ?? null,
@@ -252,7 +252,7 @@ export function createTools(deps: ToolDeps): Tool[] {
         const infos = await workspace.infosOf(items)
         const running = workspace.runningId()
         const now = running ? `\n지금 실행 중: ${workspace.current().title} · 수행 id ${running} — report { run } 으로 끝을 기다린다` : ''
-        const synced = read.added + read.updated + read.removed ? `\n파일에서 다시 읽음: 새로 ${read.added} · 바뀜 ${read.updated} · 지워짐 ${read.removed}` : ''
+        const synced = (read.added + read.updated + read.removed ? `\n파일에서 다시 읽음: 새로 ${read.added} · 바뀜 ${read.updated} · 지워짐 ${read.removed}` : '')
         if (infos.length === 0) return { text: `${where}${now}${synced}\n${selectorEmpty(sel) ? '시나리오가 없습니다 — 화면을 정해 시나리오를 만드세요(스킬 ui-test).' : '조건에 맞는 시나리오가 없습니다.'}` }
         const rows = infos.map((item) => {
           const { scenario, hasCode, specFile } = item
@@ -455,19 +455,19 @@ export function createTools(deps: ToolDeps): Tool[] {
   const newRequest: Tool = {
     name: 'newRequest',
     description:
-      'Start a new batch of scenarios for one chat request: returns the request id, the file names to use (`<request id>-01.md`, `-02.md`, … plus the same-named `.spec.mjs`, directly in the test folder) and the two front-matter lines (`request:` with the request text, `requested:` with the time) to put in every scenario md of this request. Call it once per user request, before writing the files. Does not write anything.',
+      'Start a new batch of scenarios for one chat request: returns the request id, the file names to use (`<request id>-01.md`, `-02.md`, … plus the same-named `.spec.mjs`, directly in the scenario folder .litecode/plugins/ui-test/scenarios/) and the two front-matter lines (`request:` with the request text, `requested:` with the time) to put in every scenario md of this request. Call it once per user request, before writing the files. Does not write anything.',
     inputSchema: { type: 'object', properties: { text: { type: 'string', description: "The user's chat request, as asked (one line)." } }, required: ['text'] },
     async run(args) {
       const text = typeof args['text'] === 'string' ? args['text'].replace(/\s+/g, ' ').replace(/"/g, "'").trim() : ''
       if (!text) return { text: 'text 가 필요합니다', isError: true }
-      const taken = await fs.readdir(config.testDir).catch(() => [] as string[])
+      const taken = await fs.readdir(config.scenarioDir).catch(() => [] as string[])
       const at = new Date()
       let id = timeId(at)
       for (let seq = 2; taken.some((name) => name.startsWith(`${id}-`)); seq++) id = timeId(at, seq)
       return {
         text: [
           `요청 id: ${id}`,
-          `파일 이름: ${config.testDirSetting}/${id}-01.md · ${id}-02.md … (생성 코드는 같은 이름의 .spec.mjs). 번호는 01 부터.`,
+          `파일 이름: ${config.scenarioDirRel}/${id}-01.md · ${id}-02.md … (생성 코드는 같은 이름의 .spec.mjs). 번호는 01 부터.`,
           '모든 시나리오 md 의 머리에 넣을 줄:',
           `request: "${text}"`,
           `requested: ${at.toISOString()}`,

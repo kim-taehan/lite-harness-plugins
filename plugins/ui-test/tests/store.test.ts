@@ -5,7 +5,7 @@ import { fakeDb } from './store-helper.ts'
 
 // 저장 계층 — 진짜 앱과 같은 처리기를 쓰는 SDK 가짜 host 의 host.db 로 본다
 
-const doc = (extra: Partial<ScenarioDoc> = {}): Partial<ScenarioDoc> => ({ title: '제목', fingerprint: 'aaaaaaaaaaaa', file: 'ui-tests/a.md', ...extra })
+const doc = (extra: Partial<ScenarioDoc> = {}): Partial<ScenarioDoc> => ({ title: '제목', fingerprint: 'aaaaaaaaaaaa', file: '.litecode/plugins/ui-test/scenarios/a.md', ...extra })
 const run = (scenarios: string[]): RunDoc => ({ at: 1, durationMs: 10, target: { kind: 'scenarios' }, scenarios, totals: { passed: scenarios.length, failed: 0, other: 0 }, report: 'one' })
 const caseOf = (id: string, extra: Partial<CaseResult> = {}): CaseResult => ({ id, title: id, status: 'passed', durationMs: 5, steps: [{ title: '열기', status: 'passed', durationMs: 1, shot: '/data/shots/r1/01.jpg', used: [] }], ...extra })
 
@@ -26,12 +26,12 @@ describe('id', () => {
   })
 
   it('옛 파일 이름 — 한글 · 하위 폴더는 s-<해시>, 바로 아래 ASCII 는 이름 그대로', () => {
-    const korean = scenarioIdForFile('ui-tests/가입/01-정상-렌더링.md', false)
+    const korean = scenarioIdForFile('.litecode/plugins/ui-test/scenarios/가입/01-정상-렌더링.md', false)
     expect(korean).toMatch(/^s-[0-9a-f]{12}$/)
-    expect(korean).toBe(hashedScenarioId('ui-tests/가입/01-정상-렌더링.md'))
-    expect(scenarioIdForFile('ui-tests/01-정상.md', true)).toMatch(/^s-/)
-    expect(scenarioIdForFile('ui-tests/login-ok.md', true)).toBe('login-ok')
-    expect(scenarioIdForFile('ui-tests/join/login-ok.md', false)).toMatch(/^s-/)
+    expect(korean).toBe(hashedScenarioId('.litecode/plugins/ui-test/scenarios/가입/01-정상-렌더링.md'))
+    expect(scenarioIdForFile('.litecode/plugins/ui-test/scenarios/01-정상.md', true)).toMatch(/^s-/)
+    expect(scenarioIdForFile('.litecode/plugins/ui-test/scenarios/login-ok.md', true)).toBe('login-ok')
+    expect(scenarioIdForFile('.litecode/plugins/ui-test/scenarios/join/login-ok.md', false)).toMatch(/^s-/)
     expect(importedRequestId('가입설계')).toMatch(/^q-[0-9a-f]{12}$/)
     expect(isValidId(resultId('s-abc', timeId(new Date())))).toBe(true)
   })
@@ -116,7 +116,7 @@ describe('openStore', () => {
     const { db } = fakeDb()
     const store = openStore(db)
     await store.upsertScenario('a', doc())
-    await store.upsertScenario('b', doc({ file: 'ui-tests/b.md' }))
+    await store.upsertScenario('b', doc({ file: '.litecode/plugins/ui-test/scenarios/b.md' }))
     for (let n = 1; n <= 22; n++) {
       const id = `r${String(n).padStart(2, '0')}`
       // 앞 두 수행은 a · b 같이, 나머지는 a 만 — b 는 두 개뿐이라 안 넘친다

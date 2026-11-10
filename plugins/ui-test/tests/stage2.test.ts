@@ -127,7 +127,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
   beforeEach(async () => {
     dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'ui-test2-')))
     root = path.join(dir, 'proj')
-    await fs.mkdir(path.join(root, 'ui-tests'), { recursive: true })
+    await fs.mkdir(path.join(root, '.litecode/plugins/ui-test/scenarios'), { recursive: true })
     await fs.mkdir(path.join(root, 'src'), { recursive: true })
     await fs.writeFile(path.join(root, 'src', 'join.jsp'), '<input name="age">\n')
     db = fakeDb().db
@@ -149,12 +149,12 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const sources = (await tool(tools(space), 'fingerprint').run({ files: ['src/join.jsp'] })).text
     expect(sources).toMatch(/^sources: \[src\/join\.jsp@[0-9a-f]{12}\]$/)
     const md = `---\nname: 나이\n${sources}\n---\n1. 연다\n2. 확인: 결과\n\n## 데이터\n| 나이 | 기대 |\n|---|---|\n| 69 | ok |\n| 71 | no |${extra}\n`
-    await fs.writeFile(path.join(root, 'ui-tests/a-01.md'), md)
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.md'), md)
     const fp = fingerprint(md)
     // 기대가 no 인 행은 실패 — data 가 행 값으로 온다
     await fs.writeFile(
-      path.join(root, 'ui-tests/a-01.spec.mjs'),
-      `// ui-test source: ui-tests/a-01.md · fingerprint: ${fp}\nexport default async ({ step, page, expect, data }) => {\n  await step('1. 연다', async () => { await page.goto('/?age=' + data.나이); await new Promise((r) => setTimeout(r, ${delayMs})) })\n  await step('2. 확인: 결과', async () => expect(data.기대).toBe('ok'))\n}\n`,
+      path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.spec.mjs'),
+      `// ui-test source: .litecode/plugins/ui-test/scenarios/a-01.md · fingerprint: ${fp}\nexport default async ({ step, page, expect, data }) => {\n  await step('1. 연다', async () => { await page.goto('/?age=' + data.나이); await new Promise((r) => setTimeout(r, ${delayMs})) })\n  await step('2. 확인: 결과', async () => expect(data.기대).toBe('ok'))\n}\n`,
     )
     return md
   }
@@ -162,8 +162,8 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
   it('일부 시나리오만 다시 실행해도 나머지의 마지막 결과가 남는다 — list · 실패만 · 비교', async () => {
     await scenario()
     const second = '---\nname: 둘\n---\n1. 연다\n'
-    await fs.writeFile(path.join(root, 'ui-tests/a-02.md'), second)
-    await fs.writeFile(path.join(root, 'ui-tests/a-02.spec.mjs'), `// ui-test source: ui-tests/a-02.md · fingerprint: ${fingerprint(second)}\nexport default async ({ step, page }) => {\n  await step('1. 연다', async () => { await page.goto('/') })\n}\n`)
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-02.md'), second)
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-02.spec.mjs'), `// ui-test source: .litecode/plugins/ui-test/scenarios/a-02.md · fingerprint: ${fingerprint(second)}\nexport default async ({ step, page }) => {\n  await step('1. 연다', async () => { await page.goto('/') })\n}\n`)
     const space = workspace()
     await space.run({ headed: false }) // a-01(71 행 실패) · a-02 성공
     await space.run({ scenarios: ['a-02'], headed: false }) // a-02 만 다시
@@ -193,7 +193,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const out = await tool(tools(workspace()), 'guide').run({ run: runId }) // 새 서버(메모리 기록 없음)도 저장소에서 읽어 쓴다
     expect(out.isError).toBeUndefined()
     const file = /가이드: (\S+)/.exec(out.text)![1]!
-    expect(file).toBe(`ui-tests/_reports/${runId}/guide.html`)
+    expect(file).toBe(`.litecode/plugins/ui-test/reports/${runId}/guide.html`)
     const html = await fs.readFile(path.join(root, file), 'utf8')
     expect(html).toContain('나이 — 화면 사용 가이드')
     expect(html).toContain('1행 — 69 · ok')
@@ -205,7 +205,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const md = await scenario()
     const space = workspace()
     expect(await first(space)).toMatchObject({ stale: false, changed: [] })
-    await fs.writeFile(path.join(root, 'ui-tests/a-01.md'), md.replace('| 71 | no |', '| 71 | no |\n| 72 | no |'))
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.md'), md.replace('| 71 | no |', '| 71 | no |\n| 72 | no |'))
     expect((await first(space)).stale).toBe(true)
     await fs.writeFile(path.join(root, 'src/join.jsp'), '<input name="age" max="70">\n')
     expect((await first(space)).changed).toEqual([{ path: 'src/join.jsp', state: 'changed' }])
@@ -238,7 +238,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     expect((await tool(list, 'list').run({})).text).toContain(`백엔드 코드: ${backend}`)
     const sources = (await tool(list, 'fingerprint').run({ files: ['src/join.jsp', service] })).text
     expect(sources).toMatch(new RegExp(`^sources: \\[src/join\\.jsp@[0-9a-f]{12}, ${service.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}@[0-9a-f]{12}\\]$`))
-    await fs.writeFile(path.join(root, 'ui-tests/a-01.md'), `---\nname: 나이\n${sources}\n---\n1. 연다\n`)
+    await fs.writeFile(path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.md'), `---\nname: 나이\n${sources}\n---\n1. 연다\n`)
     expect((await first(space)).changed).toEqual([])
     await fs.writeFile(service, 'if (age > 65) throw\n')
     expect((await first(space)).changed).toEqual([{ path: service, state: 'changed' }])
@@ -263,7 +263,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const saved = (await space.store!.getResult('a-01', runId))!
     expect(saved.rows!.map((row) => [row.row, row.status])).toEqual([[1, 'passed'], [2, 'failed']])
     expect(saved.rows![0]!.steps[0]!.shot).toBe('c1-r1-s1.jpg')
-    expect(await fs.readFile(path.join(root, `ui-tests/_reports/${runId}/index.html`), 'utf8')).toContain('2행 — 71 · no')
+    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/index.html`), 'utf8')).toContain('2행 — 71 · no')
     const again = await tool(tools(space), 'run').run({ failed: true, headed: false })
     expect(again.text).toContain('그대로 실패: a-01 2행')
   })
@@ -283,12 +283,12 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     for (let tries = 0; tries < 40 && !text.startsWith('실행 끝'); tries++) text = (await tool(list, 'report').run({ run: runId })).text
     expect(text).toMatch(new RegExp(`^실행 끝 — 나이 .* 수행 id ${runId}`))
     const progress = JSON.parse((await tool(list, 'progress').run({})).text)
-    expect(progress).toMatchObject({ running: false, recorded: true, report: `ui-tests/_reports/${runId}/index.html` })
+    expect(progress).toMatchObject({ running: false, recorded: true, report: `.litecode/plugins/ui-test/reports/${runId}/index.html` })
   })
 
   it('AI 가 지문을 못 구해 000000000000 이나 머리말 없이 쓴 코드도 "코드 낡음" — list 가 맞는 지문을 보여 준다', async () => {
     const md = await scenario()
-    const spec = path.join(root, 'ui-tests/a-01.spec.mjs')
+    const spec = path.join(root, '.litecode/plugins/ui-test/scenarios/a-01.spec.mjs')
     const code = await fs.readFile(spec, 'utf8')
     await fs.writeFile(spec, code.replace(/fingerprint: [0-9a-f]{12}/, 'fingerprint: 000000000000'))
     const space = workspace()
@@ -312,7 +312,7 @@ describe('실행기 — 낡음 · 바뀜 · 데이터 표 · 비동기 실행 (�
     const runId = /수행 id (\S+)/.exec(result.text)![1]!
     expect((await space.store!.getRun(runId))!.interrupted).toBe('대화에서 멈춤')
     expect((await space.store!.getResult('a-01', runId))!.rows!.some((row) => row.status === 'stopped')).toBe(true)
-    expect(await fs.readFile(path.join(root, `ui-tests/_reports/${runId}/index.html`), 'utf8')).toContain('중단됨')
+    expect(await fs.readFile(path.join(root, `.litecode/plugins/ui-test/reports/${runId}/index.html`), 'utf8')).toContain('중단됨')
     // 멈춤은 돈 게 아니라 마지막 결과를 덮지 않는다
     expect((await space.store!.getScenario('a-01'))!.last).toBeUndefined()
     expect(space.current().running).toBe(false)
