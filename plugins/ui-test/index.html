@@ -324,6 +324,11 @@ function finishNote(progress) {
 
 /** 단계 제목 앞의 "1. " 는 번호를 직접 붙이므로 뗀다 */
 const bareTitle = (title) => String(title).replace(/^\s*\d+[.)]?\s*/, '')
+
+/** 결과서 · 화면 가이드 링크를 누르면 그 자리에 펼치는 선택 — 한 줄의 키 · 이름 · 버튼(PDF 저장을 모르는 앱이면 열기만) */
+const docKey = (doc) => `${doc.run}:${doc.kind}:${doc.scenario ?? ''}`
+const docLabel = (doc) => (doc.kind === 'guide' ? '화면 가이드' : '결과서')
+const docChoices = (noPdf) => (noPdf ? ['open', 'cancel'] : ['pdf', 'open', 'cancel'])
 // </pure>
 
 let seq = 0
@@ -364,7 +369,7 @@ const state = {
   picked: new Set(), // 전체 탭에서 고른 시나리오 id
   dock: '', // '' · run · del — 아래 막대가 묻는 중
   asking: undefined, // 그룹 머리 질문 { kind: 'del', key }
-  screen: { name: 'list' }, // list · detail { id } · doc { … }
+  screen: { name: 'list' }, // list · detail { id }
   detail: undefined, // { id, loading, data, error }
   delOne: false, // 상세의 삭제 확인
   shots: new Map(), // 스크린샷 키 → { state: 'loading' | 'ok' | 'error', url }
@@ -376,6 +381,7 @@ const state = {
   env: undefined, // 환경 팝업 { saved, failed, focus }
   noPdf: false, // 앱이 PDF 저장을 모른다(옛 앱)
   pdfBusy: false,
+  docPick: undefined, // 결과서 · 가이드 링크를 눌러 펼친 선택 { key, doc }
 }
 /** 다시 그린 뒤 포커스를 둘 곳(data-fk) */
 let pendingFocus = ''
@@ -461,6 +467,8 @@ const setNotice = (notice) => ((state.notice = notice), render())
 const clearNotice = () => ((state.notice = undefined), render())
 const failNotice = (error) => setNotice({ tone: 'err', text: errorText(error) })
 
+/** 실행이 끝난 알림의 결과서 — 링크를 누르면 선택이 그 자리에 펼쳐진다 */
+const finishDoc = (n) => ({ kind: 'report', run: n.runId, file: n.report.file, scenario: n.report.scenario, title: n.title, at: n.at })
 function bannerNode() {
   const p = state.progress
   if (p?.running) {
@@ -478,7 +486,7 @@ function bannerNode() {
   if (!n) return ''
   const close = el('button', { type: 'button', class: 'ico neutral', onclick: clearNotice, 'aria-label': '알림 닫기', title: '알림 닫기' }, icon('x', 14))
   if (n.tone === 'err') return el('div', { class: 'banner err', role: 'alert' }, el('div', { class: 'm' }, el('b', {}, n.text), n.detail ? [el('br'), n.detail] : ''), close)
-  return el('div', { class: 'banner ok', role: 'status' }, el('div', { class: 'm' }, el('b', {}, `✓ ${n.text}`), n.detail ? [el('br'), n.detail] : ''), n.report ? link('결과서 열기', () => openDoc({ kind: 'report', run: n.runId, file: n.report.file, scenario: n.report.scenario, title: n.title, at: n.at })) : '', close)
+  return el('div', { class: 'banner ok', role: 'status' }, el('div', { class: 'm' }, el('b', {}, `✓ ${n.text}`), n.detail ? [el('br'), n.detail] : '', n.report ? docChoice(docKey(finishDoc(n))) : ''), n.report ? link('결과서', () => pickDoc(finishDoc(n)), { 'data-fk': `doc:${docKey(finishDoc(n))}` }) : '', close)
 }
 
 /** 진행을 받아 그린다 — 서비스가 밀어 보내거나(service.progress) 패널을 열 때 한 번 읽는다. 끝났으면 목록을 다시 읽고 알린다 */
@@ -539,17 +547,42 @@ async function removeNow(selector, done) {
 
 // ── 결과서 · 가이드 · PDF ──
 
-/** 결과서 · 가이드를 앱의 파일 미리보기로 열고, 이 화면에는 PDF 로 저장하는 자리를 둔다. 프로젝트 밖 경로(공유 폴더)는 열 수 없어 경로만 알린다 */
-async function openDoc(doc) {
-  state.screen = { name: 'doc', back: state.screen.name === 'detail' ? { name: 'detail', id: state.screen.id } : { name: 'list' }, ...doc }
+/** 결과서 · 가이드 링크 — 화면을 옮기지 않고 그 자리에 [PDF 로 저장] [열기] 선택을 펼친다(다시 누르면 접힘) */
+function pickDoc(doc) {
+  const key = docKey(doc)
+  state.docPick = state.docPick?.key === key ? undefined : { key, doc }
+  pendingFocus = state.docPick ? (state.noPdf ? 'doc:open' : 'doc:pdf') : `doc:${key}`
   render()
-  scrollTo(0, 0)
+}
+function closeDocPick(key) {
+  state.docPick = undefined
+  pendingFocus = `doc:${key}`
+  render()
+}
+/** 선택 줄 — 링크 바로 아래에 둔다. 프로젝트 밖 경로(공유 폴더)는 열 수 없어 경로만 알린다 */
+function docChoice(key) {
+  const pick = state.docPick
+  if (pick?.key !== key) return ''
+  const { doc } = pick
+  const label = docLabel(doc)
+  const act = {
+    pdf: btn(state.pdfBusy ? 'PDF 만드는 중…' : 'PDF 로 저장', () => savePdf(doc), { class: 'btn pri', disabled: state.pdfBusy, 'data-fk': 'doc:pdf' }),
+    open: btn('열기', () => openDoc(doc), { class: 'btn', 'data-fk': 'doc:open' }),
+    cancel: btn('취소', () => closeDocPick(key), { class: 'btn ghost', 'data-fk': 'doc:cancel' }),
+  }
+  return el('div', { class: 'ask', role: 'group', 'aria-label': `${label} 보는 방법` }, el('div', { class: 'q' }, el('b', {}, `${label} — 어떻게 할까요?`), doc.anchor && !state.noPdf ? 'PDF 는 이 수행의 결과서 전체입니다(시나리오마다 절이 이어집니다).' : ''), docChoices(state.noPdf).map((name) => act[name]))
+}
+/** 앱의 오른쪽 파일 미리보기로 연다 */
+async function openDoc(doc) {
+  state.docPick = undefined
+  render()
   const path = doc.file
   if (path.startsWith('/') || /^[A-Za-z]:/.test(path)) return setNotice({ tone: 'ok', text: `파일 위치: ${path}`, detail: '프로젝트 밖이라 미리보기로 열 수 없습니다' })
   state.notice = undefined
   await tool('openFile', { path }).catch((error) => failNotice(error))
 }
 async function savePdf(doc) {
+  state.docPick = undefined
   state.pdfBusy = true
   state.notice = undefined
   render()
@@ -697,16 +730,17 @@ function groupNode(group) {
     el('span', { class: 't' }, el('span', { class: `tt${group.kind === 'request' ? ' rq' : ''}`, title: group.title }, group.kind === 'request' && !group.loose ? `“${group.title}”` : group.title), el('small', {}, sub)),
   )
   const report = group.lastRun?.report
+  const groupDoc = report ? { kind: 'report', run: group.lastRun.run, file: report, title: group.title, at: group.lastRun.at } : undefined
   const head = el(
     'div',
     { class: 'gh' },
     toggle,
-    report ? link('결과서', () => openDoc({ kind: 'report', run: group.lastRun.run, file: report, title: group.title, at: group.lastRun.at }), { title: `${whenText(group.lastRun.at)} 에 이 그룹을 같이 실행한 결과서` }) : '',
+    groupDoc ? link('결과서', () => pickDoc(groupDoc), { title: `${whenText(group.lastRun.at)} 에 이 그룹을 같이 실행한 결과서`, 'data-fk': `doc:${docKey(groupDoc)}` }) : '',
     group.loose ? '' : [btn('▶ 실행', () => ((state.asking = undefined), askRun(group.rows)), { class: 'btn tint', disabled: busy(), 'data-fk': `run:${foldKey}` }), el('span', { class: 'sepv' }), el('button', { type: 'button', class: 'ico', disabled: busy(), 'data-fk': `del:${foldKey}`, 'aria-label': `${label}그룹의 시나리오 삭제`, title: '이 그룹의 시나리오 삭제', onclick: () => ((state.asking = state.asking?.kind === 'del' && state.asking.key === foldKey ? undefined : { kind: 'del', key: foldKey }), (pendingFocus = state.asking ? 'cancel' : `del:${foldKey}`), render()) }, icon('trash'))],
   )
   const asked = state.asking?.key === foldKey ? state.asking : undefined
   const question = asked?.kind === 'del' ? el('div', { class: 'ask bad' }, delAsk(group.rows, label, () => removeNow(group.selector), () => ((state.asking = undefined), (pendingFocus = `del:${foldKey}`), render()))) : ''
-  return el('div', { class: 'grp' }, head, question, open ? el('div', { class: 'rows' }, group.shown.map((row) => rowNode(row, false))) : '')
+  return el('div', { class: 'grp' }, head, groupDoc ? docChoice(docKey(groupDoc)) : '', question, open ? el('div', { class: 'rows' }, group.shown.map((row) => rowNode(row, false))) : '')
 }
 
 function emptyNode(title, text, button) {
@@ -850,46 +884,19 @@ function resultList(info, row) {
   if (!results.length) return el('div', { class: 'empty' }, '아직 실행한 적이 없습니다. [▶ 실행] 으로 처음 실행해 보세요.')
   const SHOW = 5
   const list = state.moreResults ? results : results.slice(0, SHOW)
-  const nodes = list.map((item) => {
+  const nodes = list.flatMap((item) => {
     const label = item.status === 'failed' ? el('b', { style: 'color:var(--bad)' }, '실패') : item.status === 'passed' ? '성공' : LABEL[item.status] ?? item.status
     const base = { run: item.run, scenario: row.id, title: row.title, at: item.at }
-    const guide = item.guide
-      ? link('화면 가이드', () => openDoc({ ...base, kind: 'guide', file: item.guide.file }))
+    const guideDoc = item.guide && { ...base, kind: 'guide', file: item.guide.file }
+    const reportDoc = item.report && { ...base, kind: 'report', file: item.report.file, anchor: item.report.anchor }
+    const guide = guideDoc
+      ? link('화면 가이드', () => pickDoc(guideDoc), { 'data-fk': `doc:${docKey(guideDoc)}`, 'aria-expanded': String(state.docPick?.key === docKey(guideDoc)) })
       : el('span', { class: 'link dis', role: 'link', 'aria-disabled': 'true', title: '이 수행은 화면 가이드를 만들지 않았습니다' }, '화면 가이드')
-    const report = item.report ? link('결과서', () => openDoc({ ...base, kind: 'report', file: item.report.file, anchor: item.report.anchor })) : el('span', { class: 'link dis', role: 'link', 'aria-disabled': 'true', title: '결과서 파일이 남아 있지 않습니다' }, '결과서')
-    return el('div', { class: 'hist' }, dot(item.status), el('span', {}, whenText(item.at)), el('span', { class: 'when' }, label), el('span', { class: 'docs' }, guide, report))
+    const report = reportDoc ? link('결과서', () => pickDoc(reportDoc), { 'data-fk': `doc:${docKey(reportDoc)}`, 'aria-expanded': String(state.docPick?.key === docKey(reportDoc)) }) : el('span', { class: 'link dis', role: 'link', 'aria-disabled': 'true', title: '결과서 파일이 남아 있지 않습니다' }, '결과서')
+    return [el('div', { class: 'hist' }, dot(item.status), el('span', {}, whenText(item.at)), el('span', { class: 'when' }, label), el('span', { class: 'docs' }, guide, report)), guideDoc ? docChoice(docKey(guideDoc)) : '', reportDoc ? docChoice(docKey(reportDoc)) : '']
   })
   if (results.length > SHOW && !state.moreResults) nodes.push(el('div', { class: 'hist', style: 'grid-template-columns:1fr;padding:0 6px' }, link(`이전 결과 ${results.length - SHOW}개 더 보기`, () => ((state.moreResults = true), render()))))
   return nodes
-}
-
-// ── 결과서 · 가이드 보기 자리 ──
-
-function leaveDoc() {
-  const back = state.screen.back
-  state.notice = undefined
-  if (back.name === 'detail') return ((state.screen = back), render(), scrollTo(0, 0))
-  backToList()
-  scrollTo(0, 0)
-}
-function docView() {
-  const doc = state.screen
-  const back = doc.back.name === 'detail' ? '‹ 시나리오' : '‹ 목록'
-  const out = [el('div', {}, btn(back, leaveDoc, { class: 'btn ghost back', 'data-fk': 'back' }))]
-  const banner = bannerNode()
-  if (banner) out.push(banner)
-  const guide = doc.kind === 'guide'
-  const meta = [doc.at && `${whenText(doc.at)} 수행`, guide ? '화면 흐름 순서로 풀어 쓴 문서' : doc.anchor ? '여러 시나리오를 한 파일로 낸 결과서' : '실행 결과서', '앱 오른쪽의 미리보기에서 열었습니다'].filter(Boolean).join(' · ')
-  out.push(
-    el(
-      'div',
-      { class: 'card' },
-      el('div', {}, el('h3', {}, el('span', {}, `${guide ? '화면 가이드' : '결과서'} · ${doc.title ?? ''}`)), el('div', { class: 'meta wrap' }, meta)),
-      el('div', { class: 'acts' }, state.noPdf ? '' : btn(state.pdfBusy ? 'PDF 만드는 중…' : 'PDF 로 저장', () => savePdf(doc), { class: 'btn', disabled: state.pdfBusy, 'data-fk': 'pdf' }), btn('미리보기에서 다시 열기', () => tool('openFile', { path: doc.file }).catch((error) => failNotice(error)), { class: 'btn ghost' })),
-      doc.anchor && !state.noPdf ? el('p', { class: 'note' }, 'PDF 는 이 수행의 결과서 전체입니다(시나리오마다 절이 이어집니다).') : '',
-    ),
-  )
-  return out
 }
 
 // ── 환경 팝업 ──
@@ -1022,7 +1029,6 @@ function render() {
   if (!data) {
     main.append(topBar(), state.error ? el('div', { class: 'banner err', role: 'alert' }, el('div', { class: 'm' }, el('b', {}, '시나리오 목록을 불러오지 못했습니다'), el('br'), Object.values(ERRORS).includes(state.error) ? state.error : '서비스가 응답하지 않았습니다. 잠시 뒤 다시 불러오세요. 계속 안 되면 플러그인을 껐다 켜 보세요.'), btn('다시 불러오기', () => load(true))) : el('p', { class: 'quiet-card', role: 'status' }, '불러오는 중…'))
   } else if (state.screen.name === 'detail' && state.data.rows.some((row) => row.id === state.screen.id)) main.append(...detailView())
-  else if (state.screen.name === 'doc' && state.screen.back) main.append(...docView())
   else main.append(topBar(data), tabs(), el('div', { id: 'body', class: 'stack' }, listBody()), dockNode())
   const scroll = scrollY
   app.replaceChildren(main, ...(state.env && data ? [envDialog(data)] : []))
@@ -1042,6 +1048,7 @@ function render() {
 addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
   if (state.env) return ((state.env = undefined), (pendingFocus = 'env'), render())
+  if (state.docPick) return closeDocPick(state.docPick.key)
   if (state.dock) return ((state.dock = ''), (pendingFocus = 'dock:run'), render())
   if (state.asking) {
     const { key } = state.asking

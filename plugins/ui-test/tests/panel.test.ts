@@ -9,7 +9,7 @@ if (!source) throw new Error('index.html 에서 <pure> 구간을 찾지 못했�
 
 type Row = { id: string; title: string; screens: string[]; request: string | null; status: string | null; lastAt: number | null }
 type Group = { key: string; kind?: string; title: string; rows: Row[]; selector?: Record<string, string>; loose?: boolean; shown?: Row[]; lastRun?: { at: number } | null }
-const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, runCount, finishNote, bareTitle }`)() as {
+const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStatus, whenParts, sortRows, buildGroups, matches, showGroups, sharedCount, runPrompt, runCount, finishNote, bareTitle, docKey, docLabel, docChoices }`)() as {
   whenText(ms: number, now?: number): string
   dayText(ms: number): string
   dotOf(status: string): string
@@ -24,6 +24,9 @@ const api = new Function(`${source}\nreturn { whenText, dayText, dotOf, liveStat
   runCount(progress: unknown): { total: number; done: number; at: number; percent: number }
   finishNote(progress: unknown): { text: string; detail: string; report?: { file: string } }
   bareTitle(title: string): string
+  docKey(doc: { run: string; kind: string; scenario?: string }): string
+  docLabel(doc: { kind: string }): string
+  docChoices(noPdf: boolean): string[]
 }
 
 const at = (d: number, h: number, m: number): number => new Date(2026, 10, d, h, m).getTime()
@@ -164,5 +167,23 @@ describe('패널 소스 규칙', () => {
   it('옛 말투가 없다 — 돌리기 · 묶음 · 수행 ▾', () => {
     const visible = html.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(visible).not.toMatch(/돌리|돌려|묶음|수행 ▾|suite/)
+  })
+})
+
+describe('결과서 · 가이드 링크의 선택', () => {
+  it('같은 수행의 결과서와 가이드, 시나리오마다 키가 다르다 — 한 번에 한 줄만 펼치는 기준', () => {
+    const base = { run: '20261110T161829_01', scenario: 'a' }
+    expect(api.docKey({ ...base, kind: 'report' })).not.toBe(api.docKey({ ...base, kind: 'guide' }))
+    expect(api.docKey({ ...base, kind: 'report' })).not.toBe(api.docKey({ run: base.run, kind: 'report', scenario: 'b' }))
+    expect(api.docKey({ run: 'r', kind: 'report' })).toBe('r:report:')
+  })
+
+  it('이름 — 가이드면 화면 가이드, 아니면 결과서', () => {
+    expect([api.docLabel({ kind: 'guide' }), api.docLabel({ kind: 'report' })]).toEqual(['화면 가이드', '결과서'])
+  })
+
+  it('버튼 — PDF 로 저장 · 열기 · 취소, PDF 저장을 모르는 앱이면 열기 · 취소만', () => {
+    expect(api.docChoices(false)).toEqual(['pdf', 'open', 'cancel'])
+    expect(api.docChoices(true)).toEqual(['open', 'cancel'])
   })
 })
