@@ -188,6 +188,24 @@ this.expose('fullscreen', (params, { directory }) => host.call('panel.fullscreen
 - 바깥 요청은 `host.fetch`(`host.call('network.fetch')` 를 `Response` 로 감쌈)로만 합니다 — `network` 권한과 사용자가 허용한 주소만 됩니다.
 - **서비스에서 못 부르는 것:** `secrets.get`(`method-unknown`), `panel.args`, `events.subscribe`(대신 `ctx.on`), `service.call` · `service.list`(자기 자신).
 
+### 5-0. 프로젝트 밖으로 저장 — project.exportFile
+
+결과서 · PDF 처럼 **프로젝트 안에 만들어 둔 파일 하나**를 사용자가 저장 창에서 고른 곳에 내보냅니다(desktop #1711, 호스트 API 2 — 옛 앱에는 없음).
+
+```js
+// 서버가 프로젝트 안(예: ui-tests/_reports/<수행>/report.pdf)에 PDF 를 만들어 두고 그 경로를 서비스에 돌려주면, 서비스가 부른다
+const result = await host.call('project.exportFile', { path: 'ui-tests/_reports/20261110T110500_01/report.pdf', name: '결과서.pdf' }, { directory })
+// { saved: true, name: '결과서.pdf' }  또는 사용자가 취소하면 { saved: false }
+```
+
+- **서비스 전용입니다.** 패널과 MCP 서버 프로세스는 부르지 못합니다 — 패널은 `service.call` 로 맡기고, 서버는 파일을 만든 뒤 경로를 서비스에 넘깁니다. 새 권한은 없고 `project` 권한이면 됩니다.
+- `path` 는 프로젝트 폴더 기준 상대 경로, `name` 은 저장 창에 보일 제안 이름입니다(경로 구분자 · 제어 문자 · Windows 불가 문자는 앱이 지우고 80자로 줄이되 확장자는 남깁니다).
+- **사용자가 고른 경로 한 곳에만** 씁니다 — 플러그인이 목적지를 정할 수 없고, 돌려받는 것도 저장된 파일의 **이름뿐**입니다(고른 전체 경로는 알려 주지 않습니다).
+- **원본 조건:** 프로젝트 안의 일반 파일이어야 하고(`..` · 절대 경로 · 밖을 가리키는 링크 · 디렉터리 · 특수 파일은 거절) 100MB 이하입니다. 사용자가 고른 뒤 복사 직전에 원본을 다시 검사하고, 목적지 폴더의 임시 파일에 쓴 뒤 이름을 바꿔 넣으므로 중간에 실패해도 기존 파일이 잘리지 않습니다.
+- **실패 코드:** `params-invalid` · `no-project` · `not-file`(일반 파일이 아니거나 없음) · `path-outside` · `too-big` · `busy`(같은 플러그인의 저장 창이 이미 열려 있음 — 동시에 하나) · `export-limit`(분당 6번 초과) · `io-failed` · `not-on` · `permission-missing`.
+- **옛 앱 대응:** 이 호출이 없는 앱에서는 실패가 나므로 저장 버튼을 숨기거나 안내합니다.
+- 가짜 host 에서는 `createFakeHost({ calls: { 'project.exportFile': () => ({ saved: true, name: 'report.pdf' }) } })` 로 흉내 냅니다.
+
 ### 5-1. AI 에게 한 번 묻기 — llm.ask
 
 서비스가 앱의 기본 모델에 **글 하나를 묻고 답 글을 받는** 호출입니다(요약 · 분류 · 짧은 글 만들기). 대화 턴을 만들지 않고, AI 는 도구를 쓰지 못하고 글로만 답합니다. **베타**입니다.
