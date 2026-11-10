@@ -168,10 +168,11 @@ npm run release vi-pack      # → - vi-pack 목록에서 내림 (unlisted)
 ## 올리기 전 확인
 
 - 폴더 이름과 manifest 의 `id` 가 같다
+- `name` 80자 · `description` 300자 · `details` 2000자 이하(넘으면 설치가 거절된다 — 기능을 더하며 `details` 가 길어지기 쉽다. 테스트가 막는다)
 - `version` 을 올렸다 (새 플러그인이면 `0.1.0` 부터)
 - 서비스 플러그인이면 `build.mjs --dir` 로 낸 폴더가 되고, zip 으로 설치해 동의 · 켜기까지 한 번 돌려 봤다
 - `categories.json` 에 한 줄 있다
-- zip 으로 직접 설치해 한 번 돌려 봤다
+- zip 으로 직접 설치해 한 번 돌려 봤다 — `node plugins/<id>/build.mjs` 가 `build/<id>.zip` 을 만든다. 테스트는 설치 검사를 전부 대신하지 못하니(예: 글자 수 · 앱 버전 요구) 새 기능을 더한 버전은 꼭 설치해 본다
 - 권한은 쓰는 것만 적었다
 - 테스트가 있는 플러그인은 `npm test -- --project <id>` 로 그 플러그인 테스트가 통과한다. 머지 훅은 `npm run test:changed`(바뀐 플러그인 + 공통 검사)를 돌린다
 

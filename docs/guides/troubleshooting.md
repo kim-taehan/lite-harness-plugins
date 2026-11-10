@@ -33,7 +33,7 @@ zip(또는 연결한 폴더)을 검사하다 하나라도 걸리면 설치되지
 | `id-mismatch` | 폴더 이름과 manifest 의 `id` 가 다르다(`folder` · `id`) | 폴더 이름과 `id` 를 같게(표준 1번) |
 | `version-invalid` | `version`(또는 `litecode`)이 `주.부.수` 가 아니다 | `1.2.3` 모양으로 |
 | `app-too-old` | `litecode` 가 요구하는 최소 앱 버전보다 지금 앱이 낮다(`required` · `current`) | 앱을 올리거나 `litecode` 를 낮춘다(쓰는 기능이 그 버전에 있는지 확인) |
-| `text-invalid` | `name`(80자) · `description`(300자) · `details`(2000자)가 길이를 넘었다(`field` · `max`) | 줄인다 |
+| `text-invalid` | `name`(80자) · `description`(300자) · `details`(2000자)가 길이를 넘었다(`field` · `max`) | 줄인다. `details` 는 기능을 설명하다 2000자를 넘기 쉽다 — 한 문단에 한 가지만 적고 자세한 것은 `README.md` 로 보낸다(`tests/standards.test.ts` 가 막는다) |
 | `scope-invalid` | `scope` 가 `app` · `project` 가 아니다 | 둘 중 하나. 생략하면 프로젝트별(단 이 저장소 표준 20번은 새 플러그인에 `scope` 를 꼭 적게 한다) |
 | `permissions-invalid` · `permission-unknown` | `permissions` 가 문자열 목록이 아니다 · 모르는 권한(`value`, 오타면 `suggestion`) | 앱이 아는 권한만. 폐지돼 삭제된 `tools` · `mcp` · `lsp` 권한도 여기 걸린다 — 서비스 등록은 `service` 권한만으로 된다 |
 | `entry-missing` · `entry-invalid` · `entry-not-html` · `entry-unsafe` · `entry-too-large` | `entry` 파일이 zip 에 없다 · 경로가 틀렸다 · `.html` 이 아니다 · 폴더 밖이나 링크다 · 2MB 를 넘는다 | 패널은 한 파일짜리 HTML, 폴더 안 일반 파일로 둔다 |
@@ -46,7 +46,7 @@ zip(또는 연결한 폴더)을 검사하다 하나라도 걸리면 설치되지
 |---|---|---|
 | `service-invalid` | `service` 선언이 틀렸다. `field` 가 곳을 알려 준다(아래 표) | 아래 표 |
 | `service-mismatch` | `service` 선언과 `service` 권한이 **같이** 있어야 하는데 한쪽만 있다 | `permissions` 에 `"service"` 를 넣거나 선언을 지운다(표준 5번) |
-| `service-incompatible` | `service.api` 가 이 앱이 아는 호스트 API 버전보다 크다(`api` · `supported`) | 앱을 최신으로 올린다. 지금은 `api: 1` |
+| `service-incompatible` | `service.api` 가 이 앱이 아는 호스트 API 버전보다 크다(`api` · `supported`) | 앱을 최신으로 올린다. `api: 2` 는 `host.db` 가 있는 앱부터라 옛 앱(0.1.30)에는 설치되지 않는다 |
 | `service-network-direct` | 번들이 바깥으로 직접 보낸다 — `fetch(` · `new WebSocket` · `node:http` · `https` · `net` · `tls` · `dns` · `dgram` · `undici` 흔적(`path` · `found`) | 바깥 요청은 `host.fetch` 로만 한다. **글자 점검이라** `fetch(` 라는 이름의 자기 메서드도 걸리니 이름을 바꾼다. 소스에서는 표준 24번 테스트가 먼저 잡는다 |
 
 `service-invalid` 의 `field`:

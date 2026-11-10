@@ -90,3 +90,44 @@ describe('block-hand-edit — catalog.json · dist/ 손편집을 막는다 (이 
     expect(edit(path.join(other, 'catalog.json'))).toBe(0)
   })
 })
+
+describe('check-manifest — 앱이 거절할 manifest 를 커밋 앞에서 막는다', () => {
+  const manifestOf = (id: string, extra: Record<string, unknown> = {}) => JSON.stringify({ id, name: '테스트', description: '설명', version: '0.1.0', ...extra })
+  const put = (dir: string, folder: string, text: string) => {
+    mkdirSync(path.join(dir, 'plugins', folder), { recursive: true })
+    writeFileSync(path.join(dir, 'plugins', folder, 'plugin.json'), text)
+    git(dir, 'add', '-A')
+  }
+  const commit = `${G} commit -m x`
+
+  it('details 가 2000자를 넘으면 막고, 2000자면 통과', () => {
+    put(other, 'big-one', manifestOf('big-one', { details: 'ㄱ'.repeat(2001) }))
+    expect(run('check-manifest', { command: commit }, other)).toBe(2)
+    put(other, 'big-one', manifestOf('big-one', { details: 'ㄱ'.repeat(2000) }))
+    expect(run('check-manifest', { command: commit }, other)).toBe(0)
+  })
+  it('name 80자 · description 300자 초과도 막는다', () => {
+    put(other, 'big-two', manifestOf('big-two', { name: 'n'.repeat(81) }))
+    expect(run('check-manifest', { command: commit }, other)).toBe(2)
+    put(other, 'big-two', manifestOf('big-two', { description: 'd'.repeat(301) }))
+    expect(run('check-manifest', { command: commit }, other)).toBe(2)
+    put(other, 'big-two', manifestOf('big-two'))
+    expect(run('check-manifest', { command: commit }, other)).toBe(0)
+  })
+  it('폴더 이름과 id 가 다르거나 JSON 이 깨져도 막는다', () => {
+    put(other, 'folder-a', manifestOf('other-id'))
+    expect(run('check-manifest', { command: commit }, other)).toBe(2)
+    put(other, 'folder-a', manifestOf('folder-a'))
+    put(other, 'folder-b', '{ 깨진')
+    expect(run('check-manifest', { command: commit }, other)).toBe(2)
+    put(other, 'folder-b', manifestOf('folder-b'))
+    expect(run('check-manifest', { command: commit }, other)).toBe(0)
+  })
+  it('커밋이 아닌 명령은 늘 통과', () => {
+    put(other, 'big-three', manifestOf('big-three', { details: 'ㄱ'.repeat(5000) }))
+    expect(run('check-manifest', { command: `${G} status` }, other)).toBe(0)
+    expect(run('check-manifest', { command: `${G} push origin feature` }, other)).toBe(0)
+    rmSync(path.join(other, 'plugins', 'big-three'), { recursive: true, force: true })
+    git(other, 'add', '-A')
+  })
+})
