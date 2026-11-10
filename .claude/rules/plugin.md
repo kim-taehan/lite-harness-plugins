@@ -45,3 +45,6 @@
 25. **[검토]** 서비스와 패널이 같은 상태를 따로 쓰지 않는다(나중에 쓴 쪽이 이긴다). 서비스가 상태를 들고 패널은 `service.call` 로 읽기만 하거나, 키를 나눈다. 작은 영구 값은 `host.call('storage.*')`, 목록으로 쌓는 이력 · 색인 · 상태는 `host.db`(서비스 전용, 호스트 API 2, MCP 서버 프로세스는 `sdk/litecode-db-client.mjs` 로 쓴다)를 쓴다. 프로젝트별(`scope: "project"`) 서비스는 `host.call` 에 `{ directory }` 를 넘기고, 프로젝트 몫 자원은 `projectOn` 이 돌려준 함수로 되돌린다.
 26. **[검토]** AI 도구 이름을 확인한다: 서비스가 `host.tools.register` 로 올린 도구는 `<id>_<도구>`, 서비스가 `host.mcp.register`(또는 manifest `mcp`)로 올린 서버의 도구는 기본 `litecode_<id>_<도구>`, `attach: "server"` 면 `<id>_<도구>` 다. 스킬 본문의 도구 이름이 이와 같은지 본다(19번).
 27. **[필수]** `sdk/` 는 desktop `docs/plugin-sdk/` 생성물의 사본이다 — 손으로 고치지 않고 `npm run sync:sdk` 로 옆 desktop 에서 복사한다. 옆 desktop 이 있으면 같은지 `node scripts/sync-sdk.mjs --check` 가 보고 테스트도 막는다. — 테스트(옆 desktop 이 있을 때)
+
+## 데이터 저장
+28. **[검토]** 남기는 값마다 둘 곳을 `docs/guides/data-storage.md` 의 표로 정한다 — 설정 · 비밀은 설정 칸, 작은 상태는 `storage`, 플러그인이 쌓는 다시 만들 수 있는 기록 · 색인은 `host.db`, 사람 · AI 가 읽고 고치는 원본 · 산출물은 프로젝트 파일, 크고 이 PC 에서만 의미 있는 것은 앱 데이터 폴더. DB 문서에 파일 경로를 적지 않고 id 로 찾는다. 프로젝트에 쓰는 폴더는 `README.md` 에 이름 · 내용 · 지울 때를 적는다.
