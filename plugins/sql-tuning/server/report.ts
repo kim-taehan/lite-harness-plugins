@@ -30,6 +30,8 @@ export interface ReportInput {
   original_sql: string
   candidate_sql: string
   diff_note?: string
+  /** 맨 앞 개요 — AI 가 이번 튜닝 대화(원인 · 시도 · 결론)를 정리한 글. 숫자는 아래 절의 도구 결과가 정본 */
+  overview?: { summary: string; sections: { title: string; text: string; code?: string }[] }
   cost?: { before: number; after: number }
   plan?: { what: string; before: PlanSide; after: PlanSide; changed?: boolean }[]
   plan_full?: { before: string; after: string }
@@ -204,6 +206,21 @@ export function parseReport(args: Record<string, unknown>): Parsed {
     const before = c.str(full, 'before', 'plan_full.', true, MAX_TEXT)
     const after = c.str(full, 'after', 'plan_full.', true, MAX_TEXT)
     if (before !== undefined && after !== undefined) input.plan_full = { before, after }
+  }
+  const overview = c.obj(args, 'overview', '', false)
+  if (overview) {
+    const summary = c.str(overview, 'summary', 'overview.', true, 1200)
+    const sections: { title: string; text: string; code?: string }[] = []
+    const list = c.list(overview, 'sections', 'overview.', false, 10)
+    list?.forEach((item, at) => {
+      const where = `overview.sections[${at}].`
+      if (!isObj(item)) return void c.errors.push(`overview.sections[${at}] must be an object`)
+      const title = c.str(item, 'title', where, true, 120)
+      const text = c.str(item, 'text', where, true, 2500)
+      const code = c.str(item, 'code', where, false, 6000)
+      if (title !== undefined && text !== undefined) sections.push({ title, text, ...(code && { code }) })
+    })
+    if (summary !== undefined) input.overview = { summary, sections }
   }
   const cause = c.obj(args, 'cause', '', false)
   if (cause) {
@@ -504,6 +521,12 @@ pre.raw{margin:0;padding:10px 12px;border-radius:8px;background:var(--well);box-
 .cmp td small{display:block;font-size:11.5px;color:var(--ink-3);font-weight:500}
 .rowsdiff{color:var(--bad);font-weight:700}
 .cmp-foot{margin-top:8px;font-size:12px;color:var(--ink-3);display:flex;gap:4px 16px;flex-wrap:wrap}
+.ov .lead{font-size:14.5px;line-height:1.7;color:var(--ink);margin:2px 0 14px;text-wrap:pretty}
+.ovs{margin-top:14px;display:grid;gap:6px}
+.ovs h3{font-size:13.5px;font-weight:650;letter-spacing:-.005em;color:var(--ink)}
+.ovs p{font-size:13px;line-height:1.75;color:var(--ink-2);text-wrap:pretty}
+.ovs code{font:12px/1.5 var(--mono);background:var(--well);box-shadow:inset 0 0 0 1px var(--rule);border-radius:5px;padding:1px 5px;color:var(--ink)}
+.ovs pre.raw{margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere}
 .cause{margin-top:12px;padding:12px 14px;border-radius:8px;background:var(--bad-wash);display:grid;gap:4px;font-size:12.5px}
 .cause b{color:var(--bad);font-size:13.5px;font-weight:650}
 .cause p{color:var(--ink)}
@@ -656,6 +679,18 @@ export function renderReport(input: ReportInput, context: RenderContext): string
     : `<div><dt>결과 일치</dt><dd class="${differing.length ? 'bad' : ''}">${sameCount} / ${input.compare.length}<small>바인드</small></dd><span class="sub">${differing.length ? `${differing.length}개에서 행 수 · 체크섬이 다름` : '행 수 · 체크섬은 모두 같음'}</span></div>
     <div><dt>실측 시간 (중앙값)</dt><dd class="dim"><span class="was">${fmt(t0)}</span> <span class="arrow">→</span> ${fmt(t1)}<small>ms</small></dd><span class="sub">참고 — 개선으로 세지 않음</span></div>
     ${costCell}`
+  /** 글 한 덩어리 → 문단 · `코드` — 빈 줄로 문단을 나누고 백틱 안은 코드 모양으로(이스케이프한 뒤에 바꾼다) */
+  const prose = (text: string): string =>
+    clean(text)
+      .split(/\n{2,}/)
+      .map((para) => `<p>${para.trim().replace(/\n/g, '<br>').replace(/`([^`]+)`/g, '<code>$1</code>')}</p>`)
+      .join('')
+  const overviewSec = input.overview
+    ? `<section class="sec ov" aria-labelledby="s0"><div class="h"><h2 id="s0">개요</h2><span class="meta">AI 가 이번 튜닝을 정리한 글 · 숫자는 아래 절의 도구 결과가 기준</span></div>
+    <p class="lead">${clean(input.overview.summary)}</p>
+    ${input.overview.sections.map((part) => `<div class="ovs"><h3>${clean(part.title)}</h3>${prose(part.text)}${part.code ? `<pre class="raw">${clean(part.code)}</pre>` : ''}</div>`).join('')}
+  </section>`
+    : ''
   const verdict = `<section class="verdict" aria-label="한 줄 결론">
     <div class="state">${ok ? '<span class="chip ok">개선 성공</span>' : '<span class="chip bad">적용 보류</span>'}<span>${ok ? (input.index ? '인덱스는 만들지 않았고, 제안만 합니다' : '인덱스는 만들지 않았고, SQL 만 고쳤습니다') : '원래 SQL 은 그대로 둡니다'}</span></div>
     <p class="line">${line}</p>
@@ -767,7 +802,7 @@ export function renderReport(input: ReportInput, context: RenderContext): string
 <style>${STYLE}</style>
 </head>
 <body>
-<article aria-label="SQL 튜닝 최종 결과서 — ${clean(input.target)}">${head}${verdict}${diff}${planSec}${cmp}${indexSec()}${rulesSec()}${limitSec}
+<article aria-label="SQL 튜닝 최종 결과서 — ${clean(input.target)}">${head}${overviewSec}${verdict}${diff}${planSec}${cmp}${indexSec()}${rulesSec()}${limitSec}
 <footer class="foot"><span>AI 는 DB 와 프로젝트 소스를 바꾸지 않았습니다. 조회만 했습니다.</span><span>비밀번호 · 접속 정보와 데이터 행은 이 문서에 들어 있지 않습니다. 인쇄하면 PDF 결과서입니다.</span></footer></article>
 </body>
 </html>
