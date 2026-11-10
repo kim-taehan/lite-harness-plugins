@@ -1,6 +1,6 @@
 ---
 name: ui-test
-description: Create and maintain UI test scenarios for a web screen with the ui-test MCP tools — read the screen (and its server code), draft scenarios, save the ones the user picks together with generated Playwright code (`.spec.mjs`), enrich or change saved scenarios, and refresh stale or changed code. Use for "가입설계 화면 테스트 구성해 줘", "aa.html 테스트 자동화해 줘", "시나리오 보강해 줘", "3 번 시나리오 이렇게 바꿔 줘", "set up / write / automate UI tests for this page", the panel's [보강] and [변경 요청], or "프롬프트 다시 만들어 줘". Do NOT use it to run scenarios, fix a failing run or read earlier results — that is the `ui-test-run` skill (this skill hands the run over to it).
+description: Create and maintain UI test scenarios for a web screen with the ui-test MCP tools — read the screen (and its server code), draft scenarios, save the ones the user picks together with generated Playwright code (`.spec.mjs`), enrich or change saved scenarios, and refresh stale or changed code. Use for "가입설계 화면 테스트 구성해 줘", "aa.html 테스트 자동화해 줘", "시나리오 보강해 줘", "3 번 시나리오 이렇게 바꿔 줘", "set up / write / automate UI tests for this page", the panel's [보강] and [수정], or "프롬프트 다시 만들어 줘". Do NOT use it to run scenarios, fix a failing run or read earlier results — that is the `ui-test-run` skill (this skill hands the run over to it).
 ---
 
 # UI tests (beta)
@@ -92,7 +92,7 @@ The user can ask for changes **per scenario by number or title**, in the draft l
 
 Deleting scenarios, a screen group or a request group is done by the panel's **[삭제]** (the plugin removes the files, records, screenshots and report sections itself, after a confirmation) — you have no tool for it; when the user asks you in chat to delete or merge saved scenarios, use the rules below (list the files, get the OK first) — the next `list`/`run` clears the records of a file you removed.
 
-The panel's **[변경 요청]** opens a new conversation with the scenario (id, file) already filled in and a last line `변경 내용:` — the text the user adds after it is the request. Read that scenario file first, then handle it as below. Never run anything because of a change request; after the change is applied and the code regenerated, ask whether to run it.
+The panel's **[수정]** opens a new conversation and sends the scenario (title, id, and the paths of its md, code and run history) with no change text. **Read the scenario file first, then ask what to change with the question tool** (one question; offer common kinds — 단계 추가·삭제, 데이터 바꾸기, 기대값 바꾸기, 제목 — and free text) and handle the answer as below. Change nothing and run nothing before you asked. After the change is applied and the code regenerated, ask whether to run it.
 
 Rules:
 - **Draft** (not saved yet): apply the changes to the draft list, then show it again. Nothing is written until the user picks what to save.
@@ -120,6 +120,11 @@ Triggered by "…시나리오 보강해 줘", the panel's [보강] on a scenario
 - **How**: load the **`ui-test-run`** skill with the skill tool and follow it — don't call `litecode_ui-test_run` first. It holds the steps, solving failures, the per-scenario run history (`<id>.history.md`), the summary and the 가이드; none of that is repeated here.
 - **The `litecode_ui-test_run` tool in short**: `scenarios: ["<id>", …]` (also `screen`, `request`, `failed: true`), `headed: true` only to watch; reports are always written per scenario; the result is read with `litecode_ui-test_report { run }`.
 - **After a result**: a failure → `ui-test-run`'s problem solving. 코드 낡음 or 코드 바뀜 → regenerate or enrich here ("Keeping it healthy", "Enrichment").
+
+## The tested app's source code is read-only
+
+- **An error while using this skill is never a reason to edit the tested app's source code** (screen, front-end or back-end files, including the back-end code folders) — you only read it. Change the scenarios and their generated code instead.
+- **When the target server seems to behave differently from the source you read:** first get the latest source (pull the project and each back-end code folder, `git fetch` / `git pull` — only when the working tree is clean, never discard or overwrite local changes) and compare it again. If it still doesn't match, **stop and ask the user** with the question tool. Don't change the app's code to make it match.
 
 ## Rules for the code
 

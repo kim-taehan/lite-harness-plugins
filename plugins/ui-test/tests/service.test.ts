@@ -261,6 +261,18 @@ describe('service', () => {
     for (const phrase of ['at most 2 fix-and-rerun tries', 'The app is probably wrong', '데이터 막힘', 'SELECT only', 'The environment']) expect(failures, phrase).toContain(phrase)
   })
 
+  it('[수정] 규칙 — ui-test 스킬이 시나리오를 읽고 무엇을 고칠지 질문 도구로 먼저 묻는다', () => {
+    const skill = readFileSync(path.join(here, 'skills/ui-test/SKILL.md'), 'utf8')
+    for (const phrase of ["**[수정]**", 'ask what to change with the question tool', 'Change nothing and run nothing before you asked']) expect(skill, phrase).toContain(phrase)
+  })
+
+  it('두 스킬 모두 대상 앱 소스를 고치지 않고, 서버가 코드와 다르면 최신 코드를 비교한 뒤 사용자에게 묻는 규칙이 있다', () => {
+    for (const dir of ['ui-test', 'ui-test-run']) {
+      const text = readFileSync(path.join(here, 'skills', dir, 'SKILL.md'), 'utf8')
+      for (const phrase of ["## The tested app's source code is read-only", 'never a reason to edit the tested app\'s source code', 'get the latest source', '**stop and ask the user**']) expect(text, `${dir}: ${phrase}`).toContain(phrase)
+    }
+  })
+
   it('스킬 머리(frontmatter) — name 은 폴더 이름, description 은 한 줄·트리거 문구·"Do NOT use" 가 있고, 두 스킬이 서로를 정확한 이름으로 가리킨다', () => {
     const read = (name: string) => readFileSync(path.join(here, 'skills', name, 'SKILL.md'), 'utf8')
     const head = (text: string) => {

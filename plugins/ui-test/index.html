@@ -679,11 +679,14 @@ const enrichPrompt = (row) => [
   row.changed?.length && `코드 바뀜: ${row.changed.map((change) => change.path + (change.state === 'missing' ? '(없어짐)' : '')).join(', ')} — 기대 메시지 등 바뀐 점도 제안에 넣어 줘.`,
   'ui-test 스킬의 보강 순서대로 빠진 확인 · 데이터 변형 · 변형 시나리오 · 코드 바뀜 제안을 목록으로 보이고, 여러 개 고르기로 물어 본 뒤 고른 것만 반영해 줘.',
 ].filter(Boolean).join('\n')
-/** 변경 요청 — 입력창만 채워 연다(send: false). 사용자가 마지막 줄 뒤에 바꿀 내용을 이어 쓰고 보낸다 */
+/** [수정] — 새 대화에 곧바로 보낸다. 시나리오 · 코드 · 수행 기록 경로를 알려 주고, 무엇을 고칠지는 AI 가 묻는다(`ui-test` 스킬 "수정 요청") */
 const changePrompt = (row) => [
-  `UI 테스트 시나리오 ${row.id} "${row.title}"(${row.file}) 를 변경하려고 해.`,
-  'ui-test 스킬의 "수정 요청" 규칙대로, 파일을 바꾸기 전에 바뀌는 전 · 후를 보여 주고 물어본 뒤 반영해 줘. 바뀌면 코드를 다시 만들고 실행할지 물어 줘.',
-  '변경 내용: ',
+  `UI 테스트 시나리오를 수정하려고 해. ui-test 스킬의 "수정 요청" 규칙대로, 먼저 아래 시나리오를 읽고 어떤 내용을 수정할지 질문 도구로 물어 줘. 바꾸기 전에 전 · 후를 보여 주고 확인받은 뒤 반영하고, 바뀌면 코드를 다시 만든 뒤 실행할지 물어 줘. 묻기 전에는 아무것도 바꾸거나 실행하지 마.`,
+  '',
+  `- ${row.title} (id ${row.id})`,
+  `  - 시나리오 \`${row.file}\``,
+  `  - 코드 \`${row.file.replace(/\.md$/, '.spec.mjs')}\`${row.hasCode ? '' : '(아직 없음)'}`,
+  `  - 수행 기록 \`${row.file.replace(/\.md$/, '.history.md')}\`${row.hasHistory ? '' : '(아직 없음)'}`,
 ].join('\n')
 const promptPath = () => '.litecode/plugins/ui-test/_prompt.md'
 const rebuildPrompt = () => `UI 테스트 프로젝트 프롬프트(${promptPath()})를 다시 만들어 줘. ui-test 스킬의 "Project prompt" 절대로 프로젝트를 처음부터 다시 조사해 파일을 새로 쓰고, 무엇이 바뀌었는지 보여 줘.`
@@ -858,7 +861,7 @@ function detailView() {
       'div',
       { class: 'card' },
       el('div', {}, el('h3', {}, dot(status), el('span', {}, row.title)), el('div', { class: 'meta', title: [screens.join(' · '), request && `“${request.text}”`].filter(Boolean).join(' · ') }, metaText)),
-      el('div', { class: 'acts' }, btn('▶ 실행', () => askRun([row]), { class: 'btn pri', disabled: busy() || !row.hasCode, title: row.hasCode ? '이 시나리오만 실행합니다' : '코드가 없어 실행할 수 없습니다 — 대화에서 코드를 만들게 하세요' }), btn('삭제', () => ((state.delOne = !state.delOne), (pendingFocus = state.delOne ? 'cancel' : 'del'), render()), { class: 'btn danger end', disabled: busy(), 'data-fk': 'del' })),
+      el('div', { class: 'acts' }, btn('▶ 실행', () => askRun([row]), { class: 'btn pri', disabled: busy() || !row.hasCode, title: row.hasCode ? '이 시나리오만 실행합니다' : '코드가 없어 실행할 수 없습니다 — 대화에서 코드를 만들게 하세요' }), btn('수정', () => ask(changePrompt(row)), { class: 'btn', disabled: busy(), title: '새 대화에서 AI 가 어떤 내용을 수정할지 묻습니다' }), btn('삭제', () => ((state.delOne = !state.delOne), (pendingFocus = state.delOne ? 'cancel' : 'del'), render()), { class: 'btn danger end', disabled: busy(), 'data-fk': 'del' })),
       state.delOne ? el('div', { class: 'ask bad inner' }, el('div', { class: 'q' }, el('b', {}, '이 시나리오를 삭제할까요?'), '결과 · 스크린샷도 함께 지워지고 되돌릴 수 없습니다.'), btn('취소', () => ((state.delOne = false), (pendingFocus = 'del'), render()), { class: 'btn', 'data-fk': 'cancel' }), btn('삭제', () => removeNow({ scenarios: [row.id] }, () => backToList()), { class: 'btn sbad' })) : '',
       warns.length ? el('div', { class: 'warnbox' }, warns.map((text, index) => [index ? el('br') : '', text])) : '',
     ),
@@ -869,7 +872,7 @@ function detailView() {
 
   out.push(el('h2', { class: 'sec' }, '단계'), el('div', { class: 'grp' }, stepList(info, row)))
   const failed = info.latest?.status === 'failed'
-  out.push(el('div', { class: 'tools' }, link('변경 요청', () => ask(changePrompt(row), false), { title: '새 대화의 입력창에 이 시나리오를 채워 엽니다 — 바꿀 내용을 이어 쓰고 보냅니다' }), link('보강', () => ask(enrichPrompt(row)), { title: '새 대화에서 빠진 확인 · 데이터 변형 제안을 받고 고릅니다' }), failed ? link('AI 에게 맡기기', () => ask(fixPrompt(row, info)), { title: '새 대화에서 실패 원인을 가르고, 낡은 테스트면 고칩니다' }) : ''))
+  out.push(el('div', { class: 'tools' }, link('보강', () => ask(enrichPrompt(row)), { title: '새 대화에서 빠진 확인 · 데이터 변형 제안을 받고 고릅니다' }), failed ? link('AI 에게 맡기기', () => ask(fixPrompt(row, info)), { title: '새 대화에서 실패 원인을 가르고, 낡은 테스트면 고칩니다' }) : ''))
   out.push(el('h2', { class: 'sec' }, '최근 결과'), el('div', { class: 'grp' }, resultList(info, row)))
   return out
 }

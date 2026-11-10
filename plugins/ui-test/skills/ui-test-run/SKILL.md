@@ -35,6 +35,11 @@ Tools (exact names): `litecode_ui-test_list`, `litecode_ui-test_run`, `litecode_
    Offer next steps in one short line: 결과서 열기 · 실패만 다시 · 고치기 · 보강.
 7. **Scenarios just written in this conversation:** after a pass, continue with the `ui-test` skill's "Write `## 테스트 방법`" step.
 
+## The tested app's source code is read-only
+
+- **An error while using this skill is never a reason to edit the tested app's source code** (screen, front-end or back-end files). Fix the scenario and its generated code, or report a probable app defect with the evidence (step 4).
+- **When the target server seems to behave differently from the source you read:** first get the latest source (pull the project and each back-end code folder, `git fetch` / `git pull` — only when the working tree is clean, never discard or overwrite local changes) and compare it again. If it still doesn't match, **stop and ask the user** with the question tool (what differs: the step, the expected and the actual behaviour). Never change the app's code to make it match, and don't blame the server before you compared.
+
 ## Also
 
 - "확인(DB):" steps come back as "대화에서만 확인": check each with the DB tool if one is enabled and report it; if not, ask the user to check.
