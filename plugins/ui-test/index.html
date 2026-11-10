@@ -156,13 +156,13 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--probe)}
 /* [환경] 팝업 — 규칙은 .interface-design/system.md. 위의 같은 토큰을 쓴다 */
 :where(.dialog) button{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;height:30px;padding:0 11px;border-radius:8px;white-space:nowrap}
 .scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto;z-index:5;color:var(--ink)}
-.dialog{width:100%;max-width:468px;background:var(--sheet);border-radius:20px;box-shadow:var(--lift);overflow:hidden}
-.dlg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 4px 22px}
+.dialog{width:100%;max-width:468px;min-width:0;background:var(--sheet);border-radius:20px;box-shadow:var(--lift);overflow:hidden}
+.dlg-head>div{min-width:0}.dlg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 4px 22px}
 .dlg-head h2{margin:0;font-size:19px;line-height:1.25;font-weight:700;letter-spacing:-.018em}
 .dlg-head p{margin:2px 0 0;color:var(--ink-2);font-size:12.5px}
 .dlg-close{flex:none;width:32px;height:32px;margin:-4px -6px 0 0;padding:0;justify-content:center;border:0;border-radius:10px;background:none;color:var(--ink-3);transition:background-color .15s,color .15s}
 .dlg-close:hover{background:var(--well);color:var(--ink)}
-.dlg-body{padding:14px 20px 20px;display:grid;gap:22px}
+.dlg-body{padding:14px 20px 20px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
 .dialog .addr{padding:6px 6px 6px 12px}
 .dialog .addr button{flex:none;height:30px;padding:0 12px;border:0;border-radius:8px;background:var(--sheet);color:var(--probe);font-weight:600;box-shadow:0 0 0 1px var(--rule-strong);transition:transform .12s var(--ease),box-shadow .15s}
 .dialog .addr button:hover{background:var(--sheet);box-shadow:0 0 0 1px var(--probe)}
@@ -174,7 +174,7 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--probe)}
 .pq{margin:0 2px 8px}
 .pq b{display:block;font-size:14px;font-weight:650;letter-spacing:-.005em}
 .pq span{display:block;color:var(--ink-2);font-size:12.5px;text-wrap:pretty}
-.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .tile{position:relative;display:grid;gap:10px;height:auto;padding:12px;text-align:left;border:0;border-radius:12px;background:var(--well);color:var(--ink);box-shadow:inset 0 0 0 1px var(--rule);font-weight:400;white-space:normal;transition:transform .12s var(--ease),box-shadow .15s,background-color .15s}
 .tile:hover{background:var(--well);box-shadow:inset 0 0 0 1px var(--rule-strong)}
 .tile:active{transform:scale(.985)}
