@@ -40,9 +40,10 @@ function fakeAdapter(overrides: Partial<Adapter> = {}): Adapter & { calls: strin
 const toolsOf = (adapter: Adapter, timeoutMs = 1000) => Object.fromEntries(createTools(async () => adapter, { rowLimit: 3, timeoutMs }).map((tool) => [tool.name, tool]))
 
 describe('도구', () => {
-  it('아홉 개 — 이름과 필수 인자', () => {
+  it('아홉 개 + 패널 전용 하나 — 이름과 필수 인자', () => {
     const tools = createTools(async () => fakeAdapter(), { rowLimit: 3, timeoutMs: 1000 })
-    expect(tools.map((tool) => tool.name)).toEqual(['explain', 'table_info', 'top_queries', 'runtime_plan', 'impact_check', 'captured_sql', 'compare', 'report', 'query'])
+    expect(tools.map((tool) => tool.name)).toEqual(['explain', 'table_info', 'top_queries', 'runtime_plan', 'impact_check', 'captured_sql', 'compare', 'report', 'delete_report', 'query'])
+    expect(tools.find((tool) => tool.name === 'delete_report')?.inputSchema).toMatchObject({ required: ['id'] })
     expect(tools.find((tool) => tool.name === 'explain')?.inputSchema).toMatchObject({ required: ['sql'] })
   })
 

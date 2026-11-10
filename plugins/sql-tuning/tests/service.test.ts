@@ -79,8 +79,24 @@ describe('service', () => {
     expect(fake.pushes().filter((p) => p.event === 'service.reports')).toHaveLength(2)
   })
 
+  it('deleteReport — 패널 전용 서버 도구 delete_report 를 mcp.call 로 부르고 오류 코드를 값에 실어 돌려준다', async () => {
+    const seen: unknown[] = []
+    const { fake, call } = start({
+      'mcp.call': (params) => {
+        seen.push(params)
+        const id = (params as { args: { id: string } }).args.id
+        return id === '20200101-000000' ? { isError: true, text: 'not-found: report 20200101-000000 does not exist.' } : { text: `Deleted report ${id}` }
+      },
+    })
+    expect(fake.mcpServers()[0]).toMatchObject({ panelTools: ['delete_report'] })
+    expect(await call('deleteReport', { id: '20261110-090333' })).toEqual({ ok: true, value: 'Deleted report 20261110-090333' })
+    expect(seen[0]).toEqual({ tool: 'delete_report', args: { id: '20261110-090333' } })
+    expect(await call('deleteReport', { id: '20200101-000000' })).toEqual({ ok: false, code: 'not-found' })
+    expect(await call('deleteReport', {})).toEqual({ ok: false, code: 'bad-id' })
+  })
+
   it('패널이 부르는 메서드를 낸다', () => {
-    expect(start().fake.names().sort()).toEqual([...Object.keys(RELAY), 'bundledFile'].sort())
+    expect(start().fake.names().sort()).toEqual([...Object.keys(RELAY), 'bundledFile', 'deleteReport'].sort())
   })
 
   it('스킬 폴더를 서비스가 올린다 — 이름이 SKILL.md frontmatter 와 같고 SKILL.md · references 가 있다', () => {
