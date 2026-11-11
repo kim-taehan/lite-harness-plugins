@@ -333,15 +333,15 @@ await fake.dispose() // 해제 함수·ctx.effect 정리·소식 구독 해제
 
 ## 파일 쓰기 — `project.writeFile` · `project.removeFile` (권한 `projectWrite`)
 
-**`project.writeFile` 은 프로젝트 안뿐 아니라 프로젝트 밖의 사용자 홈 폴더 아래(데스크탑 · 다운로드 · 문서 …)에도 쓴다.** 권한 동의 창에도 그렇게 보인다. 사용자가 정한 범위이니 필요한 곳에만 쓰고, 사용자 파일을 덮어쓰지 않도록 이름을 조심해라.
+**`project.writeFile` 은 프로젝트 폴더 안에만 쓴다.** 프로젝트 밖(절대 경로 · `~/` · `..` · 밖으로 가는 링크)은 `path-unsafe` 로 거절한다. 필요한 곳에만 쓰고, 사용자 파일을 덮어쓰지 않도록 이름을 조심해라.
 호출: `host.call('project.writeFile', { path, text, encoding? }, { directory })`.
 
-- `path`: 프로젝트 폴더 기준 상대 경로(`reports/a.html`), 홈 아래 절대 경로(`/Users/me/Desktop/a.pdf`), 또는 `~/Desktop/a.pdf`. 없는 폴더는 쓸 때 만든다. 같은 이름의 파일은 덮어쓴다. 성공하면 `{ path, modified }` — 프로젝트 안이면 상대 경로, 밖이면 실제 경로.
+- `path`: 프로젝트 폴더 기준 상대 경로(`reports/a.html`). 없는 폴더는 쓸 때 만든다. 같은 이름의 파일은 덮어쓴다. 성공하면 `{ path, modified }` — 프로젝트 기준 상대 경로.
 - 파일 종류 제한은 없다. 파일 하나 20MB(넘으면 `file-too-large`). **PDF 같은 바이너리는 `encoding: 'base64'`** 를 더해 base64 글을 넘긴다. 기본은 `'utf8'` 글. 틀린 base64 · 모르는 encoding 은 `params-invalid`. 20MB 는 풀린 바이트 기준이다.
-- **막는 곳** (`path-unsafe`): `..` 가 든 길 · NUL · `\`(윈도 밖) · 폴더 끝(`a/`) · 프로젝트도 홈도 아닌 곳(시스템 폴더 등) · 부모 폴더 링크를 따라가 실제 위치가 그 밖인 곳 · 대상 파일이 링크이거나 폴더인 곳 · 앱 설정 파일(`.litecode/settings.json` · `hooks.json` · `agents/` · `skills/` · `mockups/`) · 앱 데이터 폴더 · 프로젝트의 `.mcp.json` · `opencode.json(c)` · `.opencode` · 홈의 `.litecode`(사용자 훅 · MCP · 스킬) · `.config/opencode` · 어디든 `.git` · 홈의 `.ssh` · `.aws` · `.gnupg` · `.kube` · `.docker` · `.netrc` · `.npmrc` · `.gitconfig` · `.config/git` · 셸 시작 파일(`.zshrc` `.zshenv` `.zprofile` `.zlogin` `.bashrc` `.bash_profile` `.profile` …) · `.config/fish` · `.config/autostart` · `.config/systemd` · 윈도 PowerShell 프로필 폴더 · `Library/LaunchAgents` · `Library/LaunchDaemons` · 윈도 시작 프로그램 폴더. 목록의 원본은 앱의 `WRITE_BLOCKED`.
+- **막는 곳** (`path-unsafe`): `..` 가 든 길 · NUL · `\`(윈도 밖) · 폴더 끝(`a/`) · 절대 경로 · `~` 로 시작하는 길 · 프로젝트 밖 · 부모 폴더 링크를 따라가 실제 위치가 프로젝트 밖인 곳 · 대상 파일이 링크이거나 폴더인 곳 · 앱 설정 파일(`.litecode/settings.json` · `hooks.json` · `agents/` · `skills/` · `mockups/`) · 앱 데이터 폴더 · `.mcp.json` · `opencode.json(c)` · `.opencode` · 어디든 `.git`. 목록의 원본은 앱의 `WRITE_BLOCKED`.
 - 쓰기는 같은 폴더의 임시 파일을 만든 뒤 이름을 바꾼다(링크를 따라 쓰지 않는다).
-- **`project.removeFile` 은 넓어지지 않았다** — `{ path: '.litecode/<이름>.md' }` 하나만 지운다(팀이 커밋해 같이 쓰는 문서, 예: SQL 튜닝의 `sql-standard.md`). 없으면 `{ removed: false }`. 쓴 파일을 지우는 길은 없다.
-- 서비스가 올린 MCP 서버 프로세스는 이 검사를 받지 않는다. 호스트 API 번호(`service.api`)와 manifest 는 바뀌지 않았다. 옛 앱은 `.litecode/<이름>.md` 밖을 `path-unsafe` 로 거절한다.
+- **`project.removeFile`** 은 `{ path: '.litecode/<이름>.md' }` 하나만 지운다(팀이 커밋해 같이 쓰는 문서, 예: SQL 튜닝의 `sql-standard.md`). 없으면 `{ removed: false }`. 쓴 파일을 지우는 길은 없다.
+- 서비스가 올린 MCP 서버 프로세스는 이 검사를 받지 않는다. 호스트 API 번호(`service.api`)는 바뀌지 않았다.
 
 ## 플러그인을 지울 때 프로젝트 안의 자기 폴더도 지워진다 — `.litecode/plugins/<자기 id>/`
 
