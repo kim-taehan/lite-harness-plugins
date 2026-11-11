@@ -319,7 +319,7 @@ describe('service', () => {
     expect(source).not.toMatch(/litecode-db-client|createDbClient|LITECODE_DB|host\.db\./)
     const manifest = JSON.parse(readFileSync(path.join(here, 'plugin.json'), 'utf8')) as { service: { api: number }; version: string }
     expect(manifest.service.api).toBe(2)
-    expect(manifest.version).toBe('0.7.1')
+    expect(manifest.version).toBe('0.7.2')
   })
 
   it('prefs — 모르는 값이나 틀린 형태는 저장하지 않는다', async () => {
