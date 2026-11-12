@@ -8,7 +8,7 @@
 // 확장 id 는 메시지 내용이 아니라 어느 iframe 에서 왔나로 화면이 정한다. 앱 기능(파일 · 대화 · 네트워크 …)은 패널이 직접 부르지 않고 서비스의 host.call 로 부른다 (#1642)
 /** 패널이 부를 수 있는 통로 메서드 (#1642) — 서비스 부르기와 UI 전용 표면뿐이다. 나머지 호출 표 메서드(storage · project · chat · network …)는 서비스의 host.call 만 부른다.
  *  이 밖의 이름은 호출 표에 있어도 패널에는 method-unknown */
-const PANEL_CALL_METHODS = ['service.call', 'service.list', 'events.subscribe', 'panel.fullscreen', 'settings.open', 'panel.notify', 'panel.args', 'chat.current'];
+const PANEL_CALL_METHODS = ['service.call', 'service.list', 'events.subscribe', 'panel.fullscreen', 'settings.open', 'panel.notify', 'panel.args', 'chat.current', 'panel.navigate'];
 function isPanelCallMethod(value) {
     return typeof value === 'string' && PANEL_CALL_METHODS.some((method) => method === value);
 }
@@ -99,10 +99,14 @@ const EXTENSION_LIMITS = {
     /** manifest 의 details(선택, 이슈 #519) — 카드를 펼친 상세에 여러 줄로 보이는 긴 설명. 근거: 게임 규칙·조작법 같은 몇 문단이면 충분하고,
      *  목록(ExtensionSummary)에 실려 확장마다 IPC 로 오가므로 manifestBytes(64KB) 보다 훨씬 작게 둔다 */
     detailsLength: 2000,
-    /** 진입 HTML 을 읽어 화면에 보내는 크기 (이슈 #511, readEntry). 근거: 한 파일짜리 HTML(인라인 스크립트·스타일)은 보통 수백 KB 다 — 이 글은 IPC 로 한 번,
+    /** HTML 한 장을 읽어 화면에 보내는 크기 (이슈 #511, readEntry) — 진입 HTML 과 pages 의 장마다 같은 값이다. 근거: HTML 한 장(인라인 스크립트·스타일)은 보통 수백 KB 다 — 이 글은 IPC 로 한 번,
      *  iframe srcdoc 에 base64(약 1.33배)로 한 번 더 실리므로 파일 미리보기의 HTML 상한(1MB)의 두 배에서 멈춘다 */
     entryBytes: 2 * MB,
-    /** 진입 HTML 이 상대 경로로 적은 같은 zip 의 스크립트 · 스타일시트 · 이미지 (#1339) — 수 · 하나 · 합. 근거: HTML 미리보기의 같은 폴더 자산과 같은 값
+    /** manifest pages 의 화면 수 (#1778) — 진입 HTML 에 더해 옮겨 갈 수 있는 장 수. 근거: 한 플러그인의 패널이 설정·상세·목록 같은 화면 몇 개를 갖는 쓰임이고,
+     *  화면을 옮길 때마다 HTML 과 자산을 새로 읽어 srcdoc 으로 다시 싣는다 — 장당 한도(entryBytes · panelAssets)가 장마다 따로 적용되므로 장 수가 곧 설치 폴더에서 읽을 수 있는 총량의 곱이다.
+     *  8장이면 화면이 많은 도구도 담고, 한 플러그인이 설치 폴더 전체를 화면 목록으로 쓰지는 못한다. 값을 바꾸면 docs/plugin-sdk/README.md 의 '패널 화면 여러 장' 숫자도 같이(오류 문구는 이 값을 끼워 넣는다) */
+    pages: 8,
+    /** 진입 HTML(과 pages 의 장)이 상대 경로로 적은 같은 zip 의 스크립트 · 스타일시트 · 이미지 (#1339) — 수 · 하나 · 합. 근거: HTML 미리보기의 같은 폴더 자산과 같은 값
      *  (64개 · 하나 4MB · 합 32MB). 설치 검사의 fileBytes(50MB)보다 작게 둔 것은 이 글이 IPC 로 한 번, iframe srcdoc 에 base64 로 한 번 더 실리기 때문이다.
      *  넘는 자산은 패널 전체를 실패시키지 않고 빼기만 한다 */
     panelAssets: 64,
@@ -203,7 +207,7 @@ function isAppOnlyServiceEvent(event) {
  *  llm.ask { prompt } → { text } 는 앱의 기본 모델에 한 번 묻는다(llm 권한 필요, 위 LLM_ASK_* 제한 — 횟수·동시 수 넘으면 llm-limit).
  *  project.exportFile { path, name? } → { saved, name? } 는 프로젝트 안 파일 하나를 사용자가 저장 창에서 고른 곳에 복사한다(project 권한, 고른 경로는 돌려주지 않는다). 서비스 전용 — 패널은 부르지 못한다.
  *  db.get · set · delete · list · query · batch · usage 는 플러그인 하나의 문서 저장소(host.db, 권한 없이 — storage 와 같은 급, 아래 SERVICE_DB_LIMITS 한도). 서비스 전용이라 패널은 부르지 못한다(PANEL_CALL_METHODS 에 없다).
- *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
+ *  빠진 것: secrets.get(서비스는 비밀을 읽지 않는다 — 비밀은 ${secret:}→mcp.env 로만 자식 프로세스에 전달된다, 쓰기·지우기 secrets.set · secrets.delete 는 된다), 그리고 서비스에 뜻이 없는 panel.args(파일 메뉴로 그 탭에 넘어온 값을 패널이 읽는 것) · panel.navigate(패널이 화면을 옮기는 것, #1778) · events.subscribe(서비스는 ctx.on) · service.call · service.list(자기 자신).
  *  화면이 해야 끝나는 것(SERVICE_UI_METHODS — panel.fullscreen · panel.open · settings.open 포함)도 허용한다 — 메인이 그 프로젝트 폴더의 창에 화면 동작을 보내고 답을 받는다. 보이는 그 플러그인 탭이 없으면 no-window. project.pickPath 는 부모 없는 고르기 창을 띄운다.
  *  호출 표에 메서드가 늘면 여기에 넣을지 빼놓을지 정해야 한다 — tests/unit/arch/pluginServiceApi.test.ts */
 const SERVICE_CALL_METHODS = [

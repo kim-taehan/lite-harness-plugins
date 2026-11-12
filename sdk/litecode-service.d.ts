@@ -112,7 +112,7 @@ export interface ServiceHost {
   /** 앱의 호출 표를 그대로 부른다 — 성공하면 값, 실패하면 ServiceCallError. 프로젝트별(scope "project") 서비스는 directory 가 있어야 하고 그 프로젝트에서 켜져 있어야 한다(아니면 not-on).
    *  chat.compose · chat.open · project.openFile · panel.fullscreen · panel.open · settings.open 은 그 프로젝트의 창이 해 주고(창이 없거나 보이는 그 플러그인 탭이 없으면 no-window), chat.current · project.openTabs 는 창이 값을 돌려준다.
    *  panel.open 은 자기 탭을 오른쪽 패널에 열거나 앞으로 가져온다(권한 없이) — 사용자가 설정 > 플러그인에서 끄면 panel-open-off, 10초 안에 또 부르면 panel-open-limit. 입력 중이면 포커스는 그대로 둔다.
-   *  빠진 것: panel.args · events.subscribe(ctx.on 을 쓴다) · service.call · service.list */
+   *  빠진 것: panel.args · panel.navigate(패널이 화면을 옮기는 것) · events.subscribe(ctx.on 을 쓴다) · service.call · service.list */
   call(method: ServiceCallMethod, params?: unknown, options?: { directory?: string }): Promise<unknown>
   /** 자기 패널(같은 플러그인)에 소식을 밀어 보낸다 — 이름은 `service.<name>` 이 되고, 패널은 `events.subscribe(['service.<name>'])`(service 권한)로 받는다.
    *  directory 를 주면 그 프로젝트의 패널에만. 값은 JSON 으로 오가는 것만(아니면 던진다) · 64KB 이하(넘으면 던진다) · 초당 20번(넘으면 말없이 버린다). 이름은 글자로 시작하는 64자 이하(글자 · 숫자 · _ . -) */
