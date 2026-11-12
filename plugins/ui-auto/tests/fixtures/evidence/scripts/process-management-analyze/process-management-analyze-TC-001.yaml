@@ -1,0 +1,38 @@
+tc_id: process-management-analyze-TC-001
+page_id: process-management-analyze
+edges: [main__process-management-analyze]
+생성일: 2026-11-10
+최근 통과일: 2026-11-10
+note: >
+  신규 요구사항 추가 TC. 데이터 생성(1건)을 수행하므로
+  검증 재실행 시 동일 이름의 요구사항이 1건 더 추가된다.
+data:
+  requirementName: 요구사항 추가 테스트
+  expectedMessage: "'요구사항 추가 테스트' 를 신규 등록했습니다."
+steps:
+  - tool: browser_click
+    args:
+      element: 추가하기 버튼
+      target: "getByRole('button', { name: '추가하기' })"
+  - tool: browser_type
+    args:
+      element: 요구사항명 입력란 (다이얼로그)
+      target: "getByRole('dialog').getByPlaceholder('요구사항명을 입력해주세요')"
+      text: "{requirementName}"
+  - tool: browser_click
+    args:
+      element: 저장하기 버튼 (다이얼로그)
+      target: "getByRole('dialog').getByRole('button', { name: '저장하기' })"
+verify:
+  - tool: browser_wait_for
+    args:
+      textGone: "요구사항명을 입력해주세요"
+    pass: 오류 없이 끝남 (다이얼로그 닫힘 = 저장 성공)
+  - tool: browser_find
+    args:
+      text: "{requirementName}"
+    pass: 요구사항 목록 표에 해당 이름 행 1건 이상 존재
+note2: >
+  저장 성공 시 "«요구사항명» 를 신규 등록했습니다." 토스트가 일시적으로 표시된다.
+  토스트는 수초 내 사라지므로 검증 기준은 다이얼로그 닫힘(textGone) + 목록 존재로 본다.
+captures: evidence/captures/process-management-analyze/{run_id}-process-management-analyze-TC-001-step{NN}.png

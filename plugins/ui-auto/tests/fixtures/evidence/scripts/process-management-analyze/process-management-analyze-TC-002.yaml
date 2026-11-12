@@ -1,0 +1,46 @@
+tc_id: process-management-analyze-TC-002
+page_id: process-management-analyze
+edges: [main__process-management-analyze]
+생성일: 2026-11-10
+최근 통과일: 2026-11-10
+note: >
+  요구사항명 수정 TC. 데이터 수정(1건 이름 변경)을 수행한다.
+  목록에서 "{oldName}"인 요구사항(첫 번째)을 열어서 "{newName}"으로 변경한다.
+  저장 시 PUT /api/pms/analysis-progressing/{id}/detail (204 성공) 호출,
+  저장 후에도 수정 다이얼로그는 유지되고 상세 뷰·목록은 새 이름으로 갱신된다.
+  재실행 시 현재 "{oldName}"인 항목이 달라질 수 있다(이번 run에선 REQ-000319).
+data:
+  oldName: 요구사항 추가 테스트
+  newName: 요구사항 수정 테스트
+steps:
+  - tool: browser_click
+    args:
+      element: "{oldName} 요구사항 행의 요구사항명 셀"
+      target: "getByRole('cell', { name: '{oldName}', exact: true }).first()"
+  - tool: browser_click
+    args:
+      element: "상단 연필(수정) 아이콘 버튼 (상세 다이얼로그 헤더의 6번째 버튼)"
+      target: "getByRole('dialog').getByRole('button').nth(5)"
+  - tool: browser_type
+    args:
+      element: "요구사항명 입력란 (수정 다이얼로그)"
+      target: "getByRole('dialog', { name: '요구사항 정의 수정' }).getByPlaceholder('요구사항명을 입력해주세요')"
+      text: "{newName}"
+  - tool: browser_click
+    args:
+      element: "메인 폼 저장하기 (수정 다이얼로그 첫 저장하기)"
+      target: "getByRole('dialog', { name: '요구사항 정의 수정' }).getByRole('button', { name: '저장하기' }).first()"
+  - tool: browser_click
+    args:
+      element: "수정 다이얼로그 닫기"
+      target: "getByRole('dialog', { name: '요구사항 정의 수정' }).getByRole('button', { name: '닫기' })"
+  - tool: browser_click
+    args:
+      element: "상세 뷰 닫기 (다이얼로그 마지막 닫기)"
+      target: "getByRole('dialog').getByRole('button', { name: '닫기' }).last()"
+verify:
+  - tool: browser_find
+    args:
+      text: "{newName}"
+    pass: 요구사항 목록에 {newName} 1건 이상 존재 (이름 변경 성공, 상세/목록 모두 새 이름으로 갱신)
+captures: evidence/captures/process-management-analyze/{run_id}-process-management-analyze-TC-002-step{NN}.png

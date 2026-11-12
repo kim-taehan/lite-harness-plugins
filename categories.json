@@ -9,6 +9,7 @@
   "sonarqube": "unlisted",
   "sql-tuning": "dev-tool",
   "token-pet": "game",
+  "ui-auto": "dev-tool",
   "ui-test": "dev-tool",
   "vi-pack": "unlisted",
   "zh-cn-pack": "locale"

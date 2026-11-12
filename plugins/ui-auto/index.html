@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UI-AUTO</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+/* UI-AUTO 디자인 시스템(디자인 시스템 artifact "UI-AUTO")의 토큰 · 컴포넌트. 메인 남색 한 색조 + 회색, 색조 밖은 실패 빨강 하나. 모서리 4px 까지, 구역은 Section 상자 */
+:root{--bg:#ffffff;--bg-subtle:#f5f7fb;--bg-hover:#f1f5fd;--ink:#1c2433;--ink-2:#4b5567;--ink-3:#7a8496;--line:#e4e8ef;--line-strong:#cdd4df;
+  --primary-50:#f2f6fd;--primary-100:#e3ecfa;--primary-200:#c7d8f4;--primary-300:#9dbbea;--primary:#3b6cc7;--primary-700:#2a5299;--primary-800:#213f75;--on-primary:#ffffff;--focus:#9dbbea;
+  --ok:#2f5fb8;--ok-bg:#e6eefb;--ng:#c2412d;--ng-bg:#fdece9;--hold:#b4553f;--hold-bg:#fbefe9;--idle:#6b7486;--idle-bg:#eef1f5;--violet:#6a4fc4;--violet-bg:#f0ecfb;
+  --chart-s:#3b6cc7;--chart-f:#c2412d;--chart-b:#e8a596;--chart-i:#dce6f6;--chart-track:#eef3fb;
+  --danger-bg:#fdece9;--danger-ink:#c2412d;--code-bg:#1c2433;--code-ink:#c9d1e0;--scrim:rgba(16,20,27,.45);
+  --font-sans:"Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--r-sm:4px;--r-md:6px;--r-lg:8px}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#121722;--bg-subtle:#0c1018;--bg-hover:#18213a;--ink:#e7ebf3;--ink-2:#b4bdcc;--ink-3:#8790a3;--line:#242c3b;--line-strong:#364156;
+  --primary-50:#121a2a;--primary-100:#17233a;--primary-200:#213559;--primary-300:#34508a;--primary:#7ea6ec;--primary-700:#a9c4f3;--primary-800:#cddcf8;--on-primary:#0c1018;--focus:#34508a;
+  --ok:#7ea6ec;--ok-bg:#17233a;--ng:#f39a8b;--ng-bg:#3a1c19;--hold:#f0a08c;--hold-bg:#3a2420;--idle:#9aa3b5;--idle-bg:#1d2433;--violet:#b4a2f0;--violet-bg:#231d3d;
+  --chart-s:#7ea6ec;--chart-f:#f39a8b;--chart-b:#8a4a3f;--chart-i:#243352;--chart-track:#172033;
+  --danger-bg:#3a1c19;--danger-ink:#f39a8b;--code-bg:#05070a;--scrim:rgba(0,0,0,.6);color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+html{-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body{margin:0;background:var(--bg-subtle);color:var(--ink);font:14px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;word-break:keep-all}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--font-mono);font-size:12px}
+#app{min-height:100%;display:flex;flex-direction:column}
+
+/* 앱 머리 */
+.bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:0;z-index:3}
+.bar .bt{flex:1;min-width:0}
+.bar .bt b{display:block;font-size:15px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .bt small{display:block;font:12px var(--font-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logo{flex:none;width:26px;height:26px;border-radius:var(--r-sm);background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font:700 11px var(--font-mono)}
+.ib{flex:none;width:30px;height:30px;border-radius:var(--r-md);display:grid;place-items:center;color:var(--ink-3)}
+.ib:hover{background:var(--bg-hover);color:var(--ink)}
+.body{flex:1;padding:14px;display:grid;gap:14px;align-content:start;width:100%;max-width:980px;margin:0 auto}
+.body>*{min-width:0}
+
+/* Section */
+.sec{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-lg);min-width:0}
+.sec-h{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 14px;border-bottom:1px solid var(--line);border-radius:var(--r-lg) var(--r-lg) 0 0}
+.sec-h h3{margin:0;flex:1;min-width:0;font-size:13px;font-weight:650;display:flex;align-items:center;gap:6px}
+.sec-h h3 .n{font-weight:600;color:var(--ink-3)}
+.sec-b{padding:14px}
+.sec-b.flush{padding:0}
+.sec-f{padding:9px 14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sec-f b{color:var(--ink)}
+
+/* Stat */
+.stat{display:grid;gap:2px}
+.stat .l{font-size:13.5px;color:var(--ink-3)}
+.stat .v{font-size:28px;line-height:34px;font-weight:700;letter-spacing:-.02em}
+.stat .v small{font-size:16px;font-weight:600;margin-left:2px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+.pair .v{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+
+/* Link · Button */
+.link{color:var(--primary);font-weight:600;font-size:13px;border-radius:var(--r-sm);white-space:nowrap}
+.link:hover{text-decoration:underline;text-underline-offset:3px}
+.link:disabled{color:var(--ink-3);cursor:not-allowed;text-decoration:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:var(--r-md);background:var(--primary-50);box-shadow:inset 0 0 0 1px var(--primary-200);font-size:13px;font-weight:600;color:var(--primary-700);white-space:nowrap}
+.btn:hover{background:var(--primary-100)}
+.btn.pri{background:var(--primary);color:var(--on-primary);box-shadow:none}
+.btn.pri:hover{background:var(--primary);filter:brightness(1.1)}
+.btn.del{color:var(--danger-ink);background:var(--bg);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.btn.del:hover{background:var(--danger-bg)}
+.btn.sdel{background:var(--danger-ink);color:#fff;box-shadow:none}
+.btn.icon{width:34px;padding:0}
+.btn.plain{background:var(--bg);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.acts .end{margin-left:auto}
+
+/* Tabs · Chips */
+.tabs{display:flex;gap:16px;border-bottom:1px solid var(--line);padding:0 2px;overflow-x:auto;scrollbar-width:none}
+.tab{flex:none;white-space:nowrap;height:36px;font-size:13.5px;color:var(--ink-3);font-weight:500;display:inline-flex;align-items:center;gap:6px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected=true]{color:var(--ink);font-weight:650;border-bottom-color:var(--primary)}
+.tab .n{font-size:12px;color:var(--ink-3);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{height:30px;padding:0 10px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line-strong);font-size:13px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+.chip:hover{background:var(--bg-hover)}
+.chip[aria-pressed=true]{color:var(--primary-700);box-shadow:inset 0 0 0 1px var(--primary-200);background:var(--primary-50)}
+.search{width:100%;min-width:0;height:34px;border:0;border-radius:var(--r-md);padding:0 10px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font:inherit;font-size:13px}
+.search::placeholder{color:var(--ink-3)}
+
+/* StatusBadge — 판정은 채운 배지(색 = 뜻), 스크립트 상태는 테두리 배지(아이콘 + 글자) */
+.badge{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:var(--r-sm);font-size:12px;font-weight:600;white-space:nowrap;line-height:1}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.ng{background:var(--ng-bg);color:var(--ng)}
+.badge.hold{background:var(--hold-bg);color:var(--hold)}
+.badge.idle{background:var(--idle-bg);color:var(--idle)}
+.badge.info{background:var(--primary-50);color:var(--primary-700)}
+.badge.gone{background:none;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-strong);text-decoration:line-through}
+.badge.s-verified{background:none;color:var(--primary-700);box-shadow:inset 0 0 0 1px var(--primary-200)}
+.badge.s-pending{background:none;color:var(--violet);box-shadow:inset 0 0 0 1px var(--violet-bg),inset 0 0 0 1px var(--violet)}
+.badge.s-broken{background:none;color:var(--ng);box-shadow:inset 0 0 0 1px var(--ng)}
+.badge.s-none{background:none;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.badge .dotc{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* Donut — 성공 · 실패 · 차단 · 미수행 */
+.donut{flex:none;display:block}
+.donut .track{stroke:var(--chart-track)}
+/* 판정 색은 두 계열 — 통과는 메인 파랑, 문제(실패 · 차단)는 빨강 */
+.donut .s{stroke:var(--chart-s)}.donut .f{stroke:var(--chart-f)}.donut .b{stroke:var(--chart-b)}.donut .i{stroke:var(--chart-i)}
+.donut text{fill:var(--ink);font-family:var(--font-sans)}
+.sum{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.sum .main{display:grid;gap:4px;min-width:0;flex:1 1 180px}
+.sum .main>*{min-width:0}
+.sum .main b{font-size:17px;font-weight:650;letter-spacing:-.01em}
+.sum .main b em{font-style:normal;color:var(--primary)}
+.thin{font-size:12.5px;font-weight:400;color:var(--ink-3);line-height:1.7}
+.thin b,.sum .main .thin b{font-size:inherit;font-weight:500;letter-spacing:0;color:var(--ink-2)}
+.ellip{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legend2{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--ink-3)}
+.legend2 span{display:inline-flex;align-items:center;gap:5px}
+.legend2 i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.pagesum{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:20px;align-items:center}
+@media (max-width:560px){.pagesum{grid-template-columns:1fr}}
+
+/* DataTable · Bar */
+table.t{width:100%;border-collapse:collapse}
+.t th{font-size:12px;font-weight:600;color:var(--ink-3);text-align:left;padding:8px 8px 8px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.t td{padding:12px 8px 12px 0;border-bottom:1px solid var(--line);vertical-align:middle;font-size:14px}
+.t th:first-child,.t td:first-child{padding-left:14px}
+.t th:last-child,.t td:last-child{padding-right:14px}
+.t col.c-res{width:132px}.t col.c-num{width:56px}
+.t tr:last-child td{border-bottom:0}
+.t .num{text-align:right}
+.t tbody tr{cursor:pointer}
+.t tbody tr:hover td{background:var(--bg-hover)}
+.t{table-layout:fixed}
+.t .nm{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t .sub{display:block;font:11.5px var(--font-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+/* 표 — 줄 높이 고정: 이름 칸만 「위 한 줄 + 아래 한 줄」(각각 말줄임), 나머지 칸은 꺾지 않는다 */
+.t td{height:62px}
+.t td:not(:first-child){white-space:nowrap}
+.t td>.mini{white-space:nowrap}
+.mid{display:flex;min-width:0;max-width:100%;overflow:hidden;font:11.5px var(--font-mono);color:var(--ink-3);margin-top:2px}
+.mid .a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 999 auto;min-width:1.6em}
+.mid .b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;min-width:0}
+@media (max-width:520px){.t col.c-res{width:96px}.t col.c-num{width:42px}.t col.c-date{width:72px}}
+.t col.c-badge{width:84px}.t col.c-date{width:104px}
+.t .mini{display:block;font-size:11.5px;color:var(--ink-3);margin-top:4px;white-space:nowrap}
+.rbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--chart-i);gap:1px;width:100%;max-width:120px}
+.rbar i{display:block}
+.rbar .s{background:var(--chart-s)}.rbar .f{background:var(--chart-f)}.rbar .b{background:var(--chart-b)}
+
+/* TcAccordion · StepList */
+.acc-item{border-top:1px solid var(--line)}
+.acc-item:first-child{border-top:0}
+.acc-head{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr);gap:10px;align-items:center;padding:12px 14px;text-align:left}
+.acc-row{display:flex;align-items:center;gap:8px;margin-top:6px;min-width:0}
+.acc-row .thin{min-width:0;flex:1}
+.acc-head:hover{background:var(--bg-hover)}
+.acc-head .caret{color:var(--ink-3);transition:transform .15s}
+.acc-title{display:block;font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.acc-head[aria-expanded=true] .caret{transform:rotate(90deg);color:var(--ink)}
+.acc-id{font:12px var(--font-mono);color:var(--ink-3)}
+.acc-text{display:block;font-size:14px;overflow-wrap:anywhere}
+.acc-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.acc-side{display:grid;justify-items:end;gap:4px;font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.acc-side b{color:var(--ink);font-weight:600}
+.acc-body{padding:0 14px 16px 40px;display:grid;gap:12px}
+.steps{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg-subtle);counter-reset:s}
+.steps li{display:grid;grid-template-columns:22px 16px minmax(0,1fr);gap:8px;padding:8px 10px;border-top:1px solid var(--line);font-size:13px;align-items:start}
+.steps li:first-child{border-top:0}
+.steps li::before{counter-increment:s;content:counter(s,decimal-leading-zero);font:11px var(--font-mono);color:var(--ink-3);padding-top:2px}
+.steps li .ic{color:var(--ink-2);margin-top:1px}
+.steps li.verify .ic{color:var(--primary)}
+.steps code{display:block;font:11.5px var(--font-mono);color:var(--ink-3);overflow-wrap:anywhere}
+.steps .exp{display:block;font-size:12px;color:var(--ink-2)}
+.confirm{display:grid;gap:10px;padding:12px;border:1px solid var(--danger-ink);border-radius:var(--r-md);background:var(--danger-bg)}
+.confirm b{color:var(--danger-ink)}
+.confirm p{margin:0;font-size:13px;color:var(--ink-2)}
+.confirm label{display:flex;gap:8px;align-items:center;font-size:13px}
+input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--primary)}
+.runs{display:grid;border:1px solid var(--line);border-radius:var(--r-md)}
+.run{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:13px}
+.run:first-child{border-top:0}
+.run .w{min-width:0}
+.run .w b{font:600 12px var(--font-mono)}
+.run .w span{display:block;font-size:12px;color:var(--ink-3);overflow-wrap:anywhere}
+
+/* KeyValue · StepEvidence */
+dl.kv{margin:0;display:grid;grid-template-columns:88px minmax(0,1fr);border-top:1px solid var(--line)}
+.kv dt,.kv dd{margin:0;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px;min-width:0;overflow-wrap:anywhere;white-space:pre-line}
+.kv dt{color:var(--ink-3)}
+.shot{position:relative;width:100%;max-width:100%;aspect-ratio:16/10;border-radius:var(--r-sm);overflow:hidden;background:var(--bg-subtle);box-shadow:0 0 0 1px var(--line);display:grid;place-items:center;color:var(--ink-3);font-size:12px}
+.shot img{width:100%;height:100%;object-fit:contain;object-position:center top;display:block;background:var(--bg)}
+.stepcard .shot{aspect-ratio:auto;min-height:60px}
+.stepcard .shot img{height:auto}
+.steps2{display:grid;gap:14px}
+.stepcard{display:grid;gap:8px}
+.stepcard+.stepcard{padding-top:14px;border-top:1px solid var(--line)}
+.stepcard.last .shot{box-shadow:0 0 0 2px var(--primary)}
+.stepcard.bad .shot{box-shadow:0 0 0 2px var(--danger-ink)}
+.sch{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600}
+.sch b{font:600 11px var(--font-mono);color:var(--ink-3)}
+.sch .t{flex:1;min-width:0;overflow-wrap:anywhere}
+dl.sx{display:grid;grid-template-columns:40px minmax(0,1fr);gap:4px 8px;margin:0;font-size:13px}
+.sx dt{color:var(--ink-3)}.sx dd{margin:0;overflow-wrap:anywhere}
+
+/* FlowCanvas */
+.cv{position:relative;height:420px;overflow:hidden;background-color:var(--bg-subtle);background-image:radial-gradient(var(--line-strong) 1px,transparent 1px);background-size:20px 20px;cursor:grab;touch-action:none;border-radius:0 0 var(--r-md) var(--r-md)}
+.cv.full{height:calc(100vh - 140px)}
+.cv.drag{cursor:grabbing}
+.world{position:absolute;left:0;top:0;transform-origin:0 0}
+.world svg{position:absolute;left:0;top:0;overflow:visible}
+.node{position:absolute;width:240px;background:var(--bg);border-radius:var(--r-md);box-shadow:0 0 0 1px var(--line-strong);padding:8px;display:grid;gap:6px;text-align:left;cursor:pointer}
+.node.entry{box-shadow:0 0 0 1.5px var(--primary)}
+.node.sel{box-shadow:0 0 0 2px var(--primary),0 0 0 6px var(--primary-100)}
+.node.nocap{outline:1px dashed var(--line-strong);box-shadow:none}
+.node .nt{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+.node .nt b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node code{font:11px var(--font-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node .nr{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}.node .nr .rbar{flex:1}
+.elabel{position:absolute;transform:translate(-50%,-50%);font-size:11px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:1px 6px;white-space:nowrap;pointer-events:none}
+.elabel.bad{color:var(--danger-ink);border-color:var(--danger-bg)}
+.cv-tools{position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:2px;background:var(--bg);border-radius:var(--r-md);box-shadow:0 0 0 1px var(--line-strong);padding:2px}
+.cv-tools .zv{font:600 11.5px var(--font-mono);min-width:42px;text-align:center;color:var(--ink-2)}
+.cv-tools .sep{width:1px;height:18px;background:var(--line)}
+.cv-mini{position:absolute;right:10px;bottom:10px;width:110px;height:70px;background:var(--bg);border-radius:var(--r-md);box-shadow:0 0 0 1px var(--line-strong);overflow:hidden;pointer-events:none}
+.cv-mini i{position:absolute;border-radius:1px;background:var(--line-strong)}
+.cv-mini b{position:absolute;border:1.5px solid var(--primary);border-radius:1px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--ink-3)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.pick{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:start}
+.pagesum .shot{aspect-ratio:16/10}
+.pick b{display:block;font-size:14.5px}
+.pick p{margin:6px 0 10px;font-size:13px;color:var(--ink-2)}
+
+/* 알림 · 수행 · 빈 상태 */
+.notice{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-left:0;background:var(--bg);border-radius:var(--r-md);font-size:13px}
+.notice.err{border-color:var(--danger-ink);background:var(--danger-bg)}
+.notice .m{flex:1;min-width:0;overflow-wrap:anywhere;white-space:pre-line}
+.notice .m b{display:block}
+.notice.err .m b{color:var(--danger-ink)}
+.prog{height:4px;border-radius:var(--r-sm);background:var(--line);overflow:hidden}.prog i{display:block;height:100%;background:var(--primary);transition:width .3s}
+.log{margin:0;background:var(--code-bg);color:var(--code-ink);font:11.5px/1.6 var(--font-mono);padding:10px 12px;border-radius:var(--r-sm);white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto}
+.log b{color:var(--primary-300);font-weight:600}
+.empty{padding:24px 16px;text-align:center;color:var(--ink-2);font-size:13.5px}
+.empty b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:4px}
+.empty .btn{margin-top:12px}
+.quiet{padding:14px;color:var(--ink-2);font-size:13px}
+.warnbox{padding:9px 12px;border-radius:var(--r-md);background:var(--warning-bg);color:var(--warning-ink);font-size:13px}
+.dock{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:var(--bg);border-top:1px solid var(--line)}
+.dock .q{flex:1 1 160px;font-size:13px;min-width:0}
+.scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto;z-index:5}
+.dialog{width:100%;max-width:440px;background:var(--bg);border-radius:var(--r-md);border:1px solid var(--line)}
+.dialog .sec-h{border-radius:var(--r-md) var(--r-md) 0 0}
+/* 확인 필요 · 수행 기록 줄 — 상태 점 + 제목 + 메타 줄, 오른쪽에 꼬리표 · 때 */
+.rows{display:grid}
+.row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:58px;padding:9px 14px;border-top:1px solid var(--line);text-align:left;width:100%}
+.rows>.row:first-child{border-top:0}
+button.row:hover{background:var(--bg-hover)}
+.row.live{background:var(--primary-50)}
+.row-t{min-width:0}
+.row-t b{display:block;font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-t>span{display:block;font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-t em{font-style:normal;font-weight:600}.row-t em.f{color:var(--ng)}.row-t em.b{color:var(--hold)}
+.row-side{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.dot.s{background:var(--ok)}.dot.f{background:var(--ng)}.dot.b{background:var(--hold)}.dot.o{background:var(--idle)}
+.dot.m{box-shadow:inset 0 0 0 2px var(--ng)}.dot.r{background:var(--primary);box-shadow:0 0 0 3px var(--primary-100)}
+.allok{display:flex;align-items:center;gap:8px;padding:14px;font-size:13px;color:var(--ok)}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:var(--r-sm);font-size:11.5px;font-weight:650;white-space:nowrap}
+.tag.new{color:var(--ng);box-shadow:inset 0 0 0 1px var(--ng)}
+.tag.still{color:var(--hold);background:var(--hold-bg)}
+.tag.fixed{color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
+.mini-bar{display:block;height:4px;border-radius:2px;background:var(--primary-100);margin-top:6px;overflow:hidden}.mini-bar i{display:block;height:100%;background:var(--primary)}
+/* 요약 띠 */
+.strip{display:flex;align-items:center;gap:14px;padding:12px 14px}
+.strip-t{min-width:0;display:grid;gap:1px}
+.strip-t>b{font-size:15px;font-weight:650}.strip-t>b em{font-style:normal;color:var(--primary)}
+.strip-t .thin{line-height:1.6}
+em.dn{font-style:normal;color:var(--ng);font-weight:600}
+/* 세그먼트 단추 — 상태별 건수가 곧 거르기 */
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:2px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--bg);max-width:100%}
+.seg button{height:28px;padding:0 10px;border-radius:var(--r-sm);font-size:12.5px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:5px}
+.seg button b{font-weight:700;color:var(--ink)}
+.seg button[aria-pressed=true]{background:var(--primary-50);color:var(--primary-700);box-shadow:inset 0 0 0 1px var(--primary-200)}
+.seg button[aria-pressed=true] b{color:var(--primary-700)}
+.seg .dot{width:7px;height:7px}
+.seg.sm button{height:24px;font-size:12px;padding:0 8px}
+.seg.sm .ic{width:13px;height:13px}
+.tools{display:grid;gap:10px;padding:12px 14px}
+/* 정렬 머리 */
+.t th .sort{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--ink-3);font-size:12px}
+.t th[aria-sort] .sort{color:var(--ink)}
+/* TC 머리 · 몸 */
+.acc-h{margin:0;font:inherit}
+.acc-head{grid-template-columns:16px minmax(0,1fr) auto;align-items:start}
+.acc-head .caret{margin-top:3px}
+.acc-title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cause{display:grid;gap:6px;border-left:3px solid var(--ng);background:var(--ng-bg);border-radius:0 var(--r-md) var(--r-md) 0;padding:8px 10px}
+.cause>b{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ng)}
+.cause.hold{border-left-color:var(--hold);background:var(--hold-bg)}.cause.hold>b{color:var(--hold)}
+.cmpshot{display:grid;gap:6px}.cmpshot .seg{justify-self:start}
+.cmpshot .shot{box-shadow:0 0 0 2px var(--ng)}
+.cmpshot.prev .shot{box-shadow:0 0 0 1px var(--line)}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 12px 22px;font-size:13px}
+.tl li::before{content:"";position:absolute;left:5px;top:14px;bottom:0;width:1.5px;background:var(--line-strong)}
+.tl li:last-child::before{display:none}
+.tl li::after{content:"";position:absolute;left:0;top:4px;width:12px;height:12px;border-radius:50%;box-sizing:border-box;border:1.5px solid var(--line-strong);background:var(--bg)}
+.tl li.ok::after{background:var(--ok);border:0}.tl li.ng::after{background:var(--ng);border:0}.tl li.skip::after{border-style:dashed}
+.tl li.skip>b{color:var(--ink-3);font-weight:500}
+.tl b{display:block;font-weight:600;overflow-wrap:anywhere}
+.tl code{display:block;font:11.5px var(--font-mono);color:var(--ink-3);overflow-wrap:anywhere}
+.tl .exp{display:block;font-size:12px;color:var(--ink-2)}
+/* 보고서 — 필름 띠 + 고른 단계 */
+.film{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px}
+.film button{flex:none;width:84px;display:grid;gap:4px;text-align:left}
+.film .shot{aspect-ratio:16/10}
+.film .shot img{object-fit:cover}
+.film button[aria-current=true] .shot{box-shadow:0 0 0 2px var(--primary)}
+.film button.bad .shot{box-shadow:0 0 0 2px var(--ng)}
+.film button.bad[aria-current=true] .shot{box-shadow:0 0 0 2px var(--ng),0 0 0 5px var(--ng-bg)}
+.film small{display:flex;justify-content:space-between;align-items:center;font:600 11px var(--font-mono);color:var(--ink-3)}
+.film .badge{height:17px;font-size:10.5px;padding:0 4px}
+/* 가이드 */
+.doc{display:grid;gap:8px;font-size:13.5px;line-height:1.6}
+.doc h4{margin:10px 0 0;font-size:13.5px}
+.doc p{margin:0;overflow-wrap:anywhere}
+.gstep{display:grid;gap:4px;padding:10px;border:1px solid var(--line);border-radius:var(--r-md)}
+.gstep>span{font-size:12.5px;color:var(--ink-2);overflow-wrap:anywhere}
+/* 수행 중 · 작업 기록 */
+.sec.live{border-color:var(--primary-200)}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px var(--primary-100)}
+.cases{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.cases li{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.lg{border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg)}
+.lg summary{display:flex;gap:8px;align-items:center;padding:8px 10px;font-size:13px;font-weight:600;cursor:pointer;min-width:0}
+.lg summary span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg summary .thin{margin-left:auto;flex:none}
+.lg .log{border-radius:0 0 var(--r-md) var(--r-md);max-height:220px}
+/* 상태 화면 */
+.state{display:grid;justify-items:center;text-align:center;gap:6px;padding:20px 18px}
+.state>b{font-size:14.5px}
+.state p{margin:0 0 6px;font-size:13px;color:var(--ink-2);line-height:1.55}
+.st-ic{width:36px;height:36px;border-radius:var(--r-lg);display:grid;place-items:center;background:var(--primary-50);color:var(--primary)}
+.state.warn .st-ic{background:var(--hold-bg);color:var(--hold)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-nav" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+<symbol id="i-click" viewBox="0 0 24 24"><path d="m9 9 11 4-5 2-2 5z"/><path d="M5 5l2 2M3 10h2.5M10 3v2.5"/></symbol>
+<symbol id="i-type" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5v14l11-7z"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M9 8h6"/></symbol>
+<symbol id="i-pdf" viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 11v6M9.5 14.5 12 17l2.5-2.5"/></symbol>
+<symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><path d="M10 6h4M17.5 9v6"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.4L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.4L20 16"/><path d="M20 21v-5h-5"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+<symbol id="i-full" viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5M4 4l6 6M20 4l-6 6M4 20l6-6M20 20l-6-6"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
+</svg>
+<div id="app"><div class="quiet" role="status">불러오는 중…</div></div>
+<script>
+// UI-AUTO 패널 — 홈(요약 · 탭: 대상 페이지 / 흐름 지도 / 수행 기록) → 페이지(TC 목록, 펼치면 단계 · 수행 기록 · 재수행 · 보고서 · 삭제) → 증적 보고서(요약 · 단계별 증적 · PDF).
+// 원본은 증적 파일(.litecode/ui-auto/)이고 서비스가 서버 도구로 읽어 준다(계약: README "패널 ↔ 서비스"). 패널 수행은 AI 없이 TC 스크립트를 재생한다(service.progress 소식).
+// 사용자 · AI 가 쓴 글은 늘 textContent 로만 넣는다(el 도우미). 앱과는 통로로만 말한다: parent.postMessage({ litecode: 1, id, method, params }).
+
+// <pure> — DOM 을 모르는 순수 로직. tests/panel.test.ts 가 이 구간만 잘라 시험한다
+const BADGE = { 성공: 'ok', 일치: 'ok', 수행됨: 'info', 실패: 'ng', 다름: 'ng', 차단: 'hold', 멈춤: 'hold', 미수행: 'idle', 폐기: 'gone' }
+const badgeOf = (value) => BADGE[value] ?? 'idle'
+/** 스크립트 상태 — 판정과 다른 모양(테두리) · 색 */
+const SCRIPT_TAG = { 검증됨: 's-verified', 미검증: 's-pending', 깨짐: 's-broken', 없음: 's-none' }
+const scriptTagOf = (value) => SCRIPT_TAG[value] ?? 's-none'
+/** 도넛 조각 — 성공 · 실패 · 차단 · 미수행 순서로 둘레(c) 위의 [길이, 시작] */
+function donutArcs(counts, c) {
+  const keys = [['성공', 's'], ['실패', 'f'], ['차단', 'b'], ['미수행', 'i']]
+  const total = keys.reduce((sum, [key]) => sum + (counts[key] ?? 0), 0)
+  let at = 0
+  return keys.filter(([key]) => counts[key]).map(([key, cls]) => { const len = (counts[key] / total) * c; const arc = { cls, len, at }; at += len; return arc })
+}
+/** 「전체 N건 중 M건 통과」 — 폐기는 세지 않는다 */
+function passText(counts) {
+  const total = ['성공', '실패', '차단', '미수행'].reduce((sum, key) => sum + (counts[key] ?? 0), 0)
+  return { total, pass: counts['성공'] ?? 0, text: total ? `전체 ${total}건 중 ${counts['성공'] ?? 0}건 통과` : 'TC 없음' }
+}
+/** 수행한 TC(성공 · 실패 · 차단)의 최근 판정 기준 성공률 — 수행한 것이 없으면 null */
+function successRate(counts) {
+  const done = (counts['성공'] ?? 0) + (counts['실패'] ?? 0) + (counts['차단'] ?? 0)
+  return done ? { rate: Math.round(((counts['성공'] ?? 0) / done) * 100), done } : null
+}
+function sumCounts(pages) {
+  const out = {}
+  for (const page of pages) for (const [key, value] of Object.entries(page.counts)) out[key] = (out[key] ?? 0) + value
+  return out
+}
+/** 결과 막대의 몫(%) — 폐기는 빼고 센다 */
+function barParts(counts) {
+  const total = ['성공', '실패', '차단', '미수행'].reduce((sum, key) => sum + (counts[key] ?? 0), 0)
+  const pct = (key) => (total ? ((counts[key] ?? 0) / total) * 100 : 0)
+  return { total, s: pct('성공'), f: pct('실패'), b: pct('차단') }
+}
+function countsLine(counts) {
+  const parts = ['성공', '실패', '차단', '미수행'].filter((key) => counts[key]).map((key) => `${key} ${counts[key]}`)
+  return parts.join(' · ') || 'TC 없음'
+}
+/** 페이지 검색 — 화면명 · page_id · URL · TC 제목 · 내용 */
+function filterPages(pages, query) {
+  const q = query.trim().toLowerCase()
+  if (!q) return pages
+  return pages.filter((page) => [page.title, page.id, page.urlPattern, ...page.tcs.map((tc) => `${tc.id} ${tc.title ?? ''} ${tc.content}`)].some((text) => String(text).toLowerCase().includes(q)))
+}
+/** TC 거르기 — 상태(all 이면 전부) · 검색(id · 제목 · 내용). 폐기는 '폐기 보기' 를 켤 때만 */
+function filterTcs(tcs, mode, showRetired, query = '') {
+  const q = query.trim().toLowerCase()
+  return tcs.filter((tc) => (showRetired || tc.status !== '폐기') && (mode === 'all' || tc.status === mode) && (!q || `${tc.id} ${tc.title ?? ''} ${tc.content}`.toLowerCase().includes(q)))
+}
+/** 상태별 건수 — 세그먼트 단추. 건수가 있는 상태만, 정해 둔 순서로 */
+function statusSegments(tcs) {
+  const live = tcs.filter((tc) => tc.status !== '폐기')
+  return [['all', '전체', live.length], ...['실패', '차단', '미수행', '성공'].map((key) => [key, key, live.filter((tc) => tc.status === key).length]).filter(([, , count]) => count)]
+}
+/** 페이지 표 정렬 — result 는 실패 · 차단 몫, tc 는 TC 수. sort 가 없으면 system_map 순서 */
+function sortPages(pages, sort) {
+  if (!sort) return pages
+  const value = (page) => { if (sort.key === 'tc') return page.tcs.filter((tc) => tc.status !== '폐기').length; const p = barParts(page.counts); return p.total ? p.f + p.b : -1 }
+  const sign = sort.dir === 'asc' ? 1 : -1
+  return [...pages].sort((a, b) => sign * (value(a) - value(b)))
+}
+/** 흐름 꼬리표 — 지난 판정과 비교. 차단이면 차단으로 쓴다 */
+function trendText(trend, verdict) {
+  if (!trend) return ''
+  const bad = verdict === '차단' ? '차단' : '실패'
+  return trend.kind === 'new' ? `새로 ${bad}` : trend.kind === 'still' ? `계속 ${bad} ${trend.count}회` : '고쳐짐'
+}
+const daysAgo = (date, now) => { const time = Date.parse(`${date}T00:00:00`); return Number.isNaN(time) ? '기록 없음' : `${Math.max(0, Math.floor((now - time) / 86400000))}일 전` }
+/** 「확인 필요」 — 지금 손봐야 할 것만: 실패 · 차단 TC(실패 먼저, 새것 먼저) → 불일치 이동 → 오래된 페이지 */
+function attentionItems(pages, reports, edges, now = new Date()) {
+  const latest = new Map()
+  for (const report of reports) if (!latest.has(report.tc)) latest.set(report.tc, report)
+  const rank = { 실패: 0, 차단: 1 }
+  const bad = pages.flatMap((page) => page.tcs.filter((tc) => tc.status in rank).map((tc) => ({ page, tc })))
+  bad.sort((a, b) => rank[a.tc.status] - rank[b.tc.status] || String(b.tc.lastRunAt ?? '').localeCompare(String(a.tc.lastRunAt ?? '')))
+  const items = bad.map(({ page, tc }) => ({ kind: 'tc', dot: tc.status === '실패' ? 'f' : 'b', title: tc.title || tc.id, page: page.id, tc: tc.id, where: page.title, verdict: tc.status, reason: latest.get(tc.id)?.reason ?? '', tag: trendText(tc.trend, tc.status), trend: tc.trend?.kind, at: latest.get(tc.id)?.at ?? tc.lastRunAt ?? '' }))
+  const title = (id) => pages.find((page) => page.id === id)?.title ?? id
+  for (const edge of edges) if (edge.state === '불일치') items.push({ kind: 'edge', dot: 'm', title: `${title(edge.from)} → ${title(edge.to)}`, page: edge.to, where: '흐름 지도', reason: `이동 불일치 · 최근 확인 ${daysAgo(edge.lastVerified, now)}`, at: '' })
+  for (const page of pages) if (page.stale) items.push({ kind: 'page', dot: 'm', title: page.title, page: page.id, where: '대상 페이지', reason: `최근 확인 ${daysAgo(page.lastVerified, now)}`, at: '', stale: true })
+  return items
+}
+/** 요약 띠의 변화 — 지난 수행보다 새로 실패한 것 · 고쳐진 것 */
+function deltaText(tcs) {
+  const count = (kind) => tcs.filter((tc) => tc.status !== '폐기' && tc.trend?.kind === kind).length
+  const parts = [count('new') ? `실패 +${count('new')}` : '', count('fixed') ? `고쳐짐 ${count('fixed')}` : ''].filter(Boolean)
+  return parts.length ? `지난 수행보다 ${parts.join(' · ')}` : ''
+}
+/** 수행 기록 거르기 — all · 실패 · 차단 */
+const filterReports = (reports, mode) => (mode === 'all' ? reports : reports.filter((report) => report.verdict === mode))
+/** 화면 동작 타임라인의 단계별 상태(ok · ng · skip · '') — 최근 보고서의 판정 · 원인 단계 · 수행된 캡처 수로 */
+function timelineStates(steps, report) {
+  const verdict = report?.head?.['판정']
+  if (!verdict) return steps.map(() => '')
+  if (verdict === '성공') return steps.map(() => 'ok')
+  const fail = report.failStep
+  const done = report.steps.filter((step) => step.verdict === '수행됨').length
+  // 차단인데 수행한 단계도 원인 단계도 없으면 이동 · 진입에서 막힌 것 — 첫 단계를 실패로
+  let marked = false
+  let blockFirst = verdict === '차단' && !fail && !done
+  let number = 0
+  return steps.map((step) => {
+    if (marked) return 'skip'
+    if (blockFirst) { blockFirst = false; marked = true; return 'ng' }
+    if (step.kind === 'route') return 'ok'
+    if (step.kind === 'step') {
+      number++
+      if (fail?.step) { if (number < fail.step) return 'ok'; marked = true; return number === fail.step ? 'ng' : 'skip' }
+      if (verdict === '차단' && number > done) { marked = true; return 'skip' }
+      return 'ok'
+    }
+    return verdict === '실패' ? 'ng' : 'skip'
+  })
+}
+/** 지난 성공 보고서에서 같은 자리의 캡처 — 같은 단계 번호 · 판정 화면 · 대상 페이지끼리 */
+function pairStep(steps, step) {
+  const key = (title) => /^(\d+)\./.exec(title)?.[1] ?? (/^판정 화면/.test(title) ? '판정' : /^대상 페이지/.test(title) ? '대상' : title)
+  return (steps ?? []).find((other) => key(other.title) === key(step.title))
+}
+/** 원인 한 줄 — 몇 단계에서 멈췄나, 판정이 다른가 */
+const causeTitle = (fail, verdict) => (fail?.step ? `${fail.step}단계 ${fail.title}에서 멈춤` : fail ? '판정에서 다름' : verdict === '차단' ? '수행이 막힘' : '기대와 다름')
+/** 흐름 지도 배치 — 진입점에서 이동 관계를 따라 몇 번째 이동인지가 열, 같은 열 안에서는 순서대로 줄. 닿지 않는 페이지는 맨 오른쪽 열 */
+function layoutFlow(nodes, edges, size = { w: 240, h: 230, gx: 110, gy: 36 }) {
+  const ids = nodes.map((node) => node.id)
+  const depth = new Map()
+  const queue = nodes.filter((node) => node.entry).map((node) => node.id)
+  if (!queue.length && ids.length) queue.push(ids[0])
+  for (const id of queue) depth.set(id, 0)
+  while (queue.length) {
+    const id = queue.shift()
+    for (const edge of edges) {
+      if (edge.from !== id || depth.has(edge.to) || !ids.includes(edge.to)) continue
+      depth.set(edge.to, depth.get(id) + 1)
+      queue.push(edge.to)
+    }
+  }
+  const maxDepth = Math.max(0, ...depth.values())
+  for (const id of ids) if (!depth.has(id)) depth.set(id, maxDepth + 1)
+  const rows = new Map()
+  const pos = {}
+  for (const id of ids) {
+    const col = depth.get(id)
+    const row = rows.get(col) ?? 0
+    rows.set(col, row + 1)
+    pos[id] = { x: 40 + col * (size.w + size.gx), y: 40 + row * (size.h + size.gy) }
+  }
+  const width = 80 + (Math.max(0, ...depth.values()) + 1) * (size.w + size.gx) - size.gx
+  const height = 80 + Math.max(1, ...rows.values()) * (size.h + size.gy) - size.gy
+  return { pos, width, height, size }
+}
+function confirmText(tcs) {
+  const changes = tcs.filter((tc) => tc.runnable?.changesData === true).map((tc) => tc.id)
+  const unknown = tcs.filter((tc) => tc.runnable?.ok && tc.runnable.changesData === undefined).map((tc) => tc.id)
+  return changes.length ? `데이터를 만들거나 바꾸는 TC 입니다: ${changes.join(', ')}` : unknown.length ? `데이터 변경 여부가 스크립트에 적혀 있지 않습니다: ${unknown.join(', ')}` : ''
+}
+function progressText(progress) {
+  const cases = progress?.cases ?? []
+  const done = cases.filter((item) => !['대기', '수행 중'].includes(item.state)).length
+  const current = cases.find((item) => item.state === '수행 중')
+  return { done, total: cases.length, percent: cases.length ? Math.round((done / cases.length) * 100) : 0, text: current ? `${current.tc} 수행 중${current.total ? ` · ${current.step ?? 0}/${current.total}단계` : ''}` : `${done}/${cases.length} 끝` }
+}
+function finishText(progress) {
+  const cases = progress?.cases ?? []
+  const count = (state) => cases.filter((item) => item.state === state).length
+  const parts = ['성공', '실패', '차단', '건너뜀'].filter((state) => count(state)).map((state) => `${state} ${count(state)}`)
+  const bad = count('실패') + count('차단') + count('건너뜀')
+  return { tone: bad ? 'err' : 'ok', text: `패널 수행을 마쳤습니다 — ${parts.join(' · ') || '없음'}`, detail: cases.filter((item) => item.reason && item.state !== '성공').map((item) => `${item.tc}: ${item.reason}`).join('\n') }
+}
+const runPrompt = (tc, why) => `/ui-auto-run ${tc} 수행해 주세요${why ? ` (패널에서 바로 수행하지 못함: ${why})` : ''}`
+const derivePrompt = (page) => `/ui-auto-tc ${page.title} (${page.id}) 화면의 테스트 케이스를 뽑아 주세요`
+/** 이 TC 를 담은 가장 새 가이드 */
+const guideFor = (guides, tc) => guides.find((guide) => (guide.tcs ?? []).includes(tc))
+/** 로그 줄의 태그만 굵게 — [태그] 와 나머지 */
+const logParts = (line) => { const match = /^(\[[^\]]+\])(.*)$/.exec(line); return match ? [match[1], match[2]] : ['', line] }
+/** 경로 가운데 자르기 — 앞(말줄임)과 끝(늘 보임)으로 나눈다. 끝은 마지막 두 마디(짧으면 통째로) */
+function splitPath(path) {
+  const value = String(path ?? '')
+  if (value.length <= 24) return ['', value]
+  const parts = value.split('/')
+  const keep = parts.length > 3 ? 2 : 1
+  const tail = '/' + parts.slice(-keep).join('/')
+  return [value.slice(0, value.length - tail.length), tail]
+}
+/** TC 상세의 절차 → 단계 목록. 한 줄 「1) … 2) …」 도, 줄마다 「1. …」 도 */
+function procedureSteps(text) {
+  const value = String(text ?? '')
+  const parts = value.includes('\n') ? value.split('\n') : value.split(/\s*(?=\d+\)\s)/)
+  return parts.map((item) => item.replace(/^\s*(?:\d+[.)]|[-*])\s*/, '').trim()).filter(Boolean)
+}
+// </pure>
+
+let seq = 0
+const waiting = new Map()
+addEventListener('message', (event) => {
+  const data = event.data
+  if (event.source === parent && data && data.litecode === 1 && data.event) return onEvent(data.event, data.data)
+  if (event.source !== parent || !data || data.litecode !== 1 || !waiting.has(data.id)) return
+  const done = waiting.get(data.id)
+  waiting.delete(data.id)
+  done(data)
+})
+function call(method, params) {
+  const id = ++seq
+  return new Promise((resolve, reject) => {
+    waiting.set(id, (reply) => (reply.ok ? resolve(reply.result) : reject(new Error(reply.error))))
+    parent.postMessage({ litecode: 1, id, method, params }, '*')
+  })
+}
+const tool = (name, args = {}) => call('service.call', { name, params: args })
+const ERRORS = { 'no-project': '열린 프로젝트가 없습니다', 'mcp-failed': '플러그인 서버를 띄우지 못했습니다', 'not-on': '이 프로젝트에서 UI-AUTO 가 꺼져 있습니다', 'service-off': 'UI-AUTO 서비스가 꺼져 있습니다 — 설정 › 기능 › 플러그인에서 켜 주세요', 'service-failed': 'UI-AUTO 서비스가 오류로 멈췄습니다', 'no-window': '이 플러그인 탭이 보일 때 눌러 주세요' }
+const errorText = (error) => ERRORS[error?.message] || error?.message || String(error)
+const PDF_ERRORS = { busy: '저장 창이 이미 열려 있습니다', 'export-limit': 'PDF 저장을 너무 자주 눌렀습니다 — 잠시 뒤 다시', 'permission-missing': '프로젝트 권한이 없습니다 — 설정 › 기능 › 플러그인에서 허용해 주세요', 'too-big': 'PDF 가 100MB 를 넘습니다', unsupported: '이 앱은 PDF 저장 창을 지원하지 않습니다 — 앱을 업데이트해 주세요', 'pdf-failed': 'PDF 를 만들지 못했습니다', 'no-window': '이 플러그인 탭이 보일 때 눌러 주세요' }
+
+const state = {
+  data: undefined, error: '',
+  tab: 'pages', query: '',
+  screen: { name: 'home' }, // home · page { id } · report { id, tc, from }
+  tcMode: 'all', tcQuery: '', showRetired: false, open: new Set(), details: new Map(), del: undefined, delScript: false, confirmRun: '',
+  sort: undefined, // 페이지 표 { key: 'result' | 'tc', dir: 'desc' | 'asc' }
+  runMode: 'all', runLimit: 25,
+  reports: new Map(), // 보고서 id → 데이터 | 'loading' | { error }
+  sel: 0, cmp: false, // 보고서 화면의 고른 단계 · 지난 성공과 번갈아 보기
+  failCmp: new Set(), // 펼친 실패 TC 중 「지난 성공」 을 보는 것
+  guide: undefined, // { id, data, error }
+  logQuery: '', logOpen: new Set(), logClosed: new Set(),
+  shots: new Map(), // path → { url } | { error } | 'loading'
+  flow: { z: 1, x: 0, y: 0, sel: '', fitted: false, full: false },
+  progress: undefined, notice: undefined, env: false, pdfBusy: false,
+}
+let pendingFocus = ''
+const running = () => !!state.progress?.running
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag)
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined || value === false || value === null) continue
+    if (key.startsWith('on')) node.addEventListener(key.slice(2), value)
+    else node.setAttribute(key, value === true ? '' : value)
+  }
+  for (const child of children.flat(Infinity)) if (child !== undefined && child !== null && child !== false && child !== '') node.append(child instanceof Node ? child : String(child))
+  return node
+}
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('class', 'ic')
+  svg.setAttribute('aria-hidden', 'true')
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use')
+  use.setAttribute('href', `#i-${name}`)
+  svg.append(use)
+  return svg
+}
+const btn = (label, onclick, attrs = {}) => el('button', { type: 'button', onclick, ...attrs, class: attrs.class ?? 'btn' }, label)
+const link = (label, onclick, attrs = {}) => btn(label, onclick, { ...attrs, class: 'link' })
+const ib = (name, label, onclick, attrs = {}) => el('button', { type: 'button', class: 'ib', 'aria-label': label, title: label, onclick, ...attrs }, icon(name))
+const badge = (text, kind = badgeOf(text)) => el('span', { class: `badge ${kind}` }, text)
+const section = (title, count, right, body, opts = {}) => el('section', { class: 'sec', 'aria-label': title },
+  el('div', { class: 'sec-h' }, el('h3', {}, title, count !== undefined && count !== '' ? el('span', { class: 'n' }, String(count)) : null), right),
+  el('div', { class: `sec-b${opts.flush ? ' flush' : ''}` }, body),
+  opts.foot ? el('div', { class: 'sec-f' }, opts.foot) : null)
+function donut(counts, size = 96) {
+  const width = size < 80 ? 7 : 10
+  const r = size / 2 - width + 2, c = 2 * Math.PI * r, p = passText(counts)
+  const ns = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(ns, 'svg')
+  svg.setAttribute('class', 'donut'); svg.setAttribute('width', String(size)); svg.setAttribute('height', String(size)); svg.setAttribute('viewBox', `0 0 ${size} ${size}`)
+  svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${p.text} · ${countsLine(counts)}`)
+  const ring = (cls, len, at) => { const k = document.createElementNS(ns, 'circle'); k.setAttribute('class', cls); k.setAttribute('cx', String(size / 2)); k.setAttribute('cy', String(size / 2)); k.setAttribute('r', String(r)); k.setAttribute('fill', 'none'); k.setAttribute('stroke-width', String(width)); if (len !== undefined) { k.setAttribute('stroke-dasharray', `${len} ${c - len}`); k.setAttribute('stroke-dashoffset', String(-at)); k.setAttribute('transform', `rotate(-90 ${size / 2} ${size / 2})`) } return k }
+  svg.append(ring('track'))
+  for (const arc of donutArcs(counts, c)) svg.append(ring(arc.cls, Math.max(arc.len - (donutArcs(counts, c).length > 1 ? 1.5 : 0), 0.1), arc.at))
+  const label = document.createElementNS(ns, 'text')
+  label.setAttribute('x', String(size / 2)); label.setAttribute('y', String(size / 2 + 6)); label.setAttribute('text-anchor', 'middle'); label.setAttribute('font-size', String(Math.round(size / 5.2))); label.setAttribute('font-weight', '700')
+  label.textContent = p.total ? `${Math.round((p.pass / p.total) * 100)}%` : '-'
+  svg.append(label)
+  return svg
+}
+const legend = (counts) => el('div', { class: 'legend2' }, ...[['성공', 'var(--chart-s)'], ['실패', 'var(--chart-f)'], ['차단', 'var(--chart-b)'], ['미수행', 'var(--chart-i)']].filter(([key]) => counts[key]).map(([key, color]) => el('span', {}, el('i', { style: `background:${color}` }), `${key} ${counts[key]}`)))
+/** 가운데를 자른 경로 — 전체 글은 title · aria-label 로 */
+const pathText = (path) => { const [head, tail] = splitPath(path); return el('span', { class: 'mid', title: path, 'aria-label': path }, head ? el('span', { class: 'a', 'aria-hidden': 'true' }, head) : null, el('span', { class: 'b', 'aria-hidden': head ? 'true' : undefined }, tail)) }
+const scriptTag = (value) => el('span', { class: `badge ${scriptTagOf(value)}` }, `스크립트 ${value}`)
+const rbar = (counts) => { const p = barParts(counts); return el('div', { class: 'rbar', role: 'img', 'aria-label': countsLine(counts) }, el('i', { class: 's', style: `width:${p.s}%` }), el('i', { class: 'f', style: `width:${p.f}%` }), el('i', { class: 'b', style: `width:${p.b}%` })) }
+const short = (date) => (date && date.length >= 10 ? date.slice(5) : date || '-')
+
+// ── 불러오기 ──
+
+async function load(quiet = false) {
+  try {
+    const data = await tool('list')
+    const same = quiet && JSON.stringify(data) === JSON.stringify(state.data)
+    state.data = data
+    state.error = ''
+    if (same) return
+    for (const tc of state.open) void loadDetail(tc, true)
+  } catch (error) {
+    if (quiet) return
+    state.error = errorText(error)
+  }
+  render()
+}
+async function loadDetail(tc, force = false) {
+  if (state.details.has(tc) && !force) return
+  if (!force) state.details.set(tc, 'loading')
+  try {
+    state.details.set(tc, await tool('detail', { tc }))
+  } catch (error) {
+    state.details.set(tc, { error: errorText(error) })
+  }
+  render()
+}
+async function loadShot(path) {
+  if (!path || state.shots.has(path)) return
+  state.shots.set(path, 'loading')
+  try {
+    state.shots.set(path, { url: (await tool('shot', { path })).url })
+  } catch (error) {
+    state.shots.set(path, { error: errorText(error) })
+  }
+  render()
+}
+function shot(path, alt) {
+  if (!path) return el('div', { class: 'shot' }, '캡처 없음')
+  const value = state.shots.get(path)
+  if (value === undefined) queueMicrotask(() => loadShot(path))
+  if (value?.url) return el('div', { class: 'shot' }, el('img', { src: value.url, alt }))
+  return el('div', { class: 'shot' }, value?.error ? '캡처를 읽지 못함' : '캡처 불러오는 중…')
+}
+
+function onEvent(event, data) {
+  if (event !== 'service.progress') return
+  const was = running()
+  state.progress = data
+  if (was && !data?.running) {
+    state.notice = finishText(data)
+    state.details.clear()
+    state.reports.clear()
+    void load()
+  }
+  render()
+}
+
+// ── 행동 ──
+
+const tcById = (id) => state.data?.pages.flatMap((page) => page.tcs).find((tc) => tc.id === id)
+async function runNow(ids) {
+  state.confirmRun = ''
+  state.notice = undefined
+  try {
+    const result = await tool('run', { tcs: ids })
+    if (!result?.started) state.notice = { tone: 'err', text: result?.reason === 'browser-busy' ? 'AI 가 브라우저를 쓰는 중입니다' : '이미 수행 중입니다', detail: result?.reason === 'browser-busy' ? '대화의 작업이 끝나면(browser_close) 다시 누르세요. 10분 동안 쓰지 않으면 풀립니다.' : '' }
+    else state.progress = { running: true, cases: ids.map((tc) => ({ tc, state: '대기' })), log: [] }
+  } catch (error) {
+    state.notice = { tone: 'err', text: '수행을 시작하지 못했습니다', detail: errorText(error) }
+  }
+  render()
+}
+async function ask(text, send = true) {
+  try {
+    await tool('ask', { text, send })
+    state.notice = { tone: 'ok', text: '새 대화에 요청을 보냈습니다', detail: text }
+  } catch (error) {
+    state.notice = { tone: 'err', text: '새 대화를 열지 못했습니다', detail: errorText(error) }
+  }
+  render()
+}
+async function retire(tc) {
+  const script = state.delScript
+  state.del = undefined
+  try {
+    await tool('delete', { tc, script })
+    state.notice = { tone: 'ok', text: `${tc} 를 폐기했습니다${script ? ' — 스크립트 파일도 지웠습니다' : ''}`, detail: '번호는 다시 쓰지 않습니다. 「폐기 보기」 를 켜면 보입니다.' }
+    state.open.delete(tc)
+    state.details.delete(tc)
+    await load()
+  } catch (error) {
+    state.notice = { tone: 'err', text: '폐기하지 못했습니다', detail: errorText(error) }
+    render()
+  }
+}
+async function savePdf(kind, id) {
+  state.pdfBusy = true
+  state.notice = { tone: 'ok', text: 'PDF 를 만드는 중입니다…' }
+  render()
+  try {
+    const result = await tool('exportPdf', { kind, id })
+    state.notice = result?.saved ? { tone: 'ok', text: `PDF 를 저장했습니다 — ${result.name}` } : result?.code ? { tone: 'err', text: PDF_ERRORS[result.code] ?? 'PDF 를 저장하지 못했습니다', detail: result.message ?? result.code } : undefined
+  } catch (error) {
+    state.notice = { tone: 'err', text: 'PDF 를 저장하지 못했습니다', detail: errorText(error) }
+  }
+  state.pdfBusy = false
+  render()
+}
+async function openDoc(kind, id) {
+  try {
+    await tool('open', { kind, id })
+  } catch (error) {
+    state.notice = { tone: 'err', text: '앱 미리보기로 열지 못했습니다', detail: errorText(error) }
+    render()
+  }
+}
+function go(screen, focus = '') {
+  state.screen = screen
+  state.del = undefined
+  state.confirmRun = ''
+  pendingFocus = focus
+  if (screen.name === 'report') { state.sel = 0; state.cmp = false; void loadReport(screen.id) }
+  if (screen.name === 'guide') void loadGuide(screen.id)
+  scrollTo(0, 0)
+  render()
+}
+async function loadReport(id, force = false) {
+  const have = state.reports.get(id)
+  if (have && have !== 'loading' && !have.error && !force) return
+  if (have === 'loading') return
+  state.reports.set(id, 'loading')
+  try {
+    state.reports.set(id, await tool('report', { id }))
+  } catch (error) {
+    state.reports.set(id, { error: errorText(error) })
+  }
+  render()
+}
+async function loadGuide(id) {
+  state.guide = { id }
+  try {
+    state.guide = { id, data: await tool('guide', { id }) }
+  } catch (error) {
+    state.guide = { id, error: errorText(error) }
+  }
+  render()
+}
+/** 가이드 화면으로 — 없으면 서버가 그 TC 의 성공 보고서로 만든 뒤 */
+async function openGuide(tc, from) {
+  let guide = guideFor(state.data.guides, tc)
+  if (!guide) {
+    try {
+      const made = await tool('makeGuide', { tc })
+      guide = { id: made.id, tcs: [tc], title: '', created: '', pages: [] }
+      state.data.guides = [guide, ...state.data.guides]
+    } catch (error) {
+      state.notice = { tone: 'err', text: '테스트 가이드를 만들지 못했습니다', detail: errorText(error) }
+      return render()
+    }
+  }
+  go({ name: 'guide', id: guide.id, tc, from })
+}
+
+// ── 그리기: 공통 ──
+
+function topBar() {
+  const data = state.data
+  if (state.screen.name === 'page') {
+    const page = data?.pages.find((item) => item.id === state.screen.id)
+    return el('header', { class: 'bar' }, ib('left', '대상 페이지 목록', () => go({ name: 'home' }, `page:${state.screen.id}`), { 'data-fk': 'back' }), el('div', { class: 'bt' }, el('b', {}, page?.title ?? state.screen.id), el('small', {}, page?.urlPattern || state.screen.id)), ib('refresh', '새로 읽기', () => load(), {}))
+  }
+  if (state.screen.name === 'report' || state.screen.name === 'guide') {
+    const from = state.screen.from
+    const title = state.screen.name === 'report' ? `보고서 ${state.screen.id}` : '테스트 가이드'
+    return el('header', { class: 'bar' }, ib('left', '뒤로', () => go(from ?? { name: 'home' }, 'back'), { 'data-fk': 'back' }), el('div', { class: 'bt' }, el('b', {}, title), el('small', {}, state.screen.name === 'report' ? state.screen.tc || state.screen.id : state.screen.id)), null)
+  }
+  return el('header', { class: 'bar' }, el('span', { class: 'logo', 'aria-hidden': 'true' }, 'UA'), el('div', { class: 'bt' }, el('b', {}, 'UI-AUTO'), el('small', {}, data?.baseUrl || '대상 주소 없음')), ib('refresh', '새로 읽기', () => load(), {}), ib('gear', '환경', () => ((state.env = true), render()), { 'data-fk': 'env' }))
+}
+function noticeNode() {
+  const parts = []
+  if (state.progress?.running) parts.push(...progressNodes(state.progress))
+  const notice = state.notice
+  if (notice) parts.push(el('div', { class: `notice${notice.tone === 'err' ? ' err' : ''}`, role: notice.tone === 'err' ? 'alert' : 'status' }, el('div', { class: 'm' }, el('b', {}, notice.text), notice.detail || ''), ib('x', '닫기', () => ((state.notice = undefined), render()))))
+  return parts
+}
+const titleOf = (id) => tcById(id)?.title || id
+const CASE_DOT = { 성공: 's', 실패: 'f', 차단: 'b', 건너뜀: 'o', 대기: 'o', '수행 중': 'r' }
+/** 패널 수행 — 진행(몇 번째 TC · 몇 단계 · 지금 하는 동작 · 멈추기)과 TC 별로 접는 작업 기록(검색) */
+function progressNodes(progress) {
+  const info = progressText(progress)
+  const current = progress.cases.find((item) => item.state === '수행 중')
+  const share = current?.total ? (current.step ?? 0) / current.total : 0
+  const percent = info.total ? Math.round(((info.done + share) / info.total) * 100) : 0
+  const lastLine = current?.lines?.filter((line) => line.startsWith('[tool]')).at(-1)?.replace(/^\[tool\]\s*/, '')
+  const head = el('section', { class: 'sec live', 'aria-label': '패널 수행 중' },
+    el('div', { class: 'sec-h' }, el('h3', {}, el('span', { class: 'pulse', 'aria-hidden': 'true' }), '패널 수행 중', el('span', { class: 'n' }, `${info.done} / ${info.total}건`)), btn([icon('stop'), '멈추기'], () => void tool('stop').catch(() => undefined), { class: 'btn del' })),
+    el('div', { class: 'sec-b', style: 'display:grid;gap:10px' },
+      current ? el('div', {}, el('b', { class: 'ellip', style: 'font-size:14px' }, titleOf(current.tc)), el('span', { class: 'thin ellip', title: lastLine }, current.total ? `${current.step ?? 0} / ${current.total}단계${lastLine ? ` · ${lastLine}` : ''}` : '준비 중')) : el('span', { class: 'thin' }, info.text),
+      el('div', { class: 'prog', role: 'progressbar', 'aria-valuenow': String(percent), 'aria-valuemin': '0', 'aria-valuemax': '100' }, el('i', { style: `width:${Math.max(percent, 4)}%` })),
+      el('ul', { class: 'cases' }, progress.cases.map((item) => el('li', {}, el('span', { class: `dot ${CASE_DOT[item.state] ?? 'o'}`, 'aria-hidden': 'true' }), el('span', { class: 'ellip', title: item.tc }, titleOf(item.tc)), item.state === '대기' ? el('span', { class: 'thin' }, '대기') : badge(item.state, item.state === '수행 중' ? 'info' : badgeOf(item.state)))))))
+  const q = state.logQuery.trim().toLowerCase()
+  const search = el('input', { class: 'search', type: 'search', placeholder: '기록 검색 — 예: 실패, browser_click', 'aria-label': '작업 기록 검색', 'data-fk': 'logsearch', value: state.logQuery })
+  search.addEventListener('input', () => { state.logQuery = search.value; pendingFocus = 'logsearch'; render() })
+  const folds = progress.cases.map((item) => {
+    const lines = (item.lines ?? []).filter((line) => !q || line.toLowerCase().includes(q))
+    const open = q ? lines.length > 0 : state.logOpen.has(item.tc) || (item.state === '수행 중' && !state.logClosed.has(item.tc))
+    // 사용자가 연 것 · 닫은 것을 기억한다 — toggle 소식은 처음 그릴 때도 오므로 summary 누름으로 센다
+    const remember = () => { if (q) return; if (fold.open) { state.logOpen.delete(item.tc); state.logClosed.add(item.tc) } else { state.logOpen.add(item.tc); state.logClosed.delete(item.tc) } }
+    const fold = el('details', { class: 'lg', open },
+      el('summary', { onclick: remember }, item.state === '대기' ? badge('대기', 'idle') : badge(item.state, item.state === '수행 중' ? 'info' : badgeOf(item.state)), el('span', { title: item.tc }, item.tc), el('span', { class: 'thin' }, `${lines.length}줄`)),
+      lines.length ? el('pre', { class: 'log' }, ...lines.flatMap((line, index) => { const [tag, rest] = logParts(line); return [index ? '\n' : '', tag ? el('b', {}, tag) : '', rest] })) : null)
+    return fold
+  })
+  return [head, section('작업 기록', '', null, el('div', { style: 'display:grid;gap:8px' }, search, ...folds))]
+}
+
+// ── 홈 ──
+
+const busyAi = () => state.data?.busy === 'ai'
+/** 상태 화면 — 비었을 때 · 설정이 필요할 때 · 브라우저가 막혔을 때. 무엇을 하면 되는지 + 단추 하나 */
+const stateCard = (name, title, text, action, warn = false) => el('section', { class: `sec state${warn ? ' warn' : ''}`, 'aria-label': title }, el('div', { class: 'st-ic', 'aria-hidden': 'true' }, icon(name)), el('b', {}, title), el('p', {}, text), action)
+const busyCard = () => stateCard('lock', 'AI 가 브라우저를 쓰는 중입니다', '대화의 작업이 끝나거나 10분 동안 쓰지 않으면 풀립니다. 그동안 재수행 단추는 꺼집니다.', null)
+
+function homeView() {
+  const data = state.data
+  if (!['pages', 'flow', 'runs'].includes(state.tab)) state.tab = 'pages'
+  const top = []
+  if (!data.baseUrl) top.push(stateCard('gear', '대상 주소가 비어 있습니다', '설정에 테스트할 시스템의 주소를 적어야 화면을 열고 TC 를 수행합니다. 로그인이 필요하면 아이디 · 비밀번호도 적습니다.', btn('설정 열기', () => void tool('settings').catch(() => undefined)), true))
+  if (busyAi()) top.push(busyCard())
+  if (!data.pages.length) return [...top, stateCard('list', '아직 증적이 없습니다', '채팅에서 「요구사항 정의 화면 TC 뽑아 줘」 처럼 요청하면 AI 가 화면을 보고 TC 를 만들고, 여기에 보입니다.', btn('채팅에 요청 쓰기', () => ask('/ui-auto-tc ', false), { class: 'btn pri' }))]
+  const tab = (key, label, name, count) => el('button', { type: 'button', role: 'tab', class: 'tab', 'aria-selected': String(state.tab === key), onclick: () => ((state.tab = key), render()) }, icon(name), label, count !== undefined ? el('span', { class: 'n' }, String(count)) : null)
+  const tabs = el('div', { class: 'tabs', role: 'tablist' }, tab('pages', '대상 페이지', 'list', data.pages.length), tab('flow', '흐름 지도', 'flow'), tab('runs', '수행 기록', 'clock', data.reports.length))
+  const body = state.tab === 'pages' ? pagesSection() : state.tab === 'flow' ? flowSections() : runsSection()
+  return [...top, attentionSection(), summaryStrip(), tabs, ...[body].flat()]
+}
+function attentionSection() {
+  const data = state.data
+  const items = attentionItems(data.pages, data.reports, data.flow.edges)
+  const live = data.pages.flatMap((page) => page.tcs).filter((tc) => tc.status !== '폐기').length
+  const open = (item) => {
+    if (item.kind === 'edge') { state.tab = 'flow'; state.flow.sel = item.page; return render() }
+    if (item.tc) { state.open.add(item.tc); void loadDetail(item.tc) }
+    go({ name: 'page', id: item.page }, item.tc ? `tc:${item.tc}` : '')
+  }
+  const shown = items.slice(0, 5)
+  return section('확인 필요', items.length, el('span', { class: 'thin' }, `전체 ${live}건 중`), items.length
+    ? el('div', { class: 'rows' }, shown.map((item) => el('button', { type: 'button', class: 'row', onclick: () => open(item), title: item.tc ?? item.page },
+      el('span', { class: `dot ${item.dot}`, 'aria-hidden': 'true' }),
+      el('span', { class: 'row-t' }, el('b', {}, item.title), el('span', {}, item.where, item.verdict ? [' · ', el('em', { class: item.dot }, item.verdict)] : null, item.reason ? ` · ${item.reason}` : '')),
+      el('span', { class: 'row-side' }, item.tag ? el('span', { class: `tag ${item.trend}` }, item.tag) : null, item.stale ? badge('오래된 정보', 'hold') : null, item.at ? short(item.at) : null))))
+    : el('div', { class: 'allok' }, icon('check'), '최근 판정이 모두 통과했고 오래된 정보도 없습니다'),
+  { flush: true, foot: items.length > shown.length ? el('span', {}, el('b', {}, String(shown.length)), `건 표시 · 전체 ${items.length}건 — 나머지는 대상 페이지 · 수행 기록에서`) : undefined })
+}
+function summaryStrip() {
+  const data = state.data
+  const counts = sumCounts(data.pages)
+  const p = passText(counts)
+  const last = data.reports[0]
+  const delta = deltaText(data.pages.flatMap((page) => page.tcs))
+  return el('section', { class: 'sec', 'aria-label': '요약' }, el('div', { class: 'strip' }, donut(counts, 64),
+    el('div', { class: 'strip-t' }, el('b', {}, p.total ? ['전체 ', el('em', {}, `${p.total}건`), ` 중 ${p.pass}건 통과`] : '아직 TC 가 없습니다'),
+      el('span', { class: 'thin ellip' }, countsLine(counts)),
+      el('span', { class: 'thin ellip', title: last ? `${last.id} · ${last.tc}` : undefined }, delta ? [el('em', { class: 'dn' }, delta), ' · '] : null, last ? ['최근 수행 ', el('b', {}, short(last.at))] : '수행 기록 없음'))))
+}
+function pagesSection() {
+  const data = state.data
+  const shown = sortPages(filterPages(data.pages, state.query), state.sort)
+  const search = el('input', { class: 'search', type: 'search', placeholder: '페이지 · TC 검색', 'aria-label': '페이지 · TC 검색', 'data-fk': 'search', value: state.query })
+  search.addEventListener('input', () => { state.query = search.value; pendingFocus = 'search'; render() })
+  const open = (page) => go({ name: 'page', id: page.id })
+  const rows = shown.map((page) => {
+    const live = page.tcs.filter((tc) => tc.status !== '폐기')
+    const p = passText(page.counts)
+    return el('tr', { onclick: () => open(page), tabindex: '0', 'data-fk': `page:${page.id}`, onkeydown: (event) => event.key === 'Enter' && open(page) },
+      el('td', {}, el('span', { class: 'nm', title: page.title }, page.title), pathText(page.urlPattern || page.id)),
+      el('td', {}, page.problem ? badge('읽지 못함', 'ng') : page.stale ? [badge('오래된 정보', 'hold'), el('span', { class: 'mini' }, p.total ? `${p.total}건 중 ${p.pass}건 통과` : 'TC 없음')] : !p.total ? el('span', { class: 'thin' }, 'TC 없음') : [rbar(page.counts), el('span', { class: 'mini' }, `${p.total}건 중 ${p.pass}건 통과`)]),
+      el('td', { class: 'num' }, String(live.length)))
+  })
+  // 정렬 머리 — 누를 때마다 큰 순 → 작은 순 → 원래 순서
+  const sortHead = (key, label, cls) => {
+    const on = state.sort?.key === key ? state.sort.dir : undefined
+    const next = () => { state.sort = !on ? { key, dir: 'desc' } : on === 'desc' ? { key, dir: 'asc' } : undefined; render() }
+    return el('th', { class: cls, 'aria-sort': on === 'desc' ? 'descending' : on === 'asc' ? 'ascending' : undefined }, el('button', { type: 'button', class: 'sort', onclick: next, title: key === 'result' ? '실패 · 차단이 많은 순으로' : 'TC 가 많은 순으로' }, label, el('span', { 'aria-hidden': 'true' }, on === 'desc' ? '▼' : on === 'asc' ? '▲' : '⇅')))
+  }
+  const colgroup = el('colgroup', {}, el('col'), el('col', { class: 'c-res' }), el('col', { class: 'c-num' }))
+  return section('대상 페이지', data.pages.length, link('TC 뽑기', () => ask('/ui-auto-tc ', false)),
+    [el('div', { style: 'padding:12px 14px' }, search),
+      shown.length ? el('table', { class: 't' }, colgroup, el('thead', {}, el('tr', {}, el('th', {}, '페이지'), sortHead('result', '결과'), sortHead('tc', 'TC', 'num'))), el('tbody', {}, rows)) : el('div', { class: 'quiet' }, '맞는 페이지가 없습니다')],
+    { flush: true, foot: el('span', {}, el('b', {}, String(shown.length)), '개 표시 · 전체 ', el('b', {}, String(data.pages.length)), '개') })
+}
+function runsSection() {
+  const data = state.data
+  const reports = data.reports
+  const running = state.progress?.running ? state.progress.cases.filter((item) => item.state === '수행 중') : []
+  if (!reports.length && !running.length) return section('수행 기록', 0, null, el('div', { class: 'quiet' }, '아직 보고서가 없습니다. TC 를 수행하면 수행마다 보고서가 남습니다.'))
+  const pageOf = (id) => data.pages.find((page) => page.tcs.some((tc) => tc.id === id))
+  const segs = [['all', '전체', reports.length, ''], ['실패', '실패', reports.filter((r) => r.verdict === '실패').length, 'f'], ['차단', '차단', reports.filter((r) => r.verdict === '차단').length, 'b']].filter(([key, , count]) => key === 'all' || count)
+  if (!segs.some(([key]) => key === state.runMode)) state.runMode = 'all'
+  const seg = el('div', { class: 'seg', role: 'group', 'aria-label': '판정으로 거르기' }, segs.map(([key, label, count, dot]) => el('button', { type: 'button', 'aria-pressed': String(state.runMode === key), onclick: () => ((state.runMode = key), (state.runLimit = 25), render()) }, dot ? el('span', { class: `dot ${dot}`, 'aria-hidden': 'true' }) : null, label, el('b', {}, String(count)))))
+  const all = filterReports(reports, state.runMode)
+  const shown = all.slice(0, state.runLimit)
+  const DOT = { 성공: 's', 실패: 'f', 차단: 'b' }
+  const open = (report) => go({ name: 'report', id: report.id, tc: report.tc, from: { name: 'home' } })
+  const liveRows = state.runMode === 'all' ? running.map((item) => el('div', { class: 'row live' }, el('span', { class: 'dot r', 'aria-hidden': 'true' }),
+    el('span', { class: 'row-t' }, el('b', {}, titleOf(item.tc)), el('span', {}, `${pageOf(item.tc)?.title ?? ''} · 수행 중${item.total ? ` ${item.step ?? 0}/${item.total}단계` : ''} · 패널`), el('span', { class: 'mini-bar', 'aria-hidden': 'true' }, el('i', { style: `width:${item.total ? Math.round(((item.step ?? 0) / item.total) * 100) : 4}%` }))),
+    el('span', { class: 'row-side' }, '지금'))) : []
+  const rows = shown.map((report) => {
+    const tc = tcById(report.tc)
+    const tag = trendText(report.trend, report.verdict)
+    return el('button', { type: 'button', class: 'row', onclick: () => open(report), title: `${report.id} · ${report.tc}` },
+      el('span', { class: `dot ${DOT[report.verdict] ?? 'o'}`, 'aria-hidden': 'true' }),
+      el('span', { class: 'row-t' }, el('b', {}, tc?.title || report.tc || report.id), el('span', {}, [pageOf(report.tc)?.title ?? report.page, report.reason, report.id].filter(Boolean).join(' · '))),
+      el('span', { class: 'row-side' }, tag ? el('span', { class: `tag ${report.trend.kind}` }, tag) : null, short(report.at)))
+  })
+  return section('수행 기록', reports.length, null, [el('div', { class: 'tools' }, seg), el('div', { class: 'rows', style: 'border-top:1px solid var(--line)' }, liveRows, rows)],
+    { flush: true, foot: [el('span', {}, el('b', {}, String(shown.length)), '건 표시 · 전체 ', el('b', {}, String(all.length)), '건'), all.length > shown.length ? link('더 보기', () => ((state.runLimit += 25), render())) : null] })
+}
+
+// ── 흐름 지도 ──
+
+let flowLayout
+function flowSections() {
+  const { nodes, edges } = state.data.flow
+  if (!nodes.length) return section('흐름 지도', '', null, el('div', { class: 'quiet' }, 'system_map 에 페이지가 없습니다.'))
+  flowLayout = layoutFlow(nodes, edges)
+  const { pos, width, height, size } = flowLayout
+  const svgNs = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(svgNs, 'svg')
+  svg.setAttribute('width', String(width))
+  svg.setAttribute('height', String(height))
+  svg.setAttribute('aria-hidden', 'true')
+  svg.innerHTML = '<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10z" fill="var(--ink-3)"/></marker><marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10z" fill="var(--danger-ink)"/></marker></defs>'
+  const labels = []
+  for (const edge of edges) {
+    const a = pos[edge.from], b = pos[edge.to]
+    if (!a || !b) continue
+    const bad = edge.state === '불일치'
+    const x1 = a.x + size.w, y1 = a.y + 70, x2 = b.x, y2 = b.y + 70
+    const back = x2 <= x1
+    const d = back ? `M${a.x + size.w / 2} ${a.y + size.h} C${a.x + size.w / 2} ${a.y + size.h + 60} ${b.x + size.w / 2} ${b.y + size.h + 60} ${b.x + size.w / 2} ${b.y + size.h + 4}` : `M${x1} ${y1} C${(x1 + x2) / 2} ${y1} ${(x1 + x2) / 2} ${y2} ${x2 - 4} ${y2}`
+    const path = document.createElementNS(svgNs, 'path')
+    path.setAttribute('d', d)
+    path.setAttribute('fill', 'none')
+    path.setAttribute('stroke', bad ? 'var(--danger-ink)' : 'var(--ink-3)')
+    path.setAttribute('stroke-width', '1.6')
+    if (bad) path.setAttribute('stroke-dasharray', '5 5')
+    path.setAttribute('marker-end', bad ? 'url(#ahr)' : 'url(#ah)')
+    svg.append(path)
+    const mx = back ? (a.x + b.x + size.w) / 2 : (x1 + x2) / 2, my = back ? Math.max(a.y, b.y) + size.h + 46 : (y1 + y2) / 2
+    labels.push(el('div', { class: `elabel${bad ? ' bad' : ''}`, style: `left:${mx}px;top:${my}px` }, `${edge.action || '이동'}${bad ? ' · 불일치' : ''}`))
+  }
+  const sel = state.flow.sel
+  const nodeEls = nodes.map((node) => {
+    const p = pos[node.id]
+    return el('button', { type: 'button', class: `node${node.entry ? ' entry' : ''}${sel === node.id ? ' sel' : ''}${node.capture ? '' : ' nocap'}`, style: `left:${p.x}px;top:${p.y}px`, 'data-node': node.id, 'aria-label': `${node.title} 페이지`, onclick: (event) => { if (moved) return; event.stopPropagation(); state.flow.sel = node.id; render() }, ondblclick: () => go({ name: 'page', id: node.id }) },
+      shot(node.capture, `${node.title} 캡처`),
+      el('div', { class: 'nt' }, el('b', {}, node.title), node.entry ? badge('진입점', 'info') : node.worst ? badge(node.worst === '실패' || node.worst === '차단' ? `${node.worst} ${node.counts[node.worst]}` : node.worst) : badge('TC 없음', 'idle')),
+      el('code', {}, node.urlPattern || node.id),
+      el('div', { class: 'nr' }, el('span', {}, `TC ${node.tcCount} · 수행 ${node.runCount}`), rbar(node.counts)))
+  })
+  const world = el('div', { class: 'world', id: 'world', style: `width:${width}px;height:${height}px` }, svg, ...labels, ...nodeEls)
+  const mini = el('div', { class: 'cv-mini', 'aria-hidden': 'true' }, ...nodes.map((node) => el('i', { style: `left:${(pos[node.id].x / width) * 100}%;top:${(pos[node.id].y / height) * 100}%;width:${(size.w / width) * 100}%;height:${(size.h / height) * 100}%` })), el('b', { id: 'mv' }))
+  const zoomBtn = (label, f, name) => el('button', { type: 'button', class: 'ib', 'aria-label': label, title: label, onclick: () => zoomBy(f) }, name)
+  const canvas = el('div', { class: `cv${state.flow.full ? ' full' : ''}`, id: 'cv', tabindex: '0', 'aria-label': '흐름 지도 — 끌어서 이동, 휠로 확대, 노드를 누르면 아래에 요약, 두 번 누르면 그 페이지의 TC' }, world,
+    el('div', { class: 'cv-tools', role: 'toolbar', 'aria-label': '흐름 지도 도구' }, zoomBtn('축소', 1 / 1.2, '−'), el('span', { class: 'zv', id: 'zv' }, `${Math.round(state.flow.z * 100)}%`), zoomBtn('확대', 1.2, '+'), el('span', { class: 'sep' }), ib('fit', '화면에 맞춤', () => fitFlow())),
+    mini)
+  const page = nodes.find((node) => node.id === sel)
+  const pageInfo = state.data.pages.find((item) => item.id === sel)
+  const edgesBad = edges.filter((edge) => edge.state === '불일치').length
+  return [
+    section('흐름 지도', `페이지 ${nodes.length} · 이동 ${edges.length}`, el('div', { class: 'acts' }, link(state.flow.full ? '전체 화면 끄기' : '전체 화면', toggleFull)), canvas, { flush: true }),
+    el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'box-shadow:inset 0 0 0 1.5px var(--primary)' }), '진입점'), el('span', {}, el('i', { style: 'background:var(--chart-s)' }), '성공'), el('span', {}, el('i', { style: 'background:var(--chart-f)' }), '실패'), el('span', {}, el('i', { style: 'background:var(--chart-b)' }), '차단'), el('span', {}, '- - 불일치 이동')),
+    page ? section('선택한 페이지', '', node2badge(page), el('div', { class: 'pick' }, shot(page.capture, `${page.title} 캡처`), el('div', {}, el('b', {}, page.title), el('span', { class: 'mono', style: 'color:var(--ink-3)' }, page.id), el('p', {}, `TC ${page.tcCount}건 · 수행 ${page.runCount}회 · ${countsLine(page.counts)}`), el('div', { class: 'acts' }, btn(`TC ${page.tcCount}건 보기`, () => go({ name: 'page', id: page.id }), { class: 'btn pri' }), pageInfo && !page.tcCount ? link('TC 뽑기', () => ask(derivePrompt(pageInfo))) : null))), { foot: [el('span', {}, '최근 확인 ', el('b', {}, short(page.lastVerified))), el('span', {}, '불일치 이동 ', el('b', {}, String(edgesBad)))] }) : el('div', { class: 'quiet' }, '노드를 누르면 그 페이지의 요약이 여기 나옵니다.'),
+  ]
+}
+const node2badge = (node) => (node.worst ? badge(node.worst) : badge('TC 없음', 'idle'))
+let moved = false
+function applyFlow() {
+  const world = document.getElementById('world'), cv = document.getElementById('cv')
+  if (!world || !cv || !flowLayout) return
+  const { z, x, y } = state.flow
+  world.style.transform = `translate(${x}px,${y}px) scale(${z})`
+  const zv = document.getElementById('zv')
+  if (zv) zv.textContent = `${Math.round(z * 100)}%`
+  const mv = document.getElementById('mv')
+  if (mv) Object.assign(mv.style, { left: `${Math.max(0, (-x / z / flowLayout.width) * 100)}%`, top: `${Math.max(0, (-y / z / flowLayout.height) * 100)}%`, width: `${Math.min(100, (cv.clientWidth / z / flowLayout.width) * 100)}%`, height: `${Math.min(100, (cv.clientHeight / z / flowLayout.height) * 100)}%` })
+}
+function fitFlow() {
+  const cv = document.getElementById('cv')
+  if (!cv || !flowLayout) return
+  const z = Math.min(1, cv.clientWidth / flowLayout.width, cv.clientHeight / flowLayout.height)
+  state.flow = { ...state.flow, z, x: (cv.clientWidth - flowLayout.width * z) / 2, y: (cv.clientHeight - flowLayout.height * z) / 2, fitted: true }
+  applyFlow()
+}
+function zoomBy(f, cx, cy) {
+  const cv = document.getElementById('cv')
+  if (!cv) return
+  const px = cx ?? cv.clientWidth / 2, py = cy ?? cv.clientHeight / 2
+  const { z, x, y } = state.flow
+  const next = Math.min(2, Math.max(0.25, z * f))
+  state.flow = { ...state.flow, z: next, x: px - ((px - x) * next) / z, y: py - ((py - y) * next) / z }
+  applyFlow()
+}
+async function toggleFull() {
+  const on = !state.flow.full
+  try { await tool('fullscreen', { on }) } catch { /* 가운데 탭 · 옛 앱 — 캔버스만 키운다 */ }
+  state.flow.full = on
+  state.flow.fitted = false
+  render()
+}
+function wireFlow() {
+  const cv = document.getElementById('cv')
+  if (!cv) return
+  let drag
+  cv.addEventListener('pointerdown', (event) => { if (event.target.closest('.cv-tools')) return; moved = false; drag = [event.clientX - state.flow.x, event.clientY - state.flow.y, event.clientX, event.clientY] })
+  cv.addEventListener('pointermove', (event) => {
+    if (!drag) return
+    if (!moved && Math.hypot(event.clientX - drag[2], event.clientY - drag[3]) < 4) return
+    if (!moved) { moved = true; cv.setPointerCapture(event.pointerId); cv.classList.add('drag') }
+    state.flow.x = event.clientX - drag[0]
+    state.flow.y = event.clientY - drag[1]
+    applyFlow()
+  })
+  const end = () => { drag = undefined; cv.classList.remove('drag'); setTimeout(() => (moved = false), 0) }
+  cv.addEventListener('pointerup', end)
+  cv.addEventListener('pointercancel', end)
+  cv.addEventListener('wheel', (event) => { event.preventDefault(); const rect = cv.getBoundingClientRect(); zoomBy(event.deltaY < 0 ? 1.1 : 1 / 1.1, event.clientX - rect.left, event.clientY - rect.top) }, { passive: false })
+  cv.addEventListener('keydown', (event) => {
+    const step = { ArrowLeft: [40, 0], ArrowRight: [-40, 0], ArrowUp: [0, 40], ArrowDown: [0, -40] }[event.key]
+    if (step) { state.flow.x += step[0]; state.flow.y += step[1]; applyFlow(); event.preventDefault() }
+    if (event.key === '+' || event.key === '=') zoomBy(1.2)
+    if (event.key === '-') zoomBy(1 / 1.2)
+    if (event.key === '0') fitFlow()
+  })
+  if (!state.flow.fitted) requestAnimationFrame(fitFlow)
+  else applyFlow()
+}
+
+// ── 페이지 ──
+
+function pageView() {
+  const page = state.data.pages.find((item) => item.id === state.screen.id)
+  if (!page) return [el('div', { class: 'quiet' }, '이 페이지가 증적에서 사라졌습니다.')]
+  const live = page.tcs.filter((tc) => tc.status !== '폐기')
+  const p = passText(page.counts)
+  const ready = live.filter((tc) => tc.runnable?.ok)
+  const askAll = state.confirmRun === `page:${page.id}`
+  const summary = section(page.title, '', page.stale ? badge('오래된 정보', 'hold') : el('span', { class: 'thin' }, `확인 ${short(page.lastVerified)}`),
+    [page.problem ? el('div', { class: 'warnbox', style: 'margin-bottom:12px' }, page.problem) : null,
+      el('div', { class: 'pagesum' }, shot(page.hasCapture ? `captures/${page.id}/page.png` : undefined, `${page.title} 화면`),
+        el('div', { class: 'sum' }, donut(page.counts, 88), el('div', { class: 'main' }, el('b', {}, p.total ? ['전체 ', el('em', {}, `${p.total}건`), ` 중 ${p.pass}건 통과`] : 'TC 없음'), legend(page.counts),
+          el('span', { class: 'thin' }, `수행 ${page.runCount}회`), pathText(page.urlPattern || page.id)))),
+      askAll ? el('div', { class: 'confirm', style: 'margin-top:12px;border-color:var(--primary-200);background:var(--primary-50)' }, el('b', { style: 'color:var(--primary-700)' }, `스크립트가 있는 TC ${ready.length}건을 차례로 다시 수행할까요?`), el('p', {}, '저장된 스크립트를 AI 없이 재생하고 캡처 · 보고서 · 가이드를 새로 남깁니다.', confirmText(ready) ? el('br') : null, confirmText(ready)), el('div', { class: 'acts' }, btn('취소', () => ((state.confirmRun = ''), render()), { class: 'btn plain' }), btn('전체 재수행', () => runNow(ready.map((tc) => tc.id)), { class: 'btn pri', 'data-fk': `go:page:${page.id}` }))) : null],
+    { foot: [el('span', { class: 'mono ellip', style: 'min-width:0' }, page.doc), el('span', { class: 'acts' }, btn('TC 뽑기', () => ask(derivePrompt(page)), { disabled: running() }), btn([icon('play'), '전체 재수행'], () => { state.confirmRun = `page:${page.id}`; pendingFocus = `go:page:${page.id}`; render() }, { class: 'btn pri', disabled: running() || busyAi() || !ready.length, title: ready.length ? '' : '스크립트로 바로 재생할 TC 가 없습니다' }))] })
+  const segs = statusSegments(page.tcs)
+  if (!segs.some(([key]) => key === state.tcMode)) state.tcMode = 'all'
+  const seg = el('div', { class: 'seg', role: 'group', 'aria-label': '결과로 거르기' }, segs.map(([key, label, count]) => el('button', { type: 'button', 'aria-pressed': String(state.tcMode === key), onclick: () => ((state.tcMode = key), render()) }, key !== 'all' ? el('span', { class: `dot ${{ 실패: 'f', 차단: 'b', 미수행: 'o', 성공: 's' }[key]}`, 'aria-hidden': 'true' }) : null, label, el('b', {}, String(count)))))
+  const search = el('input', { class: 'search', type: 'search', placeholder: 'TC 검색', 'aria-label': 'TC 검색', 'data-fk': 'tcsearch', value: state.tcQuery })
+  search.addEventListener('input', () => { state.tcQuery = search.value; pendingFocus = 'tcsearch'; render() })
+  const tcs = filterTcs(page.tcs, state.tcMode, state.showRetired, state.tcQuery)
+  const retired = page.tcs.length - live.length
+  const list = section('TC', live.length, retired ? link(state.showRetired ? `폐기 ${retired} 숨기기` : `폐기 ${retired} 보기`, () => ((state.showRetired = !state.showRetired), render())) : null,
+    [el('div', { class: 'tools' }, search, seg),
+      el('div', { style: 'border-top:1px solid var(--line)' }, tcs.length ? tcs.map(tcItem) : el('div', { class: 'quiet' }, '맞는 TC 가 없습니다'))],
+    { flush: true, foot: el('span', {}, el('b', {}, String(tcs.length)), '개 표시 · 전체 ', el('b', {}, String(live.length)), '개') })
+  return [...(busyAi() ? [busyCard()] : []), summary, list]
+}
+function tcItem(tc) {
+  const open = state.open.has(tc.id)
+  const toggle = () => { if (open) state.open.delete(tc.id); else { state.open.add(tc.id); void loadDetail(tc.id) } render() }
+  const tag = trendText(tc.trend, tc.status)
+  return el('div', { class: 'acc-item' },
+    el('h4', { class: 'acc-h' }, el('button', { type: 'button', class: 'acc-head', 'aria-expanded': String(open), 'data-fk': `tc:${tc.id}`, onclick: toggle },
+      el('span', { class: 'caret' }, icon('chev')),
+      el('span', { style: 'min-width:0' }, el('span', { class: 'acc-title', title: tc.title && tc.title !== tc.content ? `${tc.title} — ${tc.content}` : tc.content }, tc.title || tc.content),
+        el('span', { class: 'acc-meta' }, badge(tc.status), scriptTag(tc.scriptState), tag ? el('span', { class: `tag ${tc.trend.kind}` }, tag) : null, el('span', { class: 'acc-id' }, tc.id))),
+      el('span', { class: 'acc-side' }, el('span', {}, tc.runCount ? `수행 ${tc.runCount}회` : '도출만 함'), el('span', {}, short(tc.lastRunAt))))),
+    open ? tcBody(tc) : null)
+}
+function tcBody(tc) {
+  const info = state.details.get(tc.id)
+  if (!info || info === 'loading') return el('div', { class: 'acc-body' }, el('div', { class: 'quiet', style: 'padding:0' }, '불러오는 중…'))
+  if (info.error) return el('div', { class: 'acc-body' }, el('div', { class: 'warnbox' }, info.error))
+  const ok = info.runnable?.ok === true
+  const latest = info.runs.find((run) => run.report)
+  const report = latest ? state.reports.get(latest.report) : undefined
+  if (latest && report === undefined) queueMicrotask(() => loadReport(latest.report))
+  const data = report && report !== 'loading' && !report.error ? report : undefined
+  const verdict = data?.head?.['판정']
+  const steps = info.steps.length
+    ? info.steps
+    : procedureSteps(info.detail['절차']).map((label) => ({ kind: 'step', label }))
+  const states = info.steps.length ? timelineStates(steps, data) : steps.map(() => '')
+  const list = steps.length ? el('ol', { class: 'tl', 'aria-label': '화면 동작' }, steps.map((step, index) => el('li', { class: states[index], 'aria-label': `${step.label}${states[index] ? ` — ${{ ok: '통과', ng: '실패', skip: '하지 않음' }[states[index]]}` : ''}` }, el('b', {}, step.label), step.expected ? el('span', { class: 'exp' }, `기대: ${step.expected}`) : null, step.target ? el('code', {}, step.target) : null)))
+    : el('div', { class: 'thin' }, '적힌 화면 동작이 없습니다.')
+  // 원인 — 최근 수행이 실패 · 차단이면 몇 단계에서, 기대 · 실제, 그 화면(지난 성공과 번갈아)
+  let cause = null
+  if (data && (verdict === '실패' || verdict === '차단')) {
+    const fail = data.failStep
+    const failShot = fail ? data.steps[fail.index] : undefined
+    const before = failShot ? pairStep(data.previousPass?.steps, failShot) : undefined
+    const prev = state.failCmp.has(tc.id) && before?.capture
+    cause = [el('div', { class: `cause${verdict === '차단' ? ' hold' : ''}` }, el('b', {}, icon('alert'), causeTitle(fail, verdict)),
+      el('dl', { class: 'sx' }, el('dt', {}, '기대'), el('dd', {}, fail?.expected || data.expected || '-'), el('dt', {}, '실제'), el('dd', {}, fail?.actual || data.actual || data.basis || '-'))),
+      failShot?.capture ? el('div', { class: `cmpshot${prev ? ' prev' : ''}` },
+        before?.capture ? el('div', { class: 'seg sm', role: 'group', 'aria-label': '캡처 고르기' }, el('button', { type: 'button', 'aria-pressed': String(!prev), onclick: () => (state.failCmp.delete(tc.id), render()) }, '이번 수행 ', el('b', {}, short(data.head['일시']))), el('button', { type: 'button', 'aria-pressed': String(!!prev), onclick: () => (state.failCmp.add(tc.id), render()) }, '지난 성공 ', el('b', {}, short(data.previousPass.at)))) : null,
+        shot(prev ? before.capture : failShot.capture, prev ? '지난 성공의 같은 단계 화면' : '실패한 화면'),
+        el('span', { class: 'thin' }, prev ? `지난 성공 ${data.previousPass.id} · 같은 자리` : `${failShot.title.replace(/^\d+\.\s*/, '')} · ${latest.report}`)) : null]
+  }
+  const del = state.del === tc.id
+  const runConfirm = state.confirmRun === tc.id
+  const rerun = () => { if (ok) { state.confirmRun = tc.id; pendingFocus = `go:${tc.id}`; render() } else void ask(runPrompt(tc.id, info.runnable?.why)) }
+  const passed = info.runs.some((run) => run.verdict === '성공' && run.report)
+  const guide = guideFor(state.data.guides, tc.id)
+  const from = { name: 'page', id: tc.page }
+  return el('div', { class: 'acc-body' },
+    cause, list,
+    runConfirm ? el('div', { class: 'confirm', style: 'border-color:var(--primary-200);background:var(--primary-50)' }, el('b', { style: 'color:var(--primary-700)' }, `${tc.title || tc.id} 를 다시 수행할까요?`), el('p', {}, '저장된 스크립트를 AI 없이 재생하고 캡처 · 보고서 · 가이드를 새로 남깁니다.', confirmText([info]) ? el('br') : null, confirmText([info])), el('div', { class: 'acts' }, btn('취소', () => ((state.confirmRun = ''), render()), { class: 'btn plain' }), btn('재수행', () => runNow([tc.id]), { class: 'btn pri', 'data-fk': `go:${tc.id}` }))) : null,
+    del ? el('div', { class: 'confirm', role: 'alertdialog', 'aria-label': `${tc.id} 삭제 확인` }, el('b', {}, `${tc.title || tc.id} 를 삭제할까요?`), el('p', {}, '페이지 문서에서 「폐기」 로 바뀌고 목록에서 숨겨집니다. 보고서는 남고 번호는 다시 쓰지 않습니다.'),
+      tc.script ? el('label', {}, el('input', { type: 'checkbox', checked: state.delScript, onchange: (event) => (state.delScript = event.target.checked) }), '스크립트 파일도 지우기') : null,
+      el('div', { class: 'acts' }, btn('취소', () => ((state.del = undefined), (pendingFocus = `del:${tc.id}`), render()), { class: 'btn plain' }), btn('삭제', () => retire(tc.id), { class: 'btn sdel', 'data-fk': `delgo:${tc.id}` }))) : null,
+    // 단추 묶음 — 지우기는 왼쪽 끝, 보조 단추 다음 주 단추(재수행)를 묶음 끝에
+    el('div', { class: 'acts' },
+      // 지우기는 아이콘만 — 좁은 패널에서도 단추 넷이 한 줄에 든다
+      tc.status === '폐기' ? null : btn(icon('trash'), () => ((state.del = tc.id), (state.delScript = false), (pendingFocus = `delgo:${tc.id}`), render()), { class: 'btn del icon', disabled: running(), 'data-fk': `del:${tc.id}`, 'aria-label': '삭제', title: '삭제' }),
+      el('span', { class: 'acts end' },
+        latest ? btn([icon('doc'), '보고서'], () => go({ name: 'report', id: latest.report, tc: tc.id, from })) : null,
+        btn([icon('book'), '가이드'], () => openGuide(tc.id, from), { disabled: !guide && !passed, title: guide || passed ? '따라 하는 테스트 가이드' : '성공한 수행이 있어야 가이드를 만듭니다' }),
+        tc.status === '폐기' ? null : btn([icon('play'), '재수행'], rerun, { class: 'btn pri', disabled: running() || busyAi(), title: busyAi() ? 'AI 가 브라우저를 쓰는 중입니다' : ok ? '저장된 스크립트로 바로 재생' : `AI 가 수행 (${info.runnable?.why ?? '스크립트 없음'})` }))),
+    ok ? null : el('div', { class: 'thin' }, `스크립트로 바로 재생할 수 없어 재수행은 AI 가 합니다 — ${info.runnable?.why ?? '스크립트 없음'}`))
+}
+
+// ── 보고서 ──
+
+function reportView() {
+  const info = state.reports.get(state.screen.id)
+  if (info === undefined || info === 'loading') return [el('div', { class: 'quiet', role: 'status' }, '보고서를 불러오는 중…')]
+  if (info.error) return [el('div', { class: 'notice err', role: 'alert' }, el('div', { class: 'm' }, el('b', {}, '보고서를 읽지 못했습니다'), info.error))]
+  const r = info
+  const verdict = r.head['판정'] || '미확인'
+  const tc = state.screen.tc
+  const kv = el('dl', { class: 'kv' },
+    el('dt', {}, '판정'), el('dd', {}, badge(verdict), r.basis ? el('span', { class: 'thin', style: 'margin-left:6px' }, r.basis.split('\n')[0]) : null),
+    ...['일시', '대상 페이지', '테스트 케이스', '수행 방식'].filter((key) => r.head[key]).flatMap((key) => [el('dt', {}, key === '테스트 케이스' ? 'TC' : key === '대상 페이지' ? '대상' : key), el('dd', {}, r.head[key])]),
+    r.route ? [el('dt', {}, '경로'), el('dd', { class: 'mono' }, r.route)] : null, r.input ? [el('dt', {}, '입력값'), el('dd', { class: 'mono' }, r.input.replace(/^- /gm, ''))] : null,
+    el('dt', {}, '기대 결과'), el('dd', {}, r.expected || '-'), el('dt', {}, '실제 결과'), el('dd', {}, r.actual || '-'))
+  const guide = tc ? guideFor(state.data.guides, tc) : undefined
+  const head = section(tcById(tc)?.title || r.title, '', btn([icon('pdf'), 'PDF 저장'], () => savePdf('report', r.id), { disabled: state.pdfBusy }), kv,
+    { foot: [el('span', { class: 'mono ellip', style: 'min-width:0' }, `reports/${r.id}.md`), el('span', { class: 'acts' }, link('앱에서 열기', () => openDoc('report', r.id)), tc && (guide || verdict === '성공') ? link('테스트 가이드', () => openGuide(tc, { name: 'report', id: r.id, tc, from: state.screen.from })) : null)] })
+  if (!r.steps.length) return [head, section('단계 증적', 0, null, el('div', { class: 'quiet', style: 'padding:0' }, '캡처가 없습니다')), notesSection(r)]
+  const sel = Math.min(state.sel, r.steps.length - 1)
+  const step = r.steps[sel]
+  const before = state.cmp ? pairStep(r.previousPass?.steps, step) : undefined
+  const bad = (item) => /다름|멈춤/.test(item.verdict)
+  const pick = (index) => { state.sel = index; pendingFocus = `film:${index}`; render() }
+  const film = el('div', { class: 'film', role: 'list', 'aria-label': '단계 캡처' }, r.steps.map((item, index) => el('button', { type: 'button', role: 'listitem', class: bad(item) ? 'bad' : '', 'aria-current': String(index === sel), 'aria-label': item.title, 'data-fk': `film:${index}`, onclick: () => pick(index) },
+    shot(item.capture, ''), el('small', {}, String(index).padStart(2, '0'), item.verdict ? badge(item.verdict) : null))))
+  const compare = r.previousPass ? el('div', { class: 'seg sm', role: 'group', 'aria-label': '비교' }, el('button', { type: 'button', 'aria-pressed': String(!state.cmp), onclick: () => ((state.cmp = false), render()) }, '이번'), el('button', { type: 'button', 'aria-pressed': String(state.cmp), onclick: () => ((state.cmp = true), render()), title: `지난 성공 ${r.previousPass.id}` }, icon('swap'), '지난 성공')) : null
+  const card = el('article', { class: `stepcard${bad(step) ? ' bad' : sel === r.steps.length - 1 ? ' last' : ''}` },
+    el('div', { class: 'sch' }, el('b', {}, String(sel).padStart(2, '0')), el('span', { class: 't' }, step.title.replace(/^\d+\.\s*/, '')), step.verdict ? badge(step.verdict) : null),
+    state.cmp ? (before?.capture ? shot(before.capture, `지난 성공 ${r.previousPass.id} 의 같은 단계`) : el('div', { class: 'shot' }, '지난 성공에 같은 단계 캡처가 없습니다')) : shot(step.capture, step.title),
+    state.cmp ? el('span', { class: 'thin' }, `지난 성공 ${r.previousPass.id} (${short(r.previousPass.at)}) 의 같은 단계`) : null,
+    step.action || step.expected || step.actual ? el('dl', { class: 'sx' }, el('dt', {}, '한 일'), el('dd', {}, step.action || '-'), el('dt', {}, '기대'), el('dd', {}, step.expected || '-'), el('dt', {}, '실제'), el('dd', {}, step.actual || '-'), el('dt', {}, '판정'), el('dd', {}, step.verdict || '-')) : el('p', { class: 'mono', style: 'margin:0;color:var(--ink-3)' }, '이 보고서는 단계별 기대 · 실제를 적지 않은 옛 형식입니다.'))
+  const steps = section('단계 증적', r.steps.length, compare, el('div', { style: 'display:grid;gap:12px' }, film, card),
+    { foot: [link([icon('left'), sel ? String(sel - 1).padStart(2, '0') : ''], () => pick(sel - 1), { disabled: sel === 0, 'aria-label': '앞 단계' }), el('span', {}, `${sel + 1} / ${r.steps.length}`), link([sel < r.steps.length - 1 ? String(sel + 1).padStart(2, '0') : '', icon('chev')], () => pick(sel + 1), { disabled: sel === r.steps.length - 1, 'aria-label': '다음 단계' })] })
+  return [head, steps, notesSection(r)]
+}
+const notesSection = (r) => section('불일치 · 확인 사항', '', null, el('div', { style: 'white-space:pre-line;font-size:13.5px' }, r.notes || '없음'))
+
+// ── 테스트 가이드 ──
+
+function guideView() {
+  const info = state.guide
+  if (!info || (!info.data && !info.error)) return [el('div', { class: 'quiet', role: 'status' }, '가이드를 불러오는 중…')]
+  if (info.error) return [el('div', { class: 'notice err', role: 'alert' }, el('div', { class: 'm' }, el('b', {}, '가이드를 읽지 못했습니다'), info.error))]
+  const g = info.data
+  const head = Object.entries(g.head)
+  const item = (part) => part.kind === 'image' ? shot(part.capture, part.alt)
+    : part.kind === 'step' ? el('div', { class: 'gstep' }, el('b', {}, part.title), ...part.lines.map((line) => el('span', {}, line)), part.capture ? shot(part.capture, part.title) : null)
+    : el('p', {}, part.text.replace(/^-\s*/, '· '))
+  return [section(g.title, '', btn([icon('pdf'), 'PDF 저장'], () => savePdf('guide', g.id), { disabled: state.pdfBusy }),
+    el('div', { class: 'doc' }, head.length ? el('dl', { class: 'kv' }, head.flatMap(([key, value]) => [el('dt', {}, key), el('dd', {}, value)])) : null,
+      g.sections.flatMap((part) => [el('h4', {}, part.title), ...part.items.map(item)])),
+    { foot: [el('span', { class: 'mono ellip', style: 'min-width:0' }, `guides/${g.id}.md`), link('앱에서 열기', () => openDoc('guide', g.id))] })]
+}
+
+// ── 환경 ──
+
+function envDialog() {
+  const data = state.data
+  const close = () => ((state.env = false), (pendingFocus = 'env'), render())
+  return el('div', { class: 'scrim', onclick: (event) => event.target === event.currentTarget && close() },
+    el('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': '환경' },
+      el('div', { class: 'sec-h' }, el('h3', {}, '환경'), ib('x', '닫기', close, { 'data-fk': 'envclose' })),
+      el('div', { class: 'sec-b', style: 'display:grid;gap:12px' },
+        el('dl', { class: 'kv' }, el('dt', {}, '대상 주소'), el('dd', { class: 'mono' }, data.baseUrl || '비어 있음'), el('dt', {}, '로그인'), el('dd', {}, data.login.configured ? `설정됨 · 세션 ${data.login.saved ? '저장되어 있음' : '없음 (첫 수행 때 로그인)'}` : '설정 없음 (로그인 없이 씀)'), el('dt', {}, '증적'), el('dd', { class: 'mono' }, `${data.evidence}/ — 팀 공유, 플러그인을 지워도 남음`), el('dt', {}, '생성물'), el('dd', { class: 'mono' }, '.litecode/plugins/ui-auto/ — HTML · PDF · 세션 기록'), el('dt', {}, '브라우저'), el('dd', {}, data.busy === 'ai' ? 'AI 가 쓰는 중' : data.busy === 'panel' ? '패널 수행 중' : '쉬는 중')),
+        el('div', { class: 'acts' }, btn('설정 열기', () => void tool('settings').catch(() => undefined), { class: 'btn pri' }), btn('다시 불러오기', () => ((state.env = false), load()), { class: 'btn plain' })))))
+}
+
+function render() {
+  const app = document.getElementById('app')
+  const active = document.activeElement
+  const keep = active?.dataset?.fk
+  const caret = ['search', 'tcsearch', 'logsearch'].includes(active?.dataset?.fk) ? [active.selectionStart, active.selectionEnd] : undefined
+  const parts = []
+  if (!state.data) parts.push(topBar(), el('main', { class: 'body' }, state.error ? el('div', { class: 'notice err', role: 'alert' }, el('div', { class: 'm' }, el('b', {}, '증적을 불러오지 못했습니다'), state.error), btn('다시', () => load(), { class: 'btn plain' })) : el('div', { class: 'quiet', role: 'status' }, '불러오는 중…')))
+  else {
+    const body = state.screen.name === 'page' ? pageView() : state.screen.name === 'report' ? reportView() : state.screen.name === 'guide' ? guideView() : homeView()
+    parts.push(topBar(), el('main', { class: 'body' }, ...noticeNode(), ...body))
+  }
+  const scroll = scrollY
+  app.replaceChildren(...parts.filter(Boolean), ...(state.env && state.data ? [envDialog()] : []))
+  scrollTo(0, scroll)
+  if (document.getElementById('cv')) wireFlow()
+  const key = pendingFocus || keep
+  const target = key && [...app.querySelectorAll('[data-fk]')].find((node) => node.dataset.fk === key)
+  target?.focus({ preventScroll: true })
+  if (caret && target?.setSelectionRange) target.setSelectionRange(caret[0], caret[1])
+  pendingFocus = ''
+}
+
+addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return
+  if (state.env) return ((state.env = false), (pendingFocus = 'env'), render())
+  if (state.del || state.confirmRun) return ((state.del = undefined), (state.confirmRun = ''), render())
+  if (state.screen.name === 'report' || state.screen.name === 'guide') return go(state.screen.from ?? { name: 'home' }, 'back')
+  if (state.screen.name === 'page') return go({ name: 'home' }, `page:${state.screen.id}`)
+})
+
+void (async () => {
+  try { await call('events.subscribe', { events: ['service.progress'] }) } catch { /* 권한 없음 */ }
+  await load()
+  try { state.progress = await tool('progress') } catch { /* 서버 없음 */ }
+  render()
+})()
+
+// 켜 둔 동안 15초마다 · 다시 보일 때 — AI 가 대화에서 쓴 증적을 조용히 반영한다(바뀐 게 있을 때만 다시 그림)
+let refreshing = false
+async function quietRefresh() {
+  if (refreshing || document.hidden || state.env || state.del || state.confirmRun || running()) return
+  refreshing = true
+  try { await load(true) } finally { refreshing = false }
+}
+setInterval(quietRefresh, 15000)
+document.addEventListener('visibilitychange', () => void quietRefresh())
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+edge_id: main__process-management-systemdesign
+from: main
+to: process-management-systemdesign
+note: >
+  '관리' 서브프로젝트의 프로그램 설계(design) 공정 페이지.
+  분석 공정과 동일 계열로 메뉴 링크 클릭 시 클라이언트 예외가 재현될 수 있어
+  직접 URL 이동으로 도달한다. 41726은 design 공정 ID(안정값).
+steps:
+  - tool: browser_navigate
+    args:
+      url: "https://portal.example.test/ko/process-management/systemdesign/41726"
+arrive:
+  - tool: browser_find
+    args:
+      text: "프로그램 설계"
+    pass: heading "프로그램 설계" 표시, Page URL이 /ko/process-management/systemdesign/41726
