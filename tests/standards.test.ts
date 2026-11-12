@@ -7,7 +7,7 @@ import path from 'node:path'
 import { transformSync } from 'esbuild'
 import { describe, expect, it } from 'vitest'
 
-const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'service', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
+const KNOWN_FIELDS = ['id', 'name', 'description', 'version', 'entry', 'pages', 'details', 'litecode', 'permissions', 'type', 'locale', 'grammars', 'skills', 'agents', 'fileActions', 'tools', 'mcp', 'lsp', 'service', 'settings', 'settingsCheck', 'settingsPer', 'placement', 'scope']
 const PERMISSIONS = ['network', 'secrets', 'project', 'projectWrite', 'chat', 'tools', 'mcp', 'usage', 'llm', 'lsp', 'service']
 // 선언과 권한이 짝인 필드 — desktop shared/extensions.ts 의 PLUGIN_DECLARATIONS 중 permission 이 있는 것 (<필드>-mismatch)
 const PAIRED = ['tools', 'mcp', 'lsp', 'service']
@@ -184,6 +184,23 @@ describe.each(plugins.map((plugin) => [plugin.folder, plugin] as const))('plugin
     if (service === undefined) return
     const found = serviceSourceFiles(folder, service.main).flatMap((file) => forbiddenInService(readFileSync(file, 'utf8')).map((what) => `${path.relative(path.join(pluginsDir, folder), file)}: ${what}`))
     expect(found).toEqual([])
+  })
+
+  // desktop manifest.ts checkPages · limits.ts pages(8) — 모양이 틀리면 설치가 거절된다(pages-invalid · page-not-html · page-missing)
+  it('30 · pages — entry 가 있고 8개까지, 이름 · .html 경로가 맞고 파일이 있으며 litecode 를 적는다', () => {
+    const pages = manifest.pages
+    if (pages === undefined) return
+    expect(manifest.entry, 'pages 는 entry(첫 화면)가 있어야 합니다').toBeDefined()
+    expect(typeof pages === 'object' && pages !== null && !Array.isArray(pages), 'pages 는 이름 → 경로 객체').toBe(true)
+    const entries = Object.entries(pages as Record<string, unknown>)
+    expect(entries.length, 'pages 는 비어 있지 않고 8개까지').toBeGreaterThan(0)
+    expect(entries.length).toBeLessThanOrEqual(8)
+    for (const [name, file] of entries) {
+      expect(name, `화면 이름 ${name}`).toMatch(/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/)
+      expect(typeof file === 'string' && /\.html?$/i.test(file) && !path.isAbsolute(file) && !file.split(/[\\/]/).includes('..'), `${name} 경로는 폴더 안 .html · .htm`).toBe(true)
+      expect(existsSync(path.join(pluginsDir, folder, String(file))), `${name} 파일(${String(file)})이 없습니다`).toBe(true)
+    }
+    expect(manifest.litecode, 'pages 를 쓰면 litecode(최소 앱 버전)를 적어야 합니다').toBeDefined()
   })
 
   it('17 · mcp · service 플러그인의 build.mjs 는 --dir 을 받는다', () => {

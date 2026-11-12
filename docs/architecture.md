@@ -44,7 +44,7 @@
 
 | 자리 | 하는 일 | manifest | 권한 |
 |---|---|---|---|
-| 오른쪽 패널 탭 | 진입 HTML 이 `+` 메뉴의 탭으로 열림(같은 zip 의 스크립트 · 스타일시트 · 이미지는 앱이 읽어 넣음), 전체 화면(`panel.fullscreen`) | `entry` | 없음 |
+| 오른쪽 패널 탭 | 진입 HTML 이 `+` 메뉴의 탭으로 열림(같은 zip 의 스크립트 · 스타일시트 · 이미지는 앱이 읽어 넣음), 전체 화면(`panel.fullscreen`), 화면 여러 장(`pages` + `panel.navigate`, 8장까지 — 베타) | `entry` · `pages` | 없음 |
 | 가운데 탭 | 같은 패널을 대화 옆 가운데 탭 줄에 둠(`+` 메뉴에는 안 나옴), 지금 대화 읽기(`chat.current` · `chat.currentChanged`) | `placement: "center"` | 없음 (대화는 `chat`) |
 | 파일 우클릭 | 파일 트리 · 파일 탭 메뉴에 "이 플러그인으로 열기", 그 플러그인 탭(오른쪽 또는 가운데)을 열고 고른 파일 경로를 넘김(`panel.args`) | `fileActions` | `project` |
 | 앱 소식 | 패널이 `events.subscribe` 로 고른 이벤트(턴 끝 · AI 가 쓴 파일 · 연 탭 · 사용량 · 설정 저장)를 받음, 이벤트마다 그 권한. 서비스는 같은 이름 한 벌 중 `chat.turnEnded` · `project.filesChanged` · `usage.changed` 를 `ctx.on` 으로 받음 | — | 이벤트마다 |
