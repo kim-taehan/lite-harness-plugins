@@ -8,6 +8,7 @@
   "service-example": "unlisted",
   "sonarqube": "unlisted",
   "sql-tuning": "dev-tool",
+  "tetris": "game",
   "token-pet": "game",
   "ui-test": "dev-tool",
   "vi-pack": "unlisted",
