@@ -307,8 +307,9 @@ await call('events.subscribe', { events: ['usage.changed', 'project.filesChanged
 
   `<a href="settings.html">` 같은 링크는 이동하지 않고 막힙니다.
 - **파일 경로를 줄 수 없습니다.** 패널은 `pages` 에 적힌 **이름**만 고릅니다. 목록에 없는 이름(경로를 적어도)은 `page-unknown`, `params` 모양이 틀리면 `params-invalid` 로 거절됩니다. 경로는 앱이 `plugin.json` 에서 꺼내 읽습니다.
-- **화면을 옮기면 새 문서가 열립니다.** 패널 안의 변수 · 입력 중인 값 · 스크롤 · 타이머는 사라지고, `events.subscribe` 로 받던 소식은 새 화면에서 **다시 구독**해야 합니다. `panel.args` 와 전체 화면 상태는 유지됩니다.
+- **화면을 옮기면 새 문서가 열립니다.** 패널 안의 변수 · 입력 중인 값 · 스크롤 · 타이머는 사라지고, `events.subscribe` 로 받던 소식은 새 화면에서 **다시 구독**해야 합니다(옛 화면의 늦은 구독 답은 버려집니다). `panel.args` 와 전체 화면 상태는 유지됩니다.
 - **화면 사이에 넘길 값은 서비스(`service.call`)에 맡깁니다.** 패널은 격리된 상자 안이라 `sessionStorage` 를 쓸 수 없다고 보세요. 옮기면서 값을 넘기는 `params` 는 아직 없습니다.
+- **화면을 못 열면 지금 화면이 그대로 남습니다.** 목록에 있는 이름이어도 파일을 읽지 못하면(플러그인이 꺼짐 · 파일이 바뀜 · 2MB 초과) `panel.navigate` 응답이 `ok: false` 와 `page-unreadable` 로 오고(다른 이동에 밀리면 `busy`), 앱이 탭 위에 "화면을 열 수 없어요" 한 줄을 띄웁니다. 첫 화면(`entry`)을 읽지 못하면 오류 문구와 [다시 시도] 버튼이 뜹니다.
 - 앱 쪽 뒤로가기나 화면 목록은 아직 없습니다. 돌아가는 길은 패널이 직접 만듭니다(`panel.navigate` 로 `home` 같은 이름을 다시 부릅니다).
 - **`pages` 를 쓰면 `litecode` 를 적습니다.** `pages` 를 모르는 옛 앱은 이 필드를 모르는 필드로 보고 설치를 거절합니다. 최상위 `litecode` 에 이 기능이 들어간 앱 최소 버전을 적으면 옛 앱은 "모르는 필드" 대신 "앱 버전이 낮다" 로 거절합니다.
 - 설치할 때 `pages` 에 적은 파일이 zip 에 있고 `.html` 인지 봅니다(`page-missing` · `page-not-html` · `pages-invalid`). 서비스는 `panel.navigate` 를 부를 수 없습니다(옮길 패널이 없습니다).

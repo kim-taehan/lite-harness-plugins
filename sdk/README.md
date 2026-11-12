@@ -71,8 +71,29 @@ export default bundle
 1. **권장: 서비스가 상태를 들고, 패널은 `service.call` 로만 읽는다.** 패널은 그 상태를 자기 저장소에 쓰지 않는다.
 2. 둘 다 써야 하면 **키를 나눈다.** 서비스 몫과 패널 몫이 같은 키를 쓰지 않게 한다.
 
-패널이 부르는 길은 `service.call`(`{ name, params }`)과 `service.list` 다(그 밖에 화면 전용 표면 `panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `chat.current` 와 소식 받기 `events.subscribe`). 서비스가 내려가 있거나 그 프로젝트에서 꺼져 있으면 실패 코드(`service-off` · `not-on`)가 오니, 패널은 화면용 마지막 값을 자기 키에 따로 둘 수 있다. `expose` 한 값은 JSON 으로 오가므로 함수·순환 값은 줄 수 없다.
+패널이 부르는 길은 `service.call`(`{ name, params }`)과 `service.list` 다(그 밖에 화면 전용 표면 `panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `panel.navigate` · `chat.current` 와 소식 받기 `events.subscribe`). 서비스가 내려가 있거나 그 프로젝트에서 꺼져 있으면 실패 코드(`service-off` · `not-on`)가 오니, 패널은 화면용 마지막 값을 자기 키에 따로 둘 수 있다. `expose` 한 값은 JSON 으로 오가므로 함수·순환 값은 줄 수 없다.
 서비스가 이력·요약·상태를 오래 남기려면 문서 저장소 `host.db`(아래 "문서 저장소 — host.db")를 쓴다. 작은 값 몇 개는 `host.settings()` 의 설정 칸이나 `host.call('storage.get' · 'storage.set')`(64KB)로도 충분하다.
+
+## 패널 화면 여러 장 — pages · panel.navigate (베타)
+
+패널은 지금까지처럼 HTML 한 장(`entry`)으로 만들어도 된다. 화면이 여러 개 필요하면 `plugin.json` 에 `pages` 를 더한다. **`pages` 를 적지 않으면 아무것도 달라지지 않는다** — 이미 만든 한 장짜리 플러그인은 새 앱에서도 그대로 돈다.
+
+```json
+{
+  "entry": "index.html",
+  "pages": { "home": "index.html", "settings": "ui/settings.html", "detail": "ui/detail.html" }
+}
+```
+
+- `pages` 는 `이름 → 같은 폴더 기준 HTML 경로(.html · .htm)` 이다. `entry` 는 그대로 필수이고 **첫 화면**이다. 첫 화면으로 돌아오고 싶으면 위의 `home` 처럼 `entry` 도 이름을 붙여 적는다.
+- 이름은 글자로 시작하는 64자 안(글자·숫자·`_` · `.` · `-`), 화면은 **8개까지**, 장마다 **2MB 까지**다. 같은 폴더의 스크립트·스타일·이미지(`<script src>` 등)는 장마다 따로 읽고 자산 한도(64개 · 하나 4MB · 합 32MB)도 장마다 따로 적용된다.
+- 패널 안에서 `parent.postMessage({ litecode: 1, id, method: 'panel.navigate', params: { page: 'settings' } }, '*')` 를 보내면 앱이 그 화면으로 바꾼다. 권한은 필요 없고, 응답은 다른 호출과 같다(`ok`). `<a href="settings.html">` 같은 링크는 이동하지 않고 막힌다.
+- **파일 경로를 줄 수 없다.** 패널은 `pages` 에 적힌 **이름**만 고른다 — 목록에 없는 이름(경로를 적어도)은 `page-unknown`, `params` 모양이 틀리면 `params-invalid` 로 거절된다. 경로는 앱이 `plugin.json` 에서 꺼내 읽는다.
+- **화면을 옮기면 새 문서가 열린다.** 패널 안의 변수·입력 중인 값·스크롤·타이머는 사라지고, `events.subscribe` 로 받던 소식은 새 화면에서 **다시 구독**해야 한다. `panel.args` 와 전체 화면 상태는 유지된다. 화면 사이에 넘길 값은 서비스(`service.call`)에 맡긴다 — 패널의 `sessionStorage` 는 쓸 수 없다. 옮기면서 값을 넘기는 `params` 는 아직 없다.
+- **화면을 못 열면 지금 화면이 그대로 남는다.** 목록에 있는 이름이어도 파일을 읽지 못하면(플러그인이 꺼짐·파일이 바뀜·2MB 초과) `panel.navigate` 응답이 `ok: false` 와 `page-unreadable` 로 오고(다른 이동에 밀리면 `busy`), 앱이 탭 위에 "화면을 열 수 없어요" 한 줄을 띄운다. 첫 화면(`entry`)을 읽지 못하면 오류 문구와 [다시 시도] 버튼이 뜬다.
+- 앱 쪽 뒤로가기나 화면 목록은 아직 없다. 돌아가는 길은 패널이 직접 만든다(`panel.navigate` 로 `home` 같은 이름을 다시 부른다).
+- `pages` 를 모르는 옛 앱은 이 필드를 모르는 필드로 보고 설치를 거절한다. `pages` 를 쓰는 플러그인은 `plugin.json` 의 최상위 `litecode` 에 이 기능이 들어간 앱 최소 버전을 적는다 — 그러면 옛 앱은 "모르는 필드" 대신 "앱 버전이 낮다" 로 거절한다.
+- 설치할 때 `pages` 에 적은 파일이 zip 에 있고 `.html` 인지 본다(`page-missing` · `page-not-html` · `pages-invalid`). 서비스는 `panel.navigate` 를 부를 수 없다(옮길 패널이 없다).
 
 ## 프로젝트 자원은 projectOn · ctx.effect 로 되돌린다
 
@@ -103,7 +124,7 @@ export default bundle
 
 ## 앱 기능 부르기 — host.call
 
-파일·비밀·저장·대화·알림·mcp 같은 일은 앱의 **호출 표를 그대로** 부른다. 새 API 가 아니라 같은 이름이고, 권한 검사(`plugin.json` 의 `permissions`)와 오류 코드도 같다. 패널은 이 표를 직접 부르지 못한다 — 패널이 부를 수 있는 것은 `service.call` · `service.list` · `events.subscribe` 와 화면 전용 표면(`panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `chat.current`)뿐이다.
+파일·비밀·저장·대화·알림·mcp 같은 일은 앱의 **호출 표를 그대로** 부른다. 새 API 가 아니라 같은 이름이고, 권한 검사(`plugin.json` 의 `permissions`)와 오류 코드도 같다. 패널은 이 표를 직접 부르지 못한다 — 패널이 부를 수 있는 것은 `service.call` · `service.list` · `events.subscribe` 와 화면 전용 표면(`panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `panel.navigate` · `chat.current`)뿐이다.
 
 ```ts
 const info = await host.call('project.info', {}, { directory }) // permissions 에 "project" 가 있어야 한다
@@ -125,7 +146,7 @@ await host.call('storage.set', { key: 'last', value: Date.now() }, { directory }
   - 원본은 `project.readFile` 과 같은 검사를 받는다 — 프로젝트 실제 위치 안의 **일반 파일**이어야 한다. `..`·절대 경로·프로젝트 밖으로 나가는 심볼릭 링크는 `path-outside`, 없음·폴더·특수 파일·링크는 `not-file`, 100MB 를 넘으면 `too-big`. 내용은 메모리에 올리지 않고 복사한다(`readFile` 의 256KB 한도와 상관없다).
   - 실패 코드: `params-invalid` · `not-file` · `path-outside` · `too-big` · `no-project`(`directory` 없음) · `permission-missing` · `busy`(같은 플러그인의 저장 창이 이미 떠 있다 — 한 번에 하나) · `export-limit`(플러그인마다 1분에 6번을 넘음 — 창이 뜬 횟수만 센다) · `io-failed`(복사 실패 — 디스크·권한, 저장 창을 못 띄운 경우) · `not-on`(프로젝트별 서비스가 그 프로젝트에서 꺼짐). 사용자가 끄는 설정 칸은 없다 — 창이 뜨고 사용자가 고르는 것이 동의다. 패널(iframe)은 부를 수 없다(서비스 전용). 베타로 시작한다.
   - 가짜 host 에서는 `createFakeHost({ calls: { 'project.exportFile': () => ({ saved: true, name: '결과서.pdf' }) } })` 로 흉내 낸다(저장 창 취소는 `() => ({ saved: false })`). 부른 인자는 `fake.calls` 로 본다.
-- **부를 수 없는 것**: `panel.args`(패널이 파일 메뉴로 넘겨받은 값을 읽는 것 — 서비스에는 받을 탭이 없다), `events.subscribe`(서비스는 `ctx.on`), `service.call` · `service.list`(자기 자신).
+- **부를 수 없는 것**: `panel.args`(패널이 파일 메뉴로 넘겨받은 값을 읽는 것 — 서비스에는 받을 탭이 없다), `panel.navigate`(패널이 화면을 옮기는 것 — 옮길 패널이 없다), `events.subscribe`(서비스는 `ctx.on`), `service.call` · `service.list`(자기 자신).
 
 ## 스킬 — host.skills
 

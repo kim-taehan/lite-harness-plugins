@@ -103,6 +103,7 @@ zip(또는 연결한 폴더)을 검사하다 하나라도 걸리면 설치되지
 | `method-unknown` | 패널이 부를 수 없는 호출이다 — 패널은 `service.call` · `service.list` · `events.subscribe` 와 화면 전용(`panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `panel.navigate` · `chat.current`)만 부른다. `project.*` · `chat.compose` · `network.*` 같은 직접 호출은 거절된다 | 서비스가 `host.call` 로 부르고 패널은 `service.call` 로 묻는다([서비스 플러그인 만들기](service-plugin.md)) |
 | `event-unknown` | `events.subscribe` 에 모르는 소식 이름 | 서비스가 `host.panel.emit('x', …)` 로 보내는 소식은 패널에서 **`service.x`** 이름으로 구독한다 |
 | `page-unknown` | 패널의 `panel.navigate` — 그 이름이 `plugin.json` 의 `pages` 에 없다(경로를 적어도 거절) | `pages` 에 적은 이름만 부른다. `params` 모양이 틀리면 `params-invalid` — `{ page: '이름' }` |
+| `page-unreadable` · `busy` | 패널의 `panel.navigate` — 이름은 맞지만 그 화면 파일을 읽지 못했다(플러그인이 꺼짐 · 파일이 바뀜 · 2MB 초과), 또는 다른 이동이 진행 중이라 밀렸다(`busy`). 지금 화면은 그대로 남고 앱 탭 위에 "화면을 열 수 없어요" 한 줄이 뜬다 | 플러그인이 켜져 있고 파일이 zip 그대로인지 확인한다. `busy` 는 이동이 끝난 뒤 다시 부른다. 첫 화면(`entry`)을 못 읽으면 앱이 [다시 시도] 를 보인다 |
 | `panel-hidden` | 패널의 `panel.fullscreen` — 이 플러그인 탭이 지금 보이는 탭이 아니다 | 탭이 보일 때 부른다 |
 
 ### 서비스의 `host.call` · `host.fetch` · `host.*.register`
