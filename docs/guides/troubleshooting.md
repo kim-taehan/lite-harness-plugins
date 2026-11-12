@@ -34,6 +34,7 @@ zip(또는 연결한 폴더)을 검사하다 하나라도 걸리면 설치되지
 | `version-invalid` | `version`(또는 `litecode`)이 `주.부.수` 가 아니다 | `1.2.3` 모양으로 |
 | `app-too-old` | `litecode` 가 요구하는 최소 앱 버전보다 지금 앱이 낮다(`required` · `current`) | 앱을 올리거나 `litecode` 를 낮춘다(쓰는 기능이 그 버전에 있는지 확인) |
 | `text-invalid` | `name`(80자) · `description`(300자) · `details`(2000자)가 길이를 넘었다(`field` · `max`) | 줄인다 |
+| `pages-invalid` · `page-not-html` · `page-missing` | `pages` 모양이 틀렸다(`field`: `shape` 객체가 아니거나 비어 있음 · `count` 8개 초과 · `entry` 화면이 없음 · 이름 모양/경로 틀림) · 파일이 `.html` · `.htm` 이 아니다 · 적은 파일이 zip 에 없다 | 이름은 글자로 시작하는 64자 안, 경로는 폴더 안 `.html`, 화면은 8개까지. `pages` 를 쓰는 플러그인은 `litecode` 도 적는다 — [화면 여러 장](first-panel.md#화면-여러-장--pages-베타) |
 | `scope-invalid` | `scope` 가 `app` · `project` 가 아니다 | 둘 중 하나. 생략하면 프로젝트별(단 이 저장소 표준 20번은 새 플러그인에 `scope` 를 꼭 적게 한다) |
 | `permissions-invalid` · `permission-unknown` | `permissions` 가 문자열 목록이 아니다 · 모르는 권한(`value`, 오타면 `suggestion`) | 앱이 아는 권한만. 폐지돼 삭제된 `tools` · `mcp` · `lsp` 권한도 여기 걸린다 — 서비스 등록은 `service` 권한만으로 된다 |
 | `entry-missing` · `entry-invalid` · `entry-not-html` · `entry-unsafe` · `entry-too-large` | `entry` 파일이 zip 에 없다 · 경로가 틀렸다 · `.html` 이 아니다 · 폴더 밖이나 링크다 · 2MB 를 넘는다 | 패널은 한 파일짜리 HTML, 폴더 안 일반 파일로 둔다 |
@@ -99,15 +100,16 @@ zip(또는 연결한 폴더)을 검사하다 하나라도 걸리면 설치되지
 | `params-invalid` | `service.call` 에 `name`(글자)이 없다 | `{ name: '…', params }` 로 부른다 |
 | `not-on` | 그 프로젝트에서 이 플러그인이 켜져 있지 않다(프로젝트별 서비스) · 설치돼 있지 않다 | 설정의 범위(모든 프로젝트 · 이 프로젝트만)를 확인한다 |
 | `permission-missing` | 부른 기능에 필요한 권한이 `permissions` 에 없다 | 필요한 권한만 더한다(업데이트면 사용자가 다시 동의한다 — 표준 6번) |
-| `method-unknown` | 패널이 부를 수 없는 호출이다 — 패널은 `service.call` · `service.list` · `events.subscribe` 와 화면 전용(`panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `chat.current`)만 부른다. `project.*` · `chat.compose` · `network.*` 같은 직접 호출은 거절된다 | 서비스가 `host.call` 로 부르고 패널은 `service.call` 로 묻는다([서비스 플러그인 만들기](service-plugin.md)) |
+| `method-unknown` | 패널이 부를 수 없는 호출이다 — 패널은 `service.call` · `service.list` · `events.subscribe` 와 화면 전용(`panel.fullscreen` · `settings.open` · `panel.notify` · `panel.args` · `panel.navigate` · `chat.current`)만 부른다. `project.*` · `chat.compose` · `network.*` 같은 직접 호출은 거절된다 | 서비스가 `host.call` 로 부르고 패널은 `service.call` 로 묻는다([서비스 플러그인 만들기](service-plugin.md)) |
 | `event-unknown` | `events.subscribe` 에 모르는 소식 이름 | 서비스가 `host.panel.emit('x', …)` 로 보내는 소식은 패널에서 **`service.x`** 이름으로 구독한다 |
+| `page-unknown` | 패널의 `panel.navigate` — 그 이름이 `plugin.json` 의 `pages` 에 없다(경로를 적어도 거절) | `pages` 에 적은 이름만 부른다. `params` 모양이 틀리면 `params-invalid` — `{ page: '이름' }` |
 | `panel-hidden` | 패널의 `panel.fullscreen` — 이 플러그인 탭이 지금 보이는 탭이 아니다 | 탭이 보일 때 부른다 |
 
 ### 서비스의 `host.call` · `host.fetch` · `host.*.register`
 
 | 코드 | 원인 | 고치는 법 |
 |---|---|---|
-| `method-unknown` | 서비스가 부를 수 없는 호출이다 — `secrets.get`(비밀은 읽지 못한다) · `panel.args` · `events.subscribe`(대신 `ctx.on`) · `service.call` · `service.list` 등 | 비밀은 설정의 `type: "secret"` 칸을 선언하고 서버 `env` 에 `${secret:키}` 로 넘기는 것이 유일한 길이다 |
+| `method-unknown` | 서비스가 부를 수 없는 호출이다 — `secrets.get`(비밀은 읽지 못한다) · `panel.args` · `panel.navigate` · `events.subscribe`(대신 `ctx.on`) · `service.call` · `service.list` 등 | 비밀은 설정의 `type: "secret"` 칸을 선언하고 서버 `env` 에 `${secret:키}` 로 넘기는 것이 유일한 길이다 |
 | `not-on` | 프로젝트별 서비스가 `directory` 없이 불렀거나 그 프로젝트에서 켜져 있지 않다 | `expose` 의 두 번째 인자 `{ directory }` 를 `host.call(…, params, { directory })` 로 넘긴다. 앱 전체(`scope: "app"`)는 폴더 없이도 된다 |
 | `no-project` | 열린 프로젝트가 없다 | 프로젝트를 연 상태에서 부른다 |
 | `no-window` | `chat.compose` · `chat.open` · `project.openFile` · `panel.fullscreen` · `settings.open` 처럼 **화면이 해 주는 일**인데 그 프로젝트 창이 없거나 답이 없거나 이 플러그인 탭이 보이지 않는다 | 창과 탭이 보일 때 부른다. 보이는 탭이 없으면 조용히 성공하지 않고 이 코드로 거절된다 |

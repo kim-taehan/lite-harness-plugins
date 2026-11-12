@@ -186,7 +186,7 @@ this.expose('fullscreen', (params, { directory }) => host.call('panel.fullscreen
 - 프로젝트별(`scope: "project"`) 서비스는 `{ directory }` 가 필요하고 그 프로젝트에서 켜져 있어야 합니다(아니면 `not-on`). 앱 전체(`"app"`) 서비스는 폴더 없이도 부릅니다.
 - `chat.compose` · `chat.open` · `project.openFile` · `panel.fullscreen` · `settings.open` 은 **그 프로젝트 창이 해 줍니다**. 창이 없거나 그 플러그인 탭이 보이는 탭이 아니면 조용히 성공하지 않고 `no-window` 로 거절됩니다.
 - 바깥 요청은 `host.fetch`(`host.call('network.fetch')` 를 `Response` 로 감쌈)로만 합니다 — `network` 권한과 사용자가 허용한 주소만 됩니다.
-- **서비스에서 못 부르는 것:** `secrets.get`(`method-unknown`), `panel.args`, `events.subscribe`(대신 `ctx.on`), `service.call` · `service.list`(자기 자신).
+- **서비스에서 못 부르는 것:** `secrets.get`(`method-unknown`), `panel.args`, `panel.navigate`, `events.subscribe`(대신 `ctx.on`), `service.call` · `service.list`(자기 자신).
 
 ### 5-0. 프로젝트 밖으로 저장 — project.exportFile
 

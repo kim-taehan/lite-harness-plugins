@@ -57,6 +57,7 @@
 | `details` | 선택. 카드를 펼치면 보이는 긴 설명(2000자, 글만 — HTML 아님). 켜는 법 · 쓰는 법은 여기에 |
 | `version` | semver (`0.1.0`). 앱은 더 높은 버전만 업데이트로 받습니다 |
 | `entry` | 패널 HTML (`.html` · `.htm`), manifest 기준 상대 경로 |
+| `pages` | 선택(베타). 패널 화면을 여러 장으로 — 이름 → HTML 경로. 쓰면 `litecode` 도 적습니다. 아래 [화면 여러 장](#화면-여러-장--pages-베타) |
 | `scope` | `"app"`(앱 전체) · `"project"`(프로젝트별). 새 플러그인은 필수 — [먼저 정할 것](../README.md#먼저-정할-것-앱-전체용인가-프로젝트별인가). 메모장은 어느 프로젝트에서나 같으니 `app` |
 | `permissions` | 선택. 아래 [권한 표](#앱-통로와-권한)의 값만 |
 | `litecode` | 선택. 필요한 최소 앱 버전 — 낮은 앱은 설치를 거절합니다 |
@@ -218,6 +219,7 @@ const snapshot = await serviceCall('state')                       // 서비스�
 | `panel.fullscreen` · `settings.open` | 서비스가 `host.call` 로 엽니다(그 플러그인 탭이 보이는 탭일 때만 — 아니면 `no-window`) |
 | `secrets.get` | 서비스는 비밀을 읽지 못합니다. 비밀은 설정 `secret` 칸 + `${secret:}` → MCP 서버 환경 변수로만 |
 | `panel.args` · `fileActions` 로 열린 파일 | 패널이 받습니다(서비스에는 받을 탭이 없어 못 부름) |
+| `panel.navigate`(화면 옮기기) | 패널이 부릅니다(서비스에는 옮길 패널이 없어 못 부름) |
 
 ## 앱 통로와 권한
 
@@ -228,6 +230,7 @@ const snapshot = await serviceCall('state')                       // 서비스�
 | (없음) | `storage.get` · `set` · `delete` | 플러그인별 JSON 값 `{ key, value }`. 전체 64KB — 화면 상태용, 큰 캐시는 담지 않습니다. `project` 플러그인은 프로젝트마다 따로입니다. 설정 칸 값은 여기 없으니 `settings.summary` 로 읽습니다 |
 | (없음) | `panel.fullscreen` | `{ on }` — 오른쪽 패널을 전체 화면으로. 가운데 탭에서는 `panel-hidden` |
 | (없음) | `panel.notify` | `{ title, body?, level? }` — 앱 알림을 띄웁니다. 아래 [알림](#알림) |
+| (없음) | `panel.navigate` | `{ page }` — `pages` 에 적힌 이름의 화면으로 바꿉니다. 아래 [화면 여러 장](#화면-여러-장--pages-베타) |
 | (이벤트마다) | `events.subscribe` | `{ events: [...] }` — 앱 소식을 받습니다. 이벤트마다 권한을 따로 봅니다. 아래 [앱 소식 받기](#앱-소식-받기) |
 | `project` | `project.info` · `readFile` · `listDir` · `findFiles` · `fileInfo` · `openFile` · `pickPath` · `changedFiles` · `openTabs` | 지금 프로젝트 안만 읽고, 파일을 앱의 미리보기로 엽니다. 경로는 프로젝트 기준 상대 경로 (`..` · 절대 경로 거절) |
 | `projectWrite` | `project.writeFile` · `removeFile` | 프로젝트의 `.litecode/` 바로 아래 `.md` 만 — 팀이 커밋해 같이 쓰는 문서용 |
@@ -281,6 +284,34 @@ await call('events.subscribe', { events: ['usage.changed', 'project.filesChanged
 - 하나라도 틀리면 전체를 거절하고 기존 목록을 그대로 둡니다. 모양이 틀리면 `params-invalid`, 모르는 이름이면 `event-unknown`, 권한이 없으면 `permission-missing` 입니다.
 - 구독은 iframe 이 살아 있는 동안만입니다. 탭을 다시 열거나 다시 설치(개발 모드 포함)로 진입 HTML 을 다시 읽으면 목록이 비니, 패널이 시작할 때마다 구독합니다.
 - 대화 글과 파일 내용은 싣지 않습니다. 필요하면 받은 경로로 `project.readFile` 을 부릅니다.
+
+## 화면 여러 장 — pages (베타)
+
+패널은 지금까지처럼 HTML 한 장(`entry`)으로 만들어도 됩니다. 화면이 여러 개 필요하면 `plugin.json` 에 `pages` 를 더합니다. **`pages` 를 적지 않으면 아무것도 달라지지 않습니다** — 한 장짜리 플러그인은 새 앱에서도 그대로 돕니다.
+
+```json
+{
+  "litecode": "<이 기능이 들어간 앱 버전>",
+  "entry": "index.html",
+  "pages": { "home": "index.html", "settings": "ui/settings.html", "detail": "ui/detail.html" }
+}
+```
+
+- `pages` 는 `이름 → manifest 기준 HTML 경로(.html · .htm)` 입니다. `entry` 는 그대로 필수이고 **첫 화면**입니다. 첫 화면으로 돌아오고 싶으면 위의 `home` 처럼 `entry` 도 이름을 붙여 적습니다.
+- 이름은 글자로 시작하는 64자 안(글자 · 숫자 · `_` · `.` · `-`)이고, 화면은 **8개까지**, 장마다 **2MB 까지**입니다. 같은 폴더의 스크립트 · 스타일 · 이미지(`<script src>` 등)는 장마다 따로 읽고, 자산 한도(64개 · 하나 4MB · 합 32MB)도 장마다 따로 적용됩니다.
+- 패널이 화면을 옮기려면 앱 통로로 `panel.navigate` 를 보냅니다. 권한은 필요 없고, 응답은 다른 호출과 같습니다.
+
+  ```js
+  await call('panel.navigate', { page: 'settings' })   // call() 은 위 앱 통로
+  ```
+
+  `<a href="settings.html">` 같은 링크는 이동하지 않고 막힙니다.
+- **파일 경로를 줄 수 없습니다.** 패널은 `pages` 에 적힌 **이름**만 고릅니다. 목록에 없는 이름(경로를 적어도)은 `page-unknown`, `params` 모양이 틀리면 `params-invalid` 로 거절됩니다. 경로는 앱이 `plugin.json` 에서 꺼내 읽습니다.
+- **화면을 옮기면 새 문서가 열립니다.** 패널 안의 변수 · 입력 중인 값 · 스크롤 · 타이머는 사라지고, `events.subscribe` 로 받던 소식은 새 화면에서 **다시 구독**해야 합니다. `panel.args` 와 전체 화면 상태는 유지됩니다.
+- **화면 사이에 넘길 값은 서비스(`service.call`)에 맡깁니다.** 패널은 격리된 상자 안이라 `sessionStorage` 를 쓸 수 없다고 보세요. 옮기면서 값을 넘기는 `params` 는 아직 없습니다.
+- 앱 쪽 뒤로가기나 화면 목록은 아직 없습니다. 돌아가는 길은 패널이 직접 만듭니다(`panel.navigate` 로 `home` 같은 이름을 다시 부릅니다).
+- **`pages` 를 쓰면 `litecode` 를 적습니다.** `pages` 를 모르는 옛 앱은 이 필드를 모르는 필드로 보고 설치를 거절합니다. 최상위 `litecode` 에 이 기능이 들어간 앱 최소 버전을 적으면 옛 앱은 "모르는 필드" 대신 "앱 버전이 낮다" 로 거절합니다.
+- 설치할 때 `pages` 에 적은 파일이 zip 에 있고 `.html` 인지 봅니다(`page-missing` · `page-not-html` · `pages-invalid`). 서비스는 `panel.navigate` 를 부를 수 없습니다(옮길 패널이 없습니다).
 
 ## 가운데 탭에 두기
 
