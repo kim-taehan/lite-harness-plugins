@@ -153,6 +153,8 @@ describe('lenientYaml', () => {
     expect(() => lenientYaml('a: [1, 2')).toThrow()
     // 값이 `-` 하나뿐인 줄은 목록 시작으로 읽혀 깨진다 — 글자 '-' 로
     expect(lenientYaml('tc_id: x\n최근 통과일: -\nsteps: []\n')).toEqual({ tc_id: 'x', '최근 통과일': '-', steps: [] })
+    // 따옴표 없는 값 안의 `: ` — 값 전체가 글자
+    expect(lenientYaml('steps:\n  - tool: browser_click\n    args:\n      element: 팝업의 "검색" 버튼 (default: 전체 컬럼)\n    expect: { found: ">=1" }\n')).toEqual({ steps: [{ tool: 'browser_click', args: { element: '팝업의 "검색" 버튼 (default: 전체 컬럼)' }, expect: { found: '>=1' } }] })
     // 같은 키를 끝에 한 번 더 쓴 것 — 뒤의 값
     expect(lenientYaml('최근 통과일: -\nsteps: []\n최근 통과일: 2026-11-12\n')).toEqual({ '최근 통과일': '2026-11-12', steps: [] })
   })

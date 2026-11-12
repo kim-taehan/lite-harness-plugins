@@ -583,7 +583,7 @@ export function expectText(item: VerifyItem): string {
 }
 
 /** AI 가 흔히 틀리는 YAML 을 한 번 고쳐 읽는다 — `expected: "등록" 대화상자 표시` 처럼 따옴표로 시작해 뒤에 글이 더 붙은 한 줄 값,
- *  `최근 통과일: -` 처럼 값이 `-` 하나뿐인 줄(목록 시작으로 읽힌다), 같은 키를 두 번 쓴 것(뒤의 값). 그런 값 줄만 작은따옴표로 감싸 다시 읽고, 그래도 안 되면 처음 오류를 그대로 던진다(파일은 고치지 않는다) */
+ *  `최근 통과일: -` 처럼 값이 `-` 하나뿐인 줄(목록 시작으로 읽힌다), 따옴표 없는 값 안의 `: `, 같은 키를 두 번 쓴 것(뒤의 값). 그런 값 줄만 작은따옴표로 감싸 다시 읽고, 그래도 안 되면 처음 오류를 그대로 던진다(파일은 고치지 않는다) */
 export function lenientYaml(text: string): unknown {
   try {
     return parseYaml(text)
@@ -591,6 +591,9 @@ export function lenientYaml(text: string): unknown {
     const fixed = text.split('\n').map((line) => {
       const dash = /^(\s*(?:-\s+)?[A-Za-z_가-힣][\w가-힣 ]*:)\s+-\s*$/.exec(line)
       if (dash) return `${dash[1]} '-'`
+      // 따옴표 없는 값 안의 `: ` (예: `element: 검색 버튼 (default: 전체)`) — 값 전체를 글자로
+      const plain = /^(\s*(?:-\s+)?[A-Za-z_가-힣][\w가-힣]*:\s+)([^\s"'[{|>&*!#%@`][^#]*?:\s.*\S)\s*$/.exec(line)
+      if (plain) return `${plain[1]}'${plain[2]!.replaceAll("'", "''")}'`
       const match = /^(\s*(?:-\s+)?[A-Za-z_가-힣][\w가-힣]*:\s+)(["'].*\S)\s*$/.exec(line)
       if (!match) return line
       const value = match[2]!

@@ -7,7 +7,7 @@ const html = readFileSync(path.resolve(import.meta.dirname, '../index.html'), 'u
 const source = /\/\/ <pure>[^\n]*\n([\s\S]*?)\/\/ <\/pure>/.exec(html)?.[1]
 if (!source) throw new Error('index.html 에서 <pure> 구간을 찾지 못했습니다')
 type Counts = Record<string, number>
-const api = new Function(`${source}\nreturn { badgeOf, scriptTagOf, donutArcs, passText, successRate, sumCounts, barParts, countsLine, filterPages, filterTcs, statusSegments, sortPages, trendText, attentionItems, deltaText, filterReports, timelineStates, pairStep, causeTitle, layoutFlow, confirmText, progressText, finishText, guideFor, logParts, splitPath, procedureSteps }`)() as {
+const api = new Function(`${source}\nreturn { badgeOf, scriptTagOf, donutArcs, passText, successRate, sumCounts, barParts, countsLine, filterPages, filterTcs, statusSegments, sortPages, trendText, attentionItems, deltaText, filterReports, timelineStates, pairStep, causeTitle, layoutFlow, confirmText, progressText, finishText, guideFor, logParts, splitPath, procedureSteps, runningStates }`)() as {
   badgeOf(value: string): string
   scriptTagOf(value: string): string
   donutArcs(counts: Counts, c: number): { cls: string; len: number; at: number }[]
@@ -35,6 +35,7 @@ const api = new Function(`${source}\nreturn { badgeOf, scriptTagOf, donutArcs, p
   logParts(line: string): [string, string]
   splitPath(path: string): [string, string]
   procedureSteps(text: string): string[]
+  runningStates(steps: { kind: string }[], step?: number): string[]
 }
 
 const page = (id: string, counts: Counts, extra = {}) => ({ id, title: id, urlPattern: `/${id}`, stale: false, counts, tcs: [], ...extra })
@@ -104,6 +105,12 @@ describe('panel pure', () => {
     expect(api.timelineStates(steps, report('차단'))).toEqual(['ng', 'skip', 'skip', 'skip', 'skip'])
     expect(api.causeTitle({ step: 3, title: '"저장하기" 클릭' }, '차단')).toBe('3단계 "저장하기" 클릭에서 멈춤')
     expect(api.causeTitle({ index: 4 }, '실패')).toBe('판정에서 다름')
+  })
+
+  it('수행 중 타임라인 — 지금 단계까지 통과, 그 단계는 진행 중, 이동 중이면 이동이 진행 중', () => {
+    const steps = [{ kind: 'route' }, { kind: 'step' }, { kind: 'step' }, { kind: 'step' }, { kind: 'verify' }]
+    expect(api.runningStates(steps, 0)).toEqual(['now', '', '', '', ''])
+    expect(api.runningStates(steps, 2)).toEqual(['ok', 'ok', 'now', '', ''])
   })
 
   it('지난 성공과 같은 자리 — 단계 번호 · 판정 화면 · 대상 페이지끼리', () => {

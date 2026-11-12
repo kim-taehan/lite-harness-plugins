@@ -179,12 +179,6 @@ table.t{width:100%;border-collapse:collapse}
 .confirm p{margin:0;font-size:13px;color:var(--ink-2)}
 .confirm label{display:flex;gap:8px;align-items:center;font-size:13px}
 input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--primary)}
-.runs{display:grid;border:1px solid var(--line);border-radius:var(--r-md)}
-.run{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:13px}
-.run:first-child{border-top:0}
-.run .w{min-width:0}
-.run .w b{font:600 12px var(--font-mono)}
-.run .w span{display:block;font-size:12px;color:var(--ink-3);overflow-wrap:anywhere}
 
 /* KeyValue · StepEvidence */
 dl.kv{margin:0;display:grid;grid-template-columns:88px minmax(0,1fr);border-top:1px solid var(--line)}
@@ -310,6 +304,12 @@ em.dn{font-style:normal;color:var(--ng);font-weight:600}
 .tl li:last-child::before{display:none}
 .tl li::after{content:"";position:absolute;left:0;top:4px;width:12px;height:12px;border-radius:50%;box-sizing:border-box;border:1.5px solid var(--line-strong);background:var(--bg)}
 .tl li.ok::after{background:var(--ok);border:0}.tl li.ng::after{background:var(--ng);border:0}.tl li.skip::after{border-style:dashed}
+.tl li.now::after{background:var(--bg);border:3px solid var(--primary);box-shadow:0 0 0 4px var(--primary-100);animation:beat 1.2s ease-in-out infinite}
+.tl li.now>b{color:var(--primary-700)}
+@keyframes beat{50%{box-shadow:0 0 0 1px var(--primary-100)}}
+.tag.now{color:var(--primary-700);background:var(--primary-50);box-shadow:inset 0 0 0 1px var(--primary-200);gap:5px}
+.tag.now .pulse{width:6px;height:6px;box-shadow:none}
+.tag.wait{color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-strong)}
 .tl li.skip>b{color:var(--ink-3);font-weight:500}
 .tl b{display:block;font-weight:600;overflow-wrap:anywhere}
 .tl code{display:block;font:11.5px var(--font-mono);color:var(--ink-3);overflow-wrap:anywhere}
@@ -346,7 +346,7 @@ em.dn{font-style:normal;color:var(--ng);font-weight:600}
 .state p{margin:0 0 6px;font-size:13px;color:var(--ink-2);line-height:1.55}
 .st-ic{width:36px;height:36px;border-radius:var(--r-lg);display:grid;place-items:center;background:var(--primary-50);color:var(--primary)}
 .state.warn .st-ic{background:var(--hold-bg);color:var(--hold)}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -500,6 +500,15 @@ function pairStep(steps, step) {
   return (steps ?? []).find((other) => key(other.title) === key(step.title))
 }
 /** 원인 한 줄 — 몇 단계에서 멈췄나, 판정이 다른가 */
+/** 패널 수행 중인 TC 의 타임라인 — 진행의 step(지금 하는 스크립트 단계, 0 이면 이동 중)까지 통과, 그 단계는 진행 중 */
+function runningStates(steps, step = 0) {
+  let number = 0
+  return steps.map((item) => {
+    if (item.kind === 'route') return step > 0 ? 'ok' : 'now'
+    if (item.kind === 'step') { number++; return number < step ? 'ok' : number === step ? 'now' : '' }
+    return ''
+  })
+}
 const causeTitle = (fail, verdict) => (fail?.step ? `${fail.step}단계 ${fail.title}에서 멈춤` : fail ? '판정에서 다름' : verdict === '차단' ? '수행이 막힘' : '기대와 다름')
 /** 흐름 지도 배치 — 진입점에서 이동 관계를 따라 몇 번째 이동인지가 열, 같은 열 안에서는 순서대로 줄. 닿지 않는 페이지는 맨 오른쪽 열 */
 function layoutFlow(nodes, edges, size = { w: 240, h: 230, gx: 110, gy: 36 }) {
@@ -710,6 +719,8 @@ function onEvent(event, data) {
   if (event !== 'service.progress') return
   const was = running()
   state.progress = data
+  const now = data?.running ? data.cases.find((item) => item.state === '수행 중') : undefined
+  if (now && !state.open.has(now.tc) && state.screen.name === 'page' && tcById(now.tc)?.page === state.screen.id) { state.open.add(now.tc); void loadDetail(now.tc) }
   if (was && !data?.running) {
     state.notice = finishText(data)
     state.details.clear()
@@ -859,7 +870,7 @@ function progressNodes(progress) {
   const head = el('section', { class: 'sec live', 'aria-label': '패널 수행 중' },
     el('div', { class: 'sec-h' }, el('h3', {}, el('span', { class: 'pulse', 'aria-hidden': 'true' }), '패널 수행 중', el('span', { class: 'n' }, `${info.done} / ${info.total}건`)), btn([icon('stop'), '멈추기'], () => void tool('stop').catch(() => undefined), { class: 'btn del' })),
     el('div', { class: 'sec-b', style: 'display:grid;gap:10px' },
-      current ? el('div', {}, el('b', { class: 'ellip', style: 'font-size:14px' }, titleOf(current.tc)), el('span', { class: 'thin ellip', title: lastLine }, current.total ? `${current.step ?? 0} / ${current.total}단계${lastLine ? ` · ${lastLine}` : ''}` : '준비 중')) : el('span', { class: 'thin' }, info.text),
+      current ? el('div', { style: 'min-width:0' }, el('b', { class: 'ellip', style: 'font-size:14px' }, titleOf(current.tc)), el('span', { class: 'thin ellip', title: lastLine }, current.total ? `${current.step ?? 0} / ${current.total}단계${lastLine ? ` · ${lastLine}` : ''}` : '준비 중')) : el('span', { class: 'thin' }, info.text),
       el('div', { class: 'prog', role: 'progressbar', 'aria-valuenow': String(percent), 'aria-valuemin': '0', 'aria-valuemax': '100' }, el('i', { style: `width:${Math.max(percent, 4)}%` })),
       el('ul', { class: 'cases' }, progress.cases.map((item) => el('li', {}, el('span', { class: `dot ${CASE_DOT[item.state] ?? 'o'}`, 'aria-hidden': 'true' }), el('span', { class: 'ellip', title: item.tc }, titleOf(item.tc)), item.state === '대기' ? el('span', { class: 'thin' }, '대기') : badge(item.state, item.state === '수행 중' ? 'info' : badgeOf(item.state)))))))
   const q = state.logQuery.trim().toLowerCase()
@@ -1133,11 +1144,13 @@ function tcItem(tc) {
   const open = state.open.has(tc.id)
   const toggle = () => { if (open) state.open.delete(tc.id); else { state.open.add(tc.id); void loadDetail(tc.id) } render() }
   const tag = trendText(tc.trend, tc.status)
+  const live = state.progress?.running ? state.progress.cases.find((item) => item.tc === tc.id && ['수행 중', '대기'].includes(item.state)) : undefined
+  const liveTag = live?.state === '수행 중' ? el('span', { class: 'tag now', role: 'status' }, el('span', { class: 'pulse', 'aria-hidden': 'true' }), live.total ? `수행 중 ${live.step ?? 0}/${live.total}단계` : '수행 중 · 이동') : live ? el('span', { class: 'tag wait' }, '대기') : null
   return el('div', { class: 'acc-item' },
     el('h4', { class: 'acc-h' }, el('button', { type: 'button', class: 'acc-head', 'aria-expanded': String(open), 'data-fk': `tc:${tc.id}`, onclick: toggle },
       el('span', { class: 'caret' }, icon('chev')),
       el('span', { style: 'min-width:0' }, el('span', { class: 'acc-title', title: tc.title && tc.title !== tc.content ? `${tc.title} — ${tc.content}` : tc.content }, tc.title || tc.content),
-        el('span', { class: 'acc-meta' }, badge(tc.status), scriptTag(tc.scriptState), tag ? el('span', { class: `tag ${tc.trend.kind}` }, tag) : null, el('span', { class: 'acc-id' }, tc.id))),
+        el('span', { class: 'acc-meta' }, liveTag, badge(tc.status), scriptTag(tc.scriptState), tag && !live ? el('span', { class: `tag ${tc.trend.kind}` }, tag) : null, el('span', { class: 'acc-id' }, tc.id))),
       el('span', { class: 'acc-side' }, el('span', {}, tc.runCount ? `수행 ${tc.runCount}회` : '도출만 함'), el('span', {}, short(tc.lastRunAt))))),
     open ? tcBody(tc) : null)
 }
@@ -1154,12 +1167,14 @@ function tcBody(tc) {
   const steps = info.steps.length
     ? info.steps
     : procedureSteps(info.detail['절차']).map((label) => ({ kind: 'step', label }))
-  const states = info.steps.length ? timelineStates(steps, data) : steps.map(() => '')
-  const list = steps.length ? el('ol', { class: 'tl', 'aria-label': '화면 동작' }, steps.map((step, index) => el('li', { class: states[index], 'aria-label': `${step.label}${states[index] ? ` — ${{ ok: '통과', ng: '실패', skip: '하지 않음' }[states[index]]}` : ''}` }, el('b', {}, step.label), step.expected ? el('span', { class: 'exp' }, `기대: ${step.expected}`) : null, step.target ? el('code', {}, step.target) : null)))
+  const live = state.progress?.running ? state.progress.cases.find((item) => item.tc === tc.id && item.state === '수행 중') : undefined
+  const lastVerdict = verdict ?? info.runs[0]?.verdict
+  const states = live ? runningStates(steps, live.step) : info.steps.length ? timelineStates(steps, data) : steps.map(() => (lastVerdict === '성공' ? 'ok' : ''))
+  const list = steps.length ? el('ol', { class: 'tl', 'aria-label': '화면 동작' }, steps.map((step, index) => el('li', { class: states[index], 'aria-label': `${step.label}${states[index] ? ` — ${{ ok: '통과', ng: '실패', skip: '하지 않음', now: '진행 중' }[states[index]]}` : ''}` }, el('b', {}, step.label), step.expected ? el('span', { class: 'exp' }, `기대: ${step.expected}`) : null, step.target ? el('code', {}, step.target) : null)))
     : el('div', { class: 'thin' }, '적힌 화면 동작이 없습니다.')
   // 원인 — 최근 수행이 실패 · 차단이면 몇 단계에서, 기대 · 실제, 그 화면(지난 성공과 번갈아)
   let cause = null
-  if (data && (verdict === '실패' || verdict === '차단')) {
+  if (data && !state.progress?.running && (verdict === '실패' || verdict === '차단')) {
     const fail = data.failStep
     const failShot = fail ? data.steps[fail.index] : undefined
     const before = failShot ? pairStep(data.previousPass?.steps, failShot) : undefined
