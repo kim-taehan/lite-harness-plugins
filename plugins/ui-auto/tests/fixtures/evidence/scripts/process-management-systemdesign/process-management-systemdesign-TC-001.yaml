@@ -1,0 +1,32 @@
+tc_id: process-management-systemdesign-TC-001
+page_id: process-management-systemdesign
+edges: [main__process-management-systemdesign]
+생성일: 2026-11-10
+최근 통과일: 2026-11-10
+note: >
+  프로그램 설계 항목 추가 TC. 데이터 생성(1건)을 수행한다.
+  "프로그램 설계 등록" 다이얼로그에서 설계 명만 입력하면
+  나머지 필수 필드(서브프로젝트, 설계 ID, 등록유형, 워크플로, 사용여부, 계획일)는 기본값으로 저장된다.
+data:
+  designName: 프로그램 설계 항목 추가
+  expectedNewRow: "{designName} 행이 목록에 추가되고 총 건수가 1 증가"
+steps:
+  - tool: browser_click
+    args:
+      element: 추가하기 버튼
+      target: "getByRole('button', { name: '추가하기' })"
+  - tool: browser_type
+    args:
+      element: 설계 명 입력란 (프로그램 설계 등록 다이얼로그)
+      target: "getByRole('dialog').getByPlaceholder('설계 명을 입력해주세요')"
+      text: "{designName}"
+  - tool: browser_click
+    args:
+      element: 저장하기 버튼 (프로그램 설계 등록 다이얼로그)
+      target: "getByRole('dialog').getByRole('button', { name: '저장하기' })"
+verify:
+  - tool: browser_find
+    args:
+      text: "{designName}"
+    pass: 프로그램 설계 목록에 {designName} 1건 이상 존재 (설계 항목 추가 성공)
+captures: evidence/captures/process-management-systemdesign/{run_id}-process-management-systemdesign-TC-001-step{NN}.png

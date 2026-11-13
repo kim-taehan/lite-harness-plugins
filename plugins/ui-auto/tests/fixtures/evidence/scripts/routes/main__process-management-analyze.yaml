@@ -1,0 +1,16 @@
+edge_id: main__process-management-analyze
+from: main
+to: process-management-analyze
+note: >
+  메뉴 링크 경로(공정상세 관리 → 분석 → 요구사항 정의 클릭)는
+  "Application error: a client-side exception" 으로 일관되게 실패한다.
+  따라서 직접 URL 이동으로 도달한다. 41715는 '관리' 서브프로젝트의 analyze 공정 ID(안정값).
+steps:
+  - tool: browser_navigate
+    args:
+      url: "https://portal.example.test/ko/process-management/analyze/41715"
+arrive:
+  - tool: browser_find
+    args:
+      text: "요구사항 정의"
+    pass: heading "요구사항 정의" 표시, Page URL이 /ko/process-management/analyze/41715
