@@ -37,8 +37,16 @@ Print the log line named in each step right after the step.
 3. If the page doc exists, read its `화면 요소` table, `테스트 케이스` table, `확인 사항` table and `수행 이력`. Note the TCs that ended in `실패` or `차단` and the `불일치` lines.
 4. Move to the target page using the utilization levels of ui-auto-evidence (levels 2 to 4). If the route is recorded, do not explore. Logs: `[활용 단계]`, `[증적 활용]`, `[tool]`.
 5. Take the page capture `.litecode/ui-auto/captures/<page_id>/page.png` (ui-auto-evidence, "6. Data, login, browser, captures") and a snapshot of the current screen. Compare its elements with the `화면 요소` table and update the differences in the page doc. Create the page doc from the template if the page is new.
-6. Derive cases for every input field, button, state change and navigation point, from the viewpoints the user asked for (all viewpoints if none was given). Leave out a case whose content is the same as an existing TC, and name the tc_id it duplicates. Derive more cases around elements where an earlier run failed or a `불일치` was recorded. Use the values in `testdata.md` and the answers in `확인 사항` as input data and expected results. If an expected result is unclear, follow ui-auto-evidence "2. Basics" (asking).
-7. For every case write: tc_id, 제목 (written noun phrase, ≤ 20 characters, for example `신규 요구사항 추가`), 목적, 전제조건, 절차, 입력 데이터, 기대 결과, 도출 근거 (the screen element it comes from).
+6. Derive cases by business function, from the viewpoints the user asked for (all viewpoints if none was given). One TC = one user goal + one business result to check. Screen elements are only evidence for finding the functions, never one TC each.
+   1. List the business functions the screen offers (for example 추가, 수정, 삭제, 검색, 내보내기, 목록 조회). A function needs a screen element you saw (a button, a menu, a row action).
+   2. Each function gets one TC for its normal flow, titled object + action (`신규 요구사항 추가`, `요구사항 수정`, `요구사항 삭제`, `요구사항 검색`).
+   3. Variants of the same goal (found / not found, other values) are data variants inside that TC, not new TCs. An exception flow with its own business rule is its own TC (`필수 항목 누락 시 등록 차단`, `삭제 취소`).
+   4. Sorting, paging, rows per page, selecting rows and opening or closing a dialog are not functions: put them as steps of `<대상> 목록 조회` or of the function they prepare (select → 일괄 삭제).
+   5. A TC that needs existing data (수정, 삭제) names it in 전제조건, preferably data the TC creates itself, and is a data-changing TC.
+   Leave out a case whose content is the same as an existing TC, and name the tc_id it duplicates. Derive more cases around elements where an earlier run failed or a `불일치` was recorded. Use the values in `testdata.md` and the answers in `확인 사항` as input data and expected results. If an expected result is unclear, follow ui-auto-evidence "2. Basics" (asking).
+   Example — 요구사항 정의 page: `신규 요구사항 추가` · `요구사항 수정` · `요구사항 삭제` · `요구사항 검색` (있는 이름 · 없는 이름) · `요구사항 목록 조회` (행 수 · 페이지 이동 · 정렬) · `필수 항목 누락 시 등록 차단`. Not: `ID 컬럼 정렬`, `2페이지 이동`, `전체 선택`.
+7. For every case write: tc_id, 제목 (written noun phrase, ≤ 20 characters, object + action, for example `신규 요구사항 추가`), 목적, 전제조건, 절차 (every step of the goal, in order), 입력 데이터, 기대 결과 (the business result), 도출 근거 (the screen elements it comes from).
+7b. Every dialog (modal) you saw on the page goes into the `모달` table of the system map (ui-auto-evidence "system_map.md").
 8. Add each case to the `테스트 케이스` table of the page doc with 상태 `미수행` and 스크립트 상태 `없음`, and write its `TC 상세` block with the fields of step 7. Do not perform them.
 8b. If reaching or reading the page took several attempts (a crashing menu, a hidden element, an unusual login), write a block in `lessons-learned.md` as ui-auto-evidence "7. Lessons learned" says (`[교훈 기록]`). When a move fails twice, read the matching block before the third try (`[교훈 조회]`).
 9. Call `browser_close`. The derivation needs no more browser calls. Then do procedure D (record and merge) for the page doc and for the system map (new pages and edges, 흐름도, and the block of the page in `## 페이지 설명`), then procedure F (integrity check). Save the run log to `.litecode/ui-auto/logs/<run_id>.md`. Log: `[증적 갱신]`.
@@ -62,4 +70,5 @@ Print the log line named in each step right after the step.
 - Do not perform the derived cases inside this skill. Performing is the job of ui-auto-run, after the user chose.
 - Do not invent test data.
 - Do not add a case that duplicates an existing TC.
+- Do not make a TC of one click or one control (a sort, a page move, a row selection, opening a dialog). It is a step of a TC.
 - Do not explore a part of the route that the system map already has.

@@ -1,5 +1,5 @@
 // UI-AUTO MCP 서버 입구 — stdio. 서비스가 host.mcp.register 로 올리고 앱이 앱의 Node 로 띄운다(작업 폴더 = 프로젝트).
-// AI 에 보이는 도구: 동봉한 Playwright MCP 의 browser_* (중계) + begin(작업 시작 정보) + login(세션 새로 받기).
+// AI 에 보이는 도구: 동봉한 Playwright MCP 의 browser_* (중계) + begin(작업 시작 정보) + format · guide · capture(동작 위치를 표시한 단계 캡처) + login(세션 새로 받기).
 // 패널만 부르는 도구(서비스의 panelTools): list · detail · replay · progress · stop · view · pdf · shot · report · guide_read · delete. [연결 확인]: check.
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -10,7 +10,7 @@ import { cp, readdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { check, login } from './auth.ts'
-import { Browser, type ToolInfo, type ToolResult } from './browser.ts'
+import { Browser, markedShot, type Mark, type ToolInfo, type ToolResult } from './browser.ts'
 import { configFromEnv, EVIDENCE_DIR, FRESH_DAYS, guardWrite, loginReady, loginState, scrub, stamp, type Config } from './config.ts'
 import { Evidence, failStep } from './evidence.ts'
 import { table, updateRow } from './markdown.ts'
@@ -27,6 +27,8 @@ interface OwnTool extends ToolInfo {
 
 const text = (value: string, isError = false): ToolResult => ({ content: [{ type: 'text', text: value }], ...(isError && { isError: true }) })
 const json = (value: unknown): ToolResult => text(JSON.stringify(value))
+/** capture 도구가 쓰는 자리 — 증적 폴더의 captures/<page_id>/ 아래 png 만 */
+const CAPTURE_FILE = new RegExp(`^${EVIDENCE_DIR.replaceAll('.', '\\.')}/captures/[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*\\.png$`)
 /** 패널로 보내는 캡처 한 장의 상한 */
 const SHOT_MAX = 6_000_000
 
@@ -156,6 +158,28 @@ export function createTools(config: Config, browser: Browser, evidence = new Evi
       async run(args) {
         const made = await writeGuide(config, evidence, String(args['tc'] ?? ''))
         return json(made)
+      },
+    },
+    {
+      name: 'capture',
+      description:
+        'Take a step capture of the target page. Call it right BEFORE each test step with step = the step number and targets = the target locator(s) and element name(s) that step will act on: it draws a red numbered box around them, saves the screenshot to file and removes the box. Call it once more without targets after the verify for the verdict screen. file: .litecode/ui-auto/captures/<page_id>/<run_id>-<tc_id>-step<NN>.png',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          file: { type: 'string' },
+          step: { type: 'integer', minimum: 1 },
+          targets: { type: 'array', items: { type: 'object', properties: { target: { type: 'string', description: 'Locator as in the script, for example getByRole(\'button\', { name: \'저장\' })' }, element: { type: 'string' } }, required: ['target'] } },
+        },
+        required: ['file'],
+      },
+      async run(args) {
+        const file = String(args['file'] ?? '')
+        if (!CAPTURE_FILE.test(file)) return text(`file 은 ${EVIDENCE_DIR}/captures/<page_id>/<이름>.png 이어야 합니다`, true)
+        const marks: Mark[] = (Array.isArray(args['targets']) ? args['targets'] : []).flatMap((item: { target?: unknown; element?: unknown }) => (typeof item?.target === 'string' && item.target ? [{ target: item.target, ...(typeof item.element === 'string' && { element: item.element }) }] : []))
+        const { result, marked } = await markedShot({ call: (name, input) => browser.relay(name, input) }, file, marks, typeof args['step'] === 'number' ? args['step'] : undefined)
+        if (result.isError) return result
+        return text(`캡처 ${file} — ${marks.length ? `동작 위치 ${marked}/${marks.length}곳 표시` : '표시 없음'}`)
       },
     },
     {

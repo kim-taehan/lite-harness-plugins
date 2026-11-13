@@ -6,7 +6,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { login, onLoginPage } from './auth.ts'
-import { textOf, type Browser, type Caller, type ToolResult } from './browser.ts'
+import { markedShot, textOf, type Browser, type Caller, type Mark, type ToolResult } from './browser.ts'
 import { EVIDENCE_DIR, loginReady, scrub, stamp, type Config } from './config.ts'
 import { describeStep as describe, type Evidence, type Route, type Script, type ScriptStep, type TcRow, type VerifyItem } from './evidence.ts'
 import { section } from './markdown.ts'
@@ -141,6 +141,44 @@ export function screenOf(text: string): string {
   return `오류 없이 끝남${title || where ? ` · 화면 ${[title && `"${title}"`, where].filter(Boolean).join(' ')}` : ''}`
 }
 
+/** 단계가 손대는 요소 — 캡처에 표시한다. target 하나, 끌기는 시작 · 끝, 폼은 칸마다 */
+export function marksOf(step: ScriptStep): Mark[] {
+  const args = step.args ?? {}
+  const one = (target: unknown, element: unknown): Mark[] => (typeof target === 'string' && target ? [{ target, ...(typeof element === 'string' && element && { element }) }] : [])
+  if (Array.isArray(args['fields'])) return args['fields'].flatMap((field: { target?: unknown; name?: unknown; element?: unknown }) => one(field?.target, field?.element ?? field?.name))
+  return [...one(args['target'], args['element']), ...one(args['startTarget'], args['startElement']), ...one(args['endTarget'], args['endElement'])]
+}
+
+const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'
+/** 받침이 있으면 을, 없으면 를 — 한글이 아니면 을(를) */
+const object = (word: string): string => {
+  const code = word.charCodeAt(word.length - 1) - 0xac00
+  return code < 0 || code > 11171 ? '을(를)' : code % 28 ? '을' : '를'
+}
+
+/** 보고서 · 가이드의 「설명」 한 문장 — 표시한 요소에 무엇을 하고 무엇이 보여야 하나 */
+export function explain(step: ScriptStep, vars: Record<string, string>, number: number, marked: boolean): string {
+  const args = fill(step.args ?? {}, vars) as Record<string, unknown>
+  const name = String(args['element'] ?? args['startElement'] ?? '').trim() || '대상 요소'
+  const sign = marked ? `${CIRCLED[number - 1] ?? `(${number})`} ` : ''
+  const thing = `${sign}「${name}」`
+  const text = String(args['text'] ?? '')
+  const action = (() => {
+    switch (step.tool) {
+      case 'browser_click': return `${thing}${object(name)} 누릅니다`
+      case 'browser_type': return `${thing}에 "${text}"${object(text || name)} 입력합니다`
+      case 'browser_select_option': return `${thing}에서 ${(Array.isArray(args['values']) ? args['values'] : []).join(', ')}${object(String((Array.isArray(args['values']) ? args['values'] : []).at(-1) ?? name))} 고릅니다`
+      case 'browser_hover': return `${thing} 위에 마우스를 올립니다`
+      case 'browser_press_key': return `${String(args['key'] ?? '')} 키를 누릅니다`
+      case 'browser_fill_form': return `${sign}표시한 칸 ${Array.isArray(args['fields']) ? args['fields'].length : 0}개를 채웁니다`
+      case 'browser_drag': return `${thing}${object(name)} 「${String(args['endElement'] ?? '').trim() || '대상 위치'}」로 끌어다 놓습니다`
+      case 'browser_handle_dialog': return `대화상자를 ${args['accept'] ? '수락' : '취소'}합니다`
+      default: return `${describe(step)}${marked ? ` (${sign.trim()})` : ''}`
+    }
+  })()
+  return `${action}.${step.expected ? ` 확인: ${fill(step.expected, vars)}` : ''}`
+}
+
 /** 진입점 URL — `진입 방법` 칸의 첫 주소, 없으면 대상 주소 */
 export function entryUrl(how: string, baseUrl: string): string {
   const absolute = /https?:\/\/[^\s)]+/.exec(how)?.[0]
@@ -155,8 +193,8 @@ interface Outcome {
   verdict: Verdict
   reason: string
   arrived: boolean
-  /** 캡처마다 — 한 일 · 기대 · 실제 · 판정(수행됨 · 멈춤 · 일치 · 다름) */
-  steps: { label: string; capture?: string; action: string; expected: string; actual: string; verdict: string }[]
+  /** 캡처마다 — 설명 · 한 일 · 기대 · 실제 · 판정(수행됨 · 멈춤 · 일치 · 다름). 단계 캡처는 그 단계 바로 전 화면 */
+  steps: { label: string; capture?: string; description: string; action: string; expected: string; actual: string; verdict: string }[]
   verifyNotes: string[]
   mismatch: string[]
   pageCaptured: boolean
@@ -280,9 +318,11 @@ export class Replayer {
     return result
   }
 
-  private async capture(file: string, say: (line: string) => void): Promise<boolean> {
-    const result = await this.call({ tool: 'browser_take_screenshot', args: { filename: file } }, {}, say)
-    return !result.isError
+  /** 캡처 — marks 가 있으면 그 요소에 번호 상자를 그려 찍는다(그리기 · 지우기는 기록하지 않는다) */
+  private async capture(file: string, say: (line: string) => void, marks: Mark[] = [], number?: number): Promise<{ ok: boolean; marked: number }> {
+    const { result, marked } = await markedShot(this.browser as Caller, file, marks, number)
+    say(`[tool] browser_take_screenshot(${file}) — ${result.isError ? `오류: ${firstLine(textOf(result))}` : '완료'}${marked ? ` · 동작 위치 ${marked}곳 표시` : ''}`)
+    return { ok: !result.isError, marked }
   }
 
   private async play(input: { item: CaseProgress; page: string; tc: TcRow; script: Script; vars: Record<string, string>; entryHow: string; say: (line: string) => void; runId: string }): Promise<Outcome> {
@@ -291,11 +331,12 @@ export class Replayer {
     const block = (reason: string): Outcome => ({ ...out, verdict: '차단', reason })
     const captureDir = `${EVIDENCE_DIR}/captures/${page}`
     let shot = 0
-    const stepCapture = async (label: string, detail: { action: string; expected: string; actual: string; verdict: string }) => {
+    /** 다음 캡처 — 단계 캡처는 그 단계를 하기 바로 전 화면(손댈 요소 표시), 마지막은 판정 화면 */
+    const take = async (marks: Mark[] = [], number?: number) => {
       shot++
       const file = `${captureDir}/${runId}-${tc.id}-step${String(shot).padStart(2, '0')}.png`
-      const ok = await this.capture(file, say)
-      out.steps.push({ label, ...(ok && { capture: file }), ...detail })
+      const { ok, marked } = await this.capture(file, say, marks, number)
+      return { ...(ok && { capture: file }), marked: marked > 0 }
     }
     item.total = script.steps.length
     item.step = 0
@@ -343,25 +384,30 @@ export class Replayer {
     }
     out.arrived = true
 
-    if (!this.evidence.exists(`captures/${page}/page.png`)) out.pageCaptured = await this.capture(`${captureDir}/page.png`, say)
+    if (!this.evidence.exists(`captures/${page}/page.png`)) out.pageCaptured = (await this.capture(`${captureDir}/page.png`, say)).ok
 
     for (const [index, step] of script.steps.entries()) {
       if (this.stopped) {
-        await stepCapture('중지한 화면', { action: '패널에서 중지', expected: '-', actual: '중지한 시점의 화면', verdict: '멈춤' })
+        const { capture } = await take()
+        out.steps.push({ label: '중지한 화면', ...(capture && { capture }), description: '패널에서 중지한 시점의 화면입니다.', action: '패널에서 중지', expected: '-', actual: '중지한 시점의 화면', verdict: '멈춤' })
         return block('패널에서 중지')
       }
       item.step = index + 1
-      const result = await this.call(step, vars, say)
       const label = fill(describe(step), vars)
       const expected = step.expected ? fill(step.expected, vars) : '오류 없이 수행'
+      const { capture, marked } = await take(fill(marksOf(step), vars), index + 1)
+      const description = explain(step, vars, index + 1, marked)
+      const result = await this.call(step, vars, say)
       if (result.isError) {
-        await stepCapture(`${index + 1}. ${label} — 멈춘 화면`, { action: label, expected, actual: `오류: ${firstLine(textOf(result))}`, verdict: '멈춤' })
+        out.steps.push({ label: `${index + 1}. ${label}`, ...(capture && { capture }), description, action: label, expected, actual: `오류: ${firstLine(textOf(result))}`, verdict: '멈춤' })
+        const after = await take()
+        out.steps.push({ label: '멈춘 뒤 화면', ...(after.capture && { capture: after.capture }), description: `${index + 1}단계에서 오류가 난 뒤의 화면입니다.`, action: '-', expected: '-', actual: `오류: ${firstLine(textOf(result))}`, verdict: '-' })
         const line = `스크립트 ${index + 1}단계 "${label}" ≠ 실제: ${firstLine(textOf(result))} — 스크립트 그대로 둠, 원인(화면 변경 · 실제 결함) 판단은 AI 에게 맡기기`
         say(`[불일치] ${line}`)
         out.mismatch.push(line)
         return block(`${index + 1}단계 수행 오류 (스크립트 불일치)`)
       }
-      await stepCapture(`${index + 1}. ${label}`, { action: label, expected, actual: screenOf(textOf(result)), verdict: '수행됨' })
+      out.steps.push({ label: `${index + 1}. ${label}`, ...(capture && { capture }), description, action: label, expected, actual: screenOf(textOf(result)), verdict: '수행됨' })
     }
 
     const failed: string[] = []
@@ -373,7 +419,11 @@ export class Replayer {
       checks.push({ action: `${check.tool}(${keyArgs({ tool: check.tool, args: fill(check.args ?? {}, vars) })})`, expected: want, actual: verdict.note, pass: verdict.pass })
       if (!verdict.pass) failed.push(`${want}: ${verdict.note}`)
     }
-    await stepCapture(failed.length ? '판정 화면 (기대와 다름)' : '판정 화면', {
+    const { capture } = await take()
+    out.steps.push({
+      label: failed.length ? '판정 화면 (기대와 다름)' : '판정 화면',
+      ...(capture && { capture }),
+      description: `모든 단계를 마친 뒤의 화면입니다.${checks.length ? ` 확인: ${checks.map((check) => check.expected).join(' / ')}` : ''}`,
       action: `판정 — ${checks.map((check) => check.action).join(', ') || '판정 항목 없음'}`,
       expected: checks.map((check) => check.expected).join(' / ') || '-',
       actual: checks.map((check) => check.actual).join(' / ') || '-',
@@ -490,7 +540,7 @@ export class Replayer {
       '### 대상 페이지 (수행 전)',
       this.evidence.exists(`captures/${page.id}/page.png`) ? `![${page.title}](../captures/${page.id}/page.png)` : '캡처 없음 (아직 테스트 대상이 된 적 없음)',
       '',
-      ...outcome.steps.flatMap((step) => [`### ${step.label}`, step.capture ? `![${path.posix.basename(step.capture, '.png').split('-').at(-1)}](${toReport(step.capture)})` : '캡처 없음', `- 한 일: ${step.action}`, `- 기대: ${step.expected}`, `- 실제: ${step.actual}`, `- 판정: ${step.verdict}`, '']),
+      ...outcome.steps.flatMap((step) => [`### ${step.label}`, `- 설명: ${step.description}`, step.capture ? `![${path.posix.basename(step.capture, '.png').split('-').at(-1)}](${toReport(step.capture)})` : '캡처 없음', `- 한 일: ${step.action}`, `- 기대: ${step.expected}`, `- 실제: ${step.actual}`, `- 판정: ${step.verdict}`, '']),
       '## 불일치·확인 사항',
       ...(outcome.mismatch.length || notes.length ? [...outcome.mismatch.map((line) => `- 불일치: ${line}`), ...notes.map((line) => `- ${line}`)] : ['없음']),
       '',

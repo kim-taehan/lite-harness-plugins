@@ -6,16 +6,18 @@
 <title>UI-AUTO</title>
 <link rel="stylesheet" href="fonts.css">
 <style>
-/* UI-AUTO 디자인 시스템(디자인 시스템 artifact "UI-AUTO")의 토큰 · 컴포넌트. 메인 남색 한 색조 + 회색, 색조 밖은 실패 빨강 하나. 모서리 4px 까지, 구역은 Section 상자 */
+/* UI-AUTO 디자인 시스템(디자인 시스템 artifact "UI-AUTO")의 토큰 · 컴포넌트. 메인 남색 한 색조 + 회색, 색조 밖은 실패 빨강 하나. 구역은 Section 상자.
+   unslop(Damir Sokolovsky @heydamir, CC BY 4.0) 다듬기 — 4px 격자, 크기 12 · 13 · 14 · 15 · 17, 굵기 400 · 500 · 600, 음수 자간 없음, 보라 · 후광 없음.
+   표시 빨강(--mark)은 캡처의 동작 위치 상자와 같은 색 — 보고서 단계 번호에만 쓴다 */
 :root{--bg:#ffffff;--bg-subtle:#f5f7fb;--bg-hover:#f1f5fd;--ink:#1c2433;--ink-2:#4b5567;--ink-3:#7a8496;--line:#e4e8ef;--line-strong:#cdd4df;
   --primary-50:#f2f6fd;--primary-100:#e3ecfa;--primary-200:#c7d8f4;--primary-300:#9dbbea;--primary:#3b6cc7;--primary-700:#2a5299;--primary-800:#213f75;--on-primary:#ffffff;--focus:#9dbbea;
-  --ok:#2f5fb8;--ok-bg:#e6eefb;--ng:#c2412d;--ng-bg:#fdece9;--hold:#b4553f;--hold-bg:#fbefe9;--idle:#6b7486;--idle-bg:#eef1f5;--violet:#6a4fc4;--violet-bg:#f0ecfb;
+  --ok:#2f5fb8;--ok-bg:#e6eefb;--ng:#c2412d;--ng-bg:#fdece9;--hold:#b4553f;--hold-bg:#fbefe9;--idle:#6b7486;--idle-bg:#eef1f5;--mark:#e5484d;
   --chart-s:#3b6cc7;--chart-f:#c2412d;--chart-b:#e8a596;--chart-i:#dce6f6;--chart-track:#eef3fb;
   --danger-bg:#fdece9;--danger-ink:#c2412d;--code-bg:#1c2433;--code-ink:#c9d1e0;--scrim:rgba(16,20,27,.45);
   --font-sans:"Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--r-sm:4px;--r-md:6px;--r-lg:8px}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#121722;--bg-subtle:#0c1018;--bg-hover:#18213a;--ink:#e7ebf3;--ink-2:#b4bdcc;--ink-3:#8790a3;--line:#242c3b;--line-strong:#364156;
   --primary-50:#121a2a;--primary-100:#17233a;--primary-200:#213559;--primary-300:#34508a;--primary:#7ea6ec;--primary-700:#a9c4f3;--primary-800:#cddcf8;--on-primary:#0c1018;--focus:#34508a;
-  --ok:#7ea6ec;--ok-bg:#17233a;--ng:#f39a8b;--ng-bg:#3a1c19;--hold:#f0a08c;--hold-bg:#3a2420;--idle:#9aa3b5;--idle-bg:#1d2433;--violet:#b4a2f0;--violet-bg:#231d3d;
+  --ok:#7ea6ec;--ok-bg:#17233a;--ng:#f39a8b;--ng-bg:#3a1c19;--hold:#f0a08c;--hold-bg:#3a2420;--idle:#9aa3b5;--idle-bg:#1d2433;--mark:#e5484d;
   --chart-s:#7ea6ec;--chart-f:#f39a8b;--chart-b:#8a4a3f;--chart-i:#243352;--chart-track:#172033;
   --danger-bg:#3a1c19;--danger-ink:#f39a8b;--code-bg:#05070a;--scrim:rgba(0,0,0,.6);color-scheme:dark}}
 *{box-sizing:border-box}
@@ -25,35 +27,35 @@ html{-webkit-font-smoothing:antialiased;overflow-x:hidden}
 body{margin:0;background:var(--bg-subtle);color:var(--ink);font:14px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;word-break:keep-all}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .mono{font-family:var(--font-mono);font-size:12px}
 #app{min-height:100%;display:flex;flex-direction:column}
 
 /* 앱 머리 */
-.bar{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:0;z-index:3}
+.bar{display:flex;align-items:center;gap:12px;padding:8px 12px;min-height:56px;border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:0;z-index:3}
 .bar .bt{flex:1;min-width:0}
-.bar .bt b{display:block;font-size:15px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .bt b{display:block;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .bt small{display:block;font:12px var(--font-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.logo{flex:none;width:26px;height:26px;border-radius:var(--r-sm);background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font:700 11px var(--font-mono)}
-.ib{flex:none;width:30px;height:30px;border-radius:var(--r-md);display:grid;place-items:center;color:var(--ink-3)}
+.logo{flex:none;width:26px;height:26px;border-radius:var(--r-sm);background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font:600 12px var(--font-mono)}
+.ib{flex:none;width:32px;height:32px;border-radius:var(--r-md);display:grid;place-items:center;color:var(--ink-3)}
 .ib:hover{background:var(--bg-hover);color:var(--ink)}
-.body{flex:1;padding:14px;display:grid;gap:14px;align-content:start;width:100%;max-width:980px;margin:0 auto}
+.body{flex:1;padding:16px;display:grid;gap:16px;align-content:start;width:100%;max-width:980px;margin:0 auto}
 .body>*{min-width:0}
 
 /* Section */
 .sec{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-lg);min-width:0}
-.sec-h{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 14px;border-bottom:1px solid var(--line);border-radius:var(--r-lg) var(--r-lg) 0 0}
-.sec-h h3{margin:0;flex:1;min-width:0;font-size:13px;font-weight:650;display:flex;align-items:center;gap:6px}
+.sec-h{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-bottom:1px solid var(--line);border-radius:var(--r-lg) var(--r-lg) 0 0}
+.sec-h h3{margin:0;flex:1;min-width:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
 .sec-h h3 .n{font-weight:600;color:var(--ink-3)}
-.sec-b{padding:14px}
+.sec-b{padding:16px}
 .sec-b.flush{padding:0}
-.sec-f{padding:9px 14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sec-f{padding:8px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:center;gap:8px}
 .sec-f b{color:var(--ink)}
 
 /* Stat */
 .stat{display:grid;gap:2px}
-.stat .l{font-size:13.5px;color:var(--ink-3)}
-.stat .v{font-size:28px;line-height:34px;font-weight:700;letter-spacing:-.02em}
+.stat .l{font-size:14px;color:var(--ink-3)}
+.stat .v{font-size:28px;line-height:32px;font-weight:600}
 .stat .v small{font-size:16px;font-weight:600;margin-left:2px}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
 .pair .v{font-size:16px;line-height:22px;font-weight:600;letter-spacing:0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
@@ -62,14 +64,14 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;paddin
 .link{color:var(--primary);font-weight:600;font-size:13px;border-radius:var(--r-sm);white-space:nowrap}
 .link:hover{text-decoration:underline;text-underline-offset:3px}
 .link:disabled{color:var(--ink-3);cursor:not-allowed;text-decoration:none}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:var(--r-md);background:var(--primary-50);box-shadow:inset 0 0 0 1px var(--primary-200);font-size:13px;font-weight:600;color:var(--primary-700);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 16px;border-radius:var(--r-md);background:var(--primary-50);box-shadow:inset 0 0 0 1px var(--primary-200);font-size:13px;font-weight:600;color:var(--primary-700);white-space:nowrap}
 .btn:hover{background:var(--primary-100)}
 .btn.pri{background:var(--primary);color:var(--on-primary);box-shadow:none}
-.btn.pri:hover{background:var(--primary);filter:brightness(1.1)}
+.btn.pri:hover{background:var(--primary-700)}
 .btn.del{color:var(--danger-ink);background:var(--bg);box-shadow:inset 0 0 0 1px var(--line-strong)}
 .btn.del:hover{background:var(--danger-bg)}
 .btn.sdel{background:var(--danger-ink);color:#fff;box-shadow:none}
-.btn.icon{width:34px;padding:0}
+.btn.icon{width:36px;padding:0}
 .btn.plain{background:var(--bg);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--line-strong)}
 .btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
 .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -77,14 +79,14 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;paddin
 
 /* Tabs · Chips */
 .tabs{display:flex;gap:16px;border-bottom:1px solid var(--line);padding:0 2px;overflow-x:auto;scrollbar-width:none}
-.tab{flex:none;white-space:nowrap;height:36px;font-size:13.5px;color:var(--ink-3);font-weight:500;display:inline-flex;align-items:center;gap:6px;border-bottom:2px solid transparent;margin-bottom:-1px}
-.tab[aria-selected=true]{color:var(--ink);font-weight:650;border-bottom-color:var(--primary)}
+.tab{flex:none;white-space:nowrap;height:36px;font-size:14px;color:var(--ink-3);font-weight:500;display:inline-flex;align-items:center;gap:6px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab[aria-selected=true]{color:var(--ink);font-weight:600;border-bottom-color:var(--primary)}
 .tab .n{font-size:12px;color:var(--ink-3);font-weight:600}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{height:30px;padding:0 10px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line-strong);font-size:13px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+.chip{height:32px;padding:0 10px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line-strong);font-size:13px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
 .chip:hover{background:var(--bg-hover)}
 .chip[aria-pressed=true]{color:var(--primary-700);box-shadow:inset 0 0 0 1px var(--primary-200);background:var(--primary-50)}
-.search{width:100%;min-width:0;height:34px;border:0;border-radius:var(--r-md);padding:0 10px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font:inherit;font-size:13px}
+.search{width:100%;min-width:0;height:36px;border:0;border-radius:var(--r-md);padding:0 10px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--ink);font:inherit;font-size:13px}
 .search::placeholder{color:var(--ink-3)}
 
 /* StatusBadge — 판정은 채운 배지(색 = 뜻), 스크립트 상태는 테두리 배지(아이콘 + 글자) */
@@ -96,7 +98,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;paddin
 .badge.info{background:var(--primary-50);color:var(--primary-700)}
 .badge.gone{background:none;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-strong);text-decoration:line-through}
 .badge.s-verified{background:none;color:var(--primary-700);box-shadow:inset 0 0 0 1px var(--primary-200)}
-.badge.s-pending{background:none;color:var(--violet);box-shadow:inset 0 0 0 1px var(--violet-bg),inset 0 0 0 1px var(--violet)}
+.badge.s-pending{background:none;color:var(--ink-2);outline:1px dashed var(--line-strong);outline-offset:-1px}
 .badge.s-broken{background:none;color:var(--ng);box-shadow:inset 0 0 0 1px var(--ng)}
 .badge.s-none{background:none;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-strong)}
 .badge .dotc{width:6px;height:6px;border-radius:50%;background:currentColor}
@@ -107,12 +109,12 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;paddin
 /* 판정 색은 두 계열 — 통과는 메인 파랑, 문제(실패 · 차단)는 빨강 */
 .donut .s{stroke:var(--chart-s)}.donut .f{stroke:var(--chart-f)}.donut .b{stroke:var(--chart-b)}.donut .i{stroke:var(--chart-i)}
 .donut text{fill:var(--ink);font-family:var(--font-sans)}
-.sum{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.sum{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
 .sum .main{display:grid;gap:4px;min-width:0;flex:1 1 180px}
 .sum .main>*{min-width:0}
-.sum .main b{font-size:17px;font-weight:650;letter-spacing:-.01em}
+.sum .main b{font-size:17px;font-weight:600}
 .sum .main b em{font-style:normal;color:var(--primary)}
-.thin{font-size:12.5px;font-weight:400;color:var(--ink-3);line-height:1.7}
+.thin{font-size:13px;font-weight:400;color:var(--ink-3);line-height:1.7}
 .thin b,.sum .main .thin b{font-size:inherit;font-weight:500;letter-spacing:0;color:var(--ink-2)}
 .ellip{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .legend2{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--ink-3)}
@@ -125,8 +127,8 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;paddin
 table.t{width:100%;border-collapse:collapse}
 .t th{font-size:12px;font-weight:600;color:var(--ink-3);text-align:left;padding:8px 8px 8px 0;border-bottom:1px solid var(--line);white-space:nowrap}
 .t td{padding:12px 8px 12px 0;border-bottom:1px solid var(--line);vertical-align:middle;font-size:14px}
-.t th:first-child,.t td:first-child{padding-left:14px}
-.t th:last-child,.t td:last-child{padding-right:14px}
+.t th:first-child,.t td:first-child{padding-left:16px}
+.t th:last-child,.t td:last-child{padding-right:16px}
 .t col.c-res{width:132px}.t col.c-num{width:56px}
 .t tr:last-child td{border-bottom:0}
 .t .num{text-align:right}
@@ -134,17 +136,17 @@ table.t{width:100%;border-collapse:collapse}
 .t tbody tr:hover td{background:var(--bg-hover)}
 .t{table-layout:fixed}
 .t .nm{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.t .sub{display:block;font:11.5px var(--font-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.t .sub{display:block;font:12px var(--font-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
 /* 표 — 줄 높이 고정: 이름 칸만 「위 한 줄 + 아래 한 줄」(각각 말줄임), 나머지 칸은 꺾지 않는다 */
-.t td{height:62px}
+.t td{height:64px}
 .t td:not(:first-child){white-space:nowrap}
 .t td>.mini{white-space:nowrap}
-.mid{display:flex;min-width:0;max-width:100%;overflow:hidden;font:11.5px var(--font-mono);color:var(--ink-3);margin-top:2px}
+.mid{display:flex;min-width:0;max-width:100%;overflow:hidden;font:12px var(--font-mono);color:var(--ink-3);margin-top:2px}
 .mid .a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 999 auto;min-width:1.6em}
 .mid .b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;min-width:0}
 @media (max-width:520px){.t col.c-res{width:96px}.t col.c-num{width:42px}.t col.c-date{width:72px}}
 .t col.c-badge{width:84px}.t col.c-date{width:104px}
-.t .mini{display:block;font-size:11.5px;color:var(--ink-3);margin-top:4px;white-space:nowrap}
+.t .mini{display:block;font-size:12px;color:var(--ink-3);margin-top:4px;white-space:nowrap}
 .rbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--chart-i);gap:1px;width:100%;max-width:120px}
 .rbar i{display:block}
 .rbar .s{background:var(--chart-s)}.rbar .f{background:var(--chart-f)}.rbar .b{background:var(--chart-b)}
@@ -152,27 +154,27 @@ table.t{width:100%;border-collapse:collapse}
 /* TcAccordion · StepList */
 .acc-item{border-top:1px solid var(--line)}
 .acc-item:first-child{border-top:0}
-.acc-head{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr);gap:10px;align-items:center;padding:12px 14px;text-align:left}
+.acc-head{width:100%;display:grid;grid-template-columns:16px minmax(0,1fr);gap:10px;align-items:center;padding:12px 16px;text-align:left}
 .acc-row{display:flex;align-items:center;gap:8px;margin-top:6px;min-width:0}
 .acc-row .thin{min-width:0;flex:1}
 .acc-head:hover{background:var(--bg-hover)}
-.acc-head .caret{color:var(--ink-3);transition:transform .15s}
-.acc-title{display:block;font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-head .caret{color:var(--ink-3);transition:transform .16s cubic-bezier(.22,1,.36,1)}
+.acc-title{display:block;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .acc-tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .acc-head[aria-expanded=true] .caret{transform:rotate(90deg);color:var(--ink)}
 .acc-id{font:12px var(--font-mono);color:var(--ink-3)}
 .acc-text{display:block;font-size:14px;overflow-wrap:anywhere}
 .acc-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
-.acc-side{display:grid;justify-items:end;gap:4px;font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.acc-side{display:grid;justify-items:end;gap:4px;font-size:13px;color:var(--ink-3);white-space:nowrap}
 .acc-side b{color:var(--ink);font-weight:600}
-.acc-body{padding:0 14px 16px 40px;display:grid;gap:12px}
+.acc-body{padding:0 16px 16px 42px;display:grid;gap:12px}
 .steps{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg-subtle);counter-reset:s}
 .steps li{display:grid;grid-template-columns:22px 16px minmax(0,1fr);gap:8px;padding:8px 10px;border-top:1px solid var(--line);font-size:13px;align-items:start}
 .steps li:first-child{border-top:0}
 .steps li::before{counter-increment:s;content:counter(s,decimal-leading-zero);font:11px var(--font-mono);color:var(--ink-3);padding-top:2px}
 .steps li .ic{color:var(--ink-2);margin-top:1px}
 .steps li.verify .ic{color:var(--primary)}
-.steps code{display:block;font:11.5px var(--font-mono);color:var(--ink-3);overflow-wrap:anywhere}
+.steps code{display:block;font:12px var(--font-mono);color:var(--ink-3);overflow-wrap:anywhere}
 .steps .exp{display:block;font-size:12px;color:var(--ink-2)}
 .confirm{display:grid;gap:10px;padding:12px;border:1px solid var(--danger-ink);border-radius:var(--r-md);background:var(--danger-bg)}
 .confirm b{color:var(--danger-ink)}
@@ -182,19 +184,22 @@ input[type=checkbox]{margin:0;width:16px;height:16px;accent-color:var(--primary)
 
 /* KeyValue · StepEvidence */
 dl.kv{margin:0;display:grid;grid-template-columns:88px minmax(0,1fr);border-top:1px solid var(--line)}
-.kv dt,.kv dd{margin:0;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px;min-width:0;overflow-wrap:anywhere;white-space:pre-line}
+.kv dt,.kv dd{margin:0;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;min-width:0;overflow-wrap:anywhere;white-space:pre-line}
 .kv dt{color:var(--ink-3)}
 .shot{position:relative;width:100%;max-width:100%;aspect-ratio:16/10;border-radius:var(--r-sm);overflow:hidden;background:var(--bg-subtle);box-shadow:0 0 0 1px var(--line);display:grid;place-items:center;color:var(--ink-3);font-size:12px}
 .shot img{width:100%;height:100%;object-fit:contain;object-position:center top;display:block;background:var(--bg)}
 .stepcard .shot{aspect-ratio:auto;min-height:60px}
 .stepcard .shot img{height:auto}
-.steps2{display:grid;gap:14px}
+.steps2{display:grid;gap:16px}
 .stepcard{display:grid;gap:8px}
-.stepcard+.stepcard{padding-top:14px;border-top:1px solid var(--line)}
+.stepcard+.stepcard{padding-top:16px;border-top:1px solid var(--line)}
+.stepcards{display:grid;gap:16px}
+.stepcard .desc{margin:0;font-size:14px;line-height:1.55;color:var(--ink)}
 .stepcard.last .shot{box-shadow:0 0 0 2px var(--primary)}
 .stepcard.bad .shot{box-shadow:0 0 0 2px var(--danger-ink)}
-.sch{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600}
-.sch b{font:600 11px var(--font-mono);color:var(--ink-3)}
+.sch{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600}
+.sch b{font:600 12px var(--font-mono);color:var(--ink-3);min-width:20px}
+.sch b.no{display:inline-grid;place-items:center;height:20px;padding:0 6px;border-radius:10px;background:var(--mark);color:#fff;font:600 12px var(--font-sans)}
 .sch .t{flex:1;min-width:0;overflow-wrap:anywhere}
 dl.sx{display:grid;grid-template-columns:40px minmax(0,1fr);gap:4px 8px;margin:0;font-size:13px}
 .sx dt{color:var(--ink-3)}.sx dd{margin:0;overflow-wrap:anywhere}
@@ -204,19 +209,25 @@ dl.sx{display:grid;grid-template-columns:40px minmax(0,1fr);gap:4px 8px;margin:0
 .cv.full{height:calc(100vh - 140px)}
 .cv.drag{cursor:grabbing}
 .world{position:absolute;left:0;top:0;transform-origin:0 0}
-.world svg{position:absolute;left:0;top:0;overflow:visible}
+.world>svg{position:absolute;left:0;top:0;overflow:visible}
 .node{position:absolute;width:240px;background:var(--bg);border-radius:var(--r-md);box-shadow:0 0 0 1px var(--line-strong);padding:8px;display:grid;gap:6px;text-align:left;cursor:pointer}
 .node.entry{box-shadow:0 0 0 1.5px var(--primary)}
-.node.sel{box-shadow:0 0 0 2px var(--primary),0 0 0 6px var(--primary-100)}
+.node.sel{box-shadow:0 0 0 2px var(--primary)}
 .node.nocap{outline:1px dashed var(--line-strong);box-shadow:none}
 .node .nt{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
-.node .nt b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node .nt b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .node code{font:11px var(--font-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.node .nr{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}.node .nr .rbar{flex:1}
-.elabel{position:absolute;transform:translate(-50%,-50%);font-size:11px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:1px 6px;white-space:nowrap;pointer-events:none}
+.node .nr{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3)}.node .nr .rbar{flex:1}
+.elabel{position:absolute;transform:translate(-50%,-50%);max-width:160px;font-size:12px;line-height:1.35;text-align:center;overflow-wrap:anywhere;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm);padding:1px 6px;pointer-events:none}
+.mnode{position:absolute;display:grid;align-content:center;gap:2px;padding:6px 10px;border-radius:var(--r-md);background:var(--bg-subtle);box-shadow:0 0 0 1px var(--line-strong);min-width:0}
+.mnode b{display:flex;align-items:center;gap:5px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnode span{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnode svg,.mlist svg,.legend svg{width:13px;height:13px;flex:none;color:var(--ink-3)}
+.mlist{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:4px;font-size:13px}
+.mlist li{display:flex;align-items:center;gap:6px;min-width:0}.mlist span{color:var(--ink-3);overflow-wrap:anywhere}
 .elabel.bad{color:var(--danger-ink);border-color:var(--danger-bg)}
 .cv-tools{position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:2px;background:var(--bg);border-radius:var(--r-md);box-shadow:0 0 0 1px var(--line-strong);padding:2px}
-.cv-tools .zv{font:600 11.5px var(--font-mono);min-width:42px;text-align:center;color:var(--ink-2)}
+.cv-tools .zv{font:600 12px var(--font-mono);min-width:42px;text-align:center;color:var(--ink-2)}
 .cv-tools .sep{width:1px;height:18px;background:var(--line)}
 .cv-mini{position:absolute;right:10px;bottom:10px;width:110px;height:70px;background:var(--bg);border-radius:var(--r-md);box-shadow:0 0 0 1px var(--line-strong);overflow:hidden;pointer-events:none}
 .cv-mini i{position:absolute;border-radius:1px;background:var(--line-strong)}
@@ -226,7 +237,7 @@ dl.sx{display:grid;grid-template-columns:40px minmax(0,1fr);gap:4px 8px;margin:0
 .legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
 .pick{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:start}
 .pagesum .shot{aspect-ratio:16/10}
-.pick b{display:block;font-size:14.5px}
+.pick b{display:block;font-size:15px}
 .pick p{margin:6px 0 10px;font-size:13px;color:var(--ink-2)}
 
 /* 알림 · 수행 · 빈 상태 */
@@ -235,14 +246,14 @@ dl.sx{display:grid;grid-template-columns:40px minmax(0,1fr);gap:4px 8px;margin:0
 .notice .m{flex:1;min-width:0;overflow-wrap:anywhere;white-space:pre-line}
 .notice .m b{display:block}
 .notice.err .m b{color:var(--danger-ink)}
-.prog{height:4px;border-radius:var(--r-sm);background:var(--line);overflow:hidden}.prog i{display:block;height:100%;background:var(--primary);transition:width .3s}
-.log{margin:0;background:var(--code-bg);color:var(--code-ink);font:11.5px/1.6 var(--font-mono);padding:10px 12px;border-radius:var(--r-sm);white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto}
+.prog{height:4px;border-radius:var(--r-sm);background:var(--line);overflow:hidden}.prog i{display:block;height:100%;background:var(--primary);transform-origin:0 50%;transition:transform .3s cubic-bezier(.22,1,.36,1)}
+.log{margin:0;background:var(--code-bg);color:var(--code-ink);font:12px/1.6 var(--font-mono);padding:10px 12px;border-radius:var(--r-sm);white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto}
 .log b{color:var(--primary-300);font-weight:600}
-.empty{padding:24px 16px;text-align:center;color:var(--ink-2);font-size:13.5px}
-.empty b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:4px}
+.empty{padding:24px 16px;text-align:center;color:var(--ink-2);font-size:14px}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
 .empty .btn{margin-top:12px}
-.quiet{padding:14px;color:var(--ink-2);font-size:13px}
-.warnbox{padding:9px 12px;border-radius:var(--r-md);background:var(--warning-bg);color:var(--warning-ink);font-size:13px}
+.quiet{padding:16px;color:var(--ink-2);font-size:13px}
+.warnbox{padding:8px 12px;border-radius:var(--r-md);background:var(--warning-bg);color:var(--warning-ink);font-size:13px}
 .dock{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:var(--bg);border-top:1px solid var(--line)}
 .dock .q{flex:1 1 160px;font-size:13px;min-width:0}
 .scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto;z-index:5}
@@ -250,40 +261,40 @@ dl.sx{display:grid;grid-template-columns:40px minmax(0,1fr);gap:4px 8px;margin:0
 .dialog .sec-h{border-radius:var(--r-md) var(--r-md) 0 0}
 /* 확인 필요 · 수행 기록 줄 — 상태 점 + 제목 + 메타 줄, 오른쪽에 꼬리표 · 때 */
 .rows{display:grid}
-.row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:58px;padding:9px 14px;border-top:1px solid var(--line);text-align:left;width:100%}
+.row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:56px;padding:8px 16px;border-top:1px solid var(--line);text-align:left;width:100%}
 .rows>.row:first-child{border-top:0}
 button.row:hover{background:var(--bg-hover)}
 .row.live{background:var(--primary-50)}
 .row-t{min-width:0}
-.row-t b{display:block;font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-t b{display:block;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row-t>span{display:block;font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row-t em{font-style:normal;font-weight:600}.row-t em.f{color:var(--ng)}.row-t em.b{color:var(--hold)}
 .row-side{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);white-space:nowrap}
 .dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
 .dot.s{background:var(--ok)}.dot.f{background:var(--ng)}.dot.b{background:var(--hold)}.dot.o{background:var(--idle)}
 .dot.m{box-shadow:inset 0 0 0 2px var(--ng)}.dot.r{background:var(--primary);box-shadow:0 0 0 3px var(--primary-100)}
-.allok{display:flex;align-items:center;gap:8px;padding:14px;font-size:13px;color:var(--ok)}
-.tag{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:var(--r-sm);font-size:11.5px;font-weight:650;white-space:nowrap}
+.allok{display:flex;align-items:center;gap:8px;padding:16px;font-size:13px;color:var(--ok)}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:var(--r-sm);font-size:12px;font-weight:600;white-space:nowrap}
 .tag.new{color:var(--ng);box-shadow:inset 0 0 0 1px var(--ng)}
 .tag.still{color:var(--hold);background:var(--hold-bg)}
 .tag.fixed{color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok)}
 .mini-bar{display:block;height:4px;border-radius:2px;background:var(--primary-100);margin-top:6px;overflow:hidden}.mini-bar i{display:block;height:100%;background:var(--primary)}
 /* 요약 띠 */
-.strip{display:flex;align-items:center;gap:14px;padding:12px 14px}
+.strip{display:flex;align-items:center;gap:16px;padding:12px 16px}
 .strip-t{min-width:0;display:grid;gap:1px}
-.strip-t>b{font-size:15px;font-weight:650}.strip-t>b em{font-style:normal;color:var(--primary)}
+.strip-t>b{font-size:15px;font-weight:600}.strip-t>b em{font-style:normal;color:var(--primary)}
 .strip-t .thin{line-height:1.6}
 em.dn{font-style:normal;color:var(--ng);font-weight:600}
 /* 세그먼트 단추 — 상태별 건수가 곧 거르기 */
 .seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:2px;border-radius:var(--r-md);box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--bg);max-width:100%}
-.seg button{height:28px;padding:0 10px;border-radius:var(--r-sm);font-size:12.5px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:5px}
-.seg button b{font-weight:700;color:var(--ink)}
+.seg button{height:28px;padding:0 10px;border-radius:var(--r-sm);font-size:13px;font-weight:600;color:var(--ink-2);display:inline-flex;align-items:center;gap:5px}
+.seg button b{font-weight:600;color:var(--ink)}
 .seg button[aria-pressed=true]{background:var(--primary-50);color:var(--primary-700);box-shadow:inset 0 0 0 1px var(--primary-200)}
 .seg button[aria-pressed=true] b{color:var(--primary-700)}
 .seg .dot{width:7px;height:7px}
 .seg.sm button{height:24px;font-size:12px;padding:0 8px}
 .seg.sm .ic{width:13px;height:13px}
-.tools{display:grid;gap:10px;padding:12px 14px}
+.tools{display:grid;gap:8px;padding:12px 16px}
 /* 정렬 머리 */
 .t th .sort{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--ink-3);font-size:12px}
 .t th[aria-sort] .sort{color:var(--ink)}
@@ -312,24 +323,14 @@ em.dn{font-style:normal;color:var(--ng);font-weight:600}
 .tag.wait{color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-strong)}
 .tl li.skip>b{color:var(--ink-3);font-weight:500}
 .tl b{display:block;font-weight:600;overflow-wrap:anywhere}
-.tl code{display:block;font:11.5px var(--font-mono);color:var(--ink-3);overflow-wrap:anywhere}
+.tl code{display:block;font:12px var(--font-mono);color:var(--ink-3);overflow-wrap:anywhere}
 .tl .exp{display:block;font-size:12px;color:var(--ink-2)}
-/* 보고서 — 필름 띠 + 고른 단계 */
-.film{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px}
-.film button{flex:none;width:84px;display:grid;gap:4px;text-align:left}
-.film .shot{aspect-ratio:16/10}
-.film .shot img{object-fit:cover}
-.film button[aria-current=true] .shot{box-shadow:0 0 0 2px var(--primary)}
-.film button.bad .shot{box-shadow:0 0 0 2px var(--ng)}
-.film button.bad[aria-current=true] .shot{box-shadow:0 0 0 2px var(--ng),0 0 0 5px var(--ng-bg)}
-.film small{display:flex;justify-content:space-between;align-items:center;font:600 11px var(--font-mono);color:var(--ink-3)}
-.film .badge{height:17px;font-size:10.5px;padding:0 4px}
 /* 가이드 */
-.doc{display:grid;gap:8px;font-size:13.5px;line-height:1.6}
-.doc h4{margin:10px 0 0;font-size:13.5px}
+.doc{display:grid;gap:8px;font-size:14px;line-height:1.6}
+.doc h4{margin:10px 0 0;font-size:14px}
 .doc p{margin:0;overflow-wrap:anywhere}
 .gstep{display:grid;gap:4px;padding:10px;border:1px solid var(--line);border-radius:var(--r-md)}
-.gstep>span{font-size:12.5px;color:var(--ink-2);overflow-wrap:anywhere}
+.gstep>span{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere}
 /* 수행 중 · 작업 기록 */
 .sec.live{border-color:var(--primary-200)}
 .pulse{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 3px var(--primary-100)}
@@ -341,8 +342,8 @@ em.dn{font-style:normal;color:var(--ng);font-weight:600}
 .lg summary .thin{margin-left:auto;flex:none}
 .lg .log{border-radius:0 0 var(--r-md) var(--r-md);max-height:220px}
 /* 상태 화면 */
-.state{display:grid;justify-items:center;text-align:center;gap:6px;padding:20px 18px}
-.state>b{font-size:14.5px}
+.state{display:grid;justify-items:center;text-align:center;gap:8px;padding:20px 16px}
+.state>b{font-size:15px}
 .state p{margin:0 0 6px;font-size:13px;color:var(--ink-2);line-height:1.55}
 .st-ic{width:36px;height:36px;border-radius:var(--r-lg);display:grid;place-items:center;background:var(--primary-50);color:var(--primary)}
 .state.warn .st-ic{background:var(--hold-bg);color:var(--hold)}
@@ -374,6 +375,7 @@ em.dn{font-style:normal;color:var(--ng);font-weight:600}
 <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
 <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
 <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
+<symbol id="i-modal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M16 6.5h2"/></symbol>
 </svg>
 <div id="app"><div class="quiet" role="status">불러오는 중…</div></div>
 <script>
@@ -510,8 +512,9 @@ function runningStates(steps, step = 0) {
   })
 }
 const causeTitle = (fail, verdict) => (fail?.step ? `${fail.step}단계 ${fail.title}에서 멈춤` : fail ? '판정에서 다름' : verdict === '차단' ? '수행이 막힘' : '기대와 다름')
-/** 흐름 지도 배치 — 진입점에서 이동 관계를 따라 몇 번째 이동인지가 열, 같은 열 안에서는 순서대로 줄. 닿지 않는 페이지는 맨 오른쪽 열 */
-function layoutFlow(nodes, edges, size = { w: 240, h: 230, gx: 110, gy: 36 }) {
+/** 흐름 지도 배치 — 진입점에서 이동 관계를 따라 몇 번째 이동인지가 열, 같은 열 안에서는 순서대로 줄. 닿지 않는 페이지는 맨 오른쪽 열.
+ *  그 페이지에서 열리는 모달은 페이지 바로 아래에 차례로 붙인다(mpos) */
+function layoutFlow(nodes, edges, modals = [], size = { w: 240, h: 230, gx: 170, gy: 36, mh: 56, mg: 10 }) {
   const ids = nodes.map((node) => node.id)
   const depth = new Map()
   const queue = nodes.filter((node) => node.entry).map((node) => node.id)
@@ -527,17 +530,21 @@ function layoutFlow(nodes, edges, size = { w: 240, h: 230, gx: 110, gy: 36 }) {
   }
   const maxDepth = Math.max(0, ...depth.values())
   for (const id of ids) if (!depth.has(id)) depth.set(id, maxDepth + 1)
-  const rows = new Map()
+  const tops = new Map()
   const pos = {}
+  const mpos = {}
   for (const id of ids) {
     const col = depth.get(id)
-    const row = rows.get(col) ?? 0
-    rows.set(col, row + 1)
-    pos[id] = { x: 40 + col * (size.w + size.gx), y: 40 + row * (size.h + size.gy) }
+    const x = 40 + col * (size.w + size.gx)
+    const y = tops.get(col) ?? 40
+    pos[id] = { x, y }
+    const own = modals.filter((modal) => modal.page === id)
+    own.forEach((modal, index) => (mpos[modal.id] = { x: x + 28, y: y + size.h + size.mg + index * (size.mh + size.mg) }))
+    tops.set(col, y + size.h + own.length * (size.mh + size.mg) + size.gy)
   }
   const width = 80 + (Math.max(0, ...depth.values()) + 1) * (size.w + size.gx) - size.gx
-  const height = 80 + Math.max(1, ...rows.values()) * (size.h + size.gy) - size.gy
-  return { pos, width, height, size }
+  const height = 40 + Math.max(40 + size.h + size.gy, ...tops.values()) - size.gy
+  return { pos, mpos, width, height, size }
 }
 function confirmText(tcs) {
   const changes = tcs.filter((tc) => tc.runnable?.changesData === true).map((tc) => tc.id)
@@ -610,7 +617,7 @@ const state = {
   sort: undefined, // 페이지 표 { key: 'result' | 'tc', dir: 'desc' | 'asc' }
   runMode: 'all', runLimit: 25,
   reports: new Map(), // 보고서 id → 데이터 | 'loading' | { error }
-  sel: 0, cmp: false, // 보고서 화면의 고른 단계 · 지난 성공과 번갈아 보기
+  cmp: false, // 보고서 화면 — 지난 성공과 번갈아 보기
   failCmp: new Set(), // 펼친 실패 TC 중 「지난 성공」 을 보는 것
   guide: undefined, // { id, data, error }
   logQuery: '', logOpen: new Set(), logClosed: new Set(),
@@ -794,7 +801,7 @@ function go(screen, focus = '') {
   state.del = undefined
   state.confirmRun = ''
   pendingFocus = focus
-  if (screen.name === 'report') { state.sel = 0; state.cmp = false; void loadReport(screen.id) }
+  if (screen.name === 'report') { state.cmp = false; void loadReport(screen.id) }
   if (screen.name === 'guide') void loadGuide(screen.id)
   scrollTo(0, 0)
   render()
@@ -871,7 +878,7 @@ function progressNodes(progress) {
     el('div', { class: 'sec-h' }, el('h3', {}, el('span', { class: 'pulse', 'aria-hidden': 'true' }), '패널 수행 중', el('span', { class: 'n' }, `${info.done} / ${info.total}건`)), btn([icon('stop'), '멈추기'], () => void tool('stop').catch(() => undefined), { class: 'btn del' })),
     el('div', { class: 'sec-b', style: 'display:grid;gap:10px' },
       current ? el('div', { style: 'min-width:0' }, el('b', { class: 'ellip', style: 'font-size:14px' }, titleOf(current.tc)), el('span', { class: 'thin ellip', title: lastLine }, current.total ? `${current.step ?? 0} / ${current.total}단계${lastLine ? ` · ${lastLine}` : ''}` : '준비 중')) : el('span', { class: 'thin' }, info.text),
-      el('div', { class: 'prog', role: 'progressbar', 'aria-valuenow': String(percent), 'aria-valuemin': '0', 'aria-valuemax': '100' }, el('i', { style: `width:${Math.max(percent, 4)}%` })),
+      el('div', { class: 'prog', role: 'progressbar', 'aria-valuenow': String(percent), 'aria-valuemin': '0', 'aria-valuemax': '100' }, el('i', { style: `transform:scaleX(${Math.max(percent, 4) / 100})` })),
       el('ul', { class: 'cases' }, progress.cases.map((item) => el('li', {}, el('span', { class: `dot ${CASE_DOT[item.state] ?? 'o'}`, 'aria-hidden': 'true' }), el('span', { class: 'ellip', title: item.tc }, titleOf(item.tc)), item.state === '대기' ? el('span', { class: 'thin' }, '대기') : badge(item.state, item.state === '수행 중' ? 'info' : badgeOf(item.state)))))))
   const q = state.logQuery.trim().toLowerCase()
   const search = el('input', { class: 'search', type: 'search', placeholder: '기록 검색 — 예: 실패, browser_click', 'aria-label': '작업 기록 검색', 'data-fk': 'logsearch', value: state.logQuery })
@@ -996,9 +1003,10 @@ function runsSection() {
 let flowLayout
 function flowSections() {
   const { nodes, edges } = state.data.flow
+  const modals = state.data.flow.modals ?? []
   if (!nodes.length) return section('흐름 지도', '', null, el('div', { class: 'quiet' }, 'system_map 에 페이지가 없습니다.'))
-  flowLayout = layoutFlow(nodes, edges)
-  const { pos, width, height, size } = flowLayout
+  flowLayout = layoutFlow(nodes, edges, modals)
+  const { pos, mpos, width, height, size } = flowLayout
   const svgNs = 'http://www.w3.org/2000/svg'
   const svg = document.createElementNS(svgNs, 'svg')
   svg.setAttribute('width', String(width))
@@ -1022,8 +1030,24 @@ function flowSections() {
     path.setAttribute('marker-end', bad ? 'url(#ahr)' : 'url(#ah)')
     svg.append(path)
     const mx = back ? (a.x + b.x + size.w) / 2 : (x1 + x2) / 2, my = back ? Math.max(a.y, b.y) + size.h + 46 : (y1 + y2) / 2
-    labels.push(el('div', { class: `elabel${bad ? ' bad' : ''}`, style: `left:${mx}px;top:${my}px` }, `${edge.action || '이동'}${bad ? ' · 불일치' : ''}`))
+    const how = edgeText(edge)
+    labels.push(el('div', { class: `elabel${bad ? ' bad' : ''}`, style: `left:${mx}px;top:${my}px`, title: how }, `${how}${bad ? ' · 불일치' : ''}`))
   }
+  // 모달 — 페이지 왼쪽 아래에서 내려오는 점선 가지
+  for (const modal of modals) {
+    const a = pos[modal.page], m = mpos[modal.id]
+    if (!a || !m) continue
+    const path = document.createElementNS(svgNs, 'path')
+    path.setAttribute('d', `M${a.x + 14} ${a.y + size.h} V${m.y + size.mh / 2} H${m.x - 4}`)
+    path.setAttribute('fill', 'none')
+    path.setAttribute('stroke', 'var(--ink-3)')
+    path.setAttribute('stroke-width', '1.4')
+    path.setAttribute('stroke-dasharray', '4 4')
+    path.setAttribute('marker-end', 'url(#ah)')
+    svg.append(path)
+  }
+  const modalEls = modals.filter((modal) => mpos[modal.id]).map((modal) => el('div', { class: 'mnode', style: `left:${mpos[modal.id].x}px;top:${mpos[modal.id].y}px;width:${size.w - 28}px;height:${size.mh}px`, title: `${modal.title} — ${edgeText(modal)}` },
+    el('b', {}, icon('modal'), modal.title), el('span', {}, edgeText(modal))))
   const sel = state.flow.sel
   const nodeEls = nodes.map((node) => {
     const p = pos[node.id]
@@ -1033,7 +1057,7 @@ function flowSections() {
       el('code', {}, node.urlPattern || node.id),
       el('div', { class: 'nr' }, el('span', {}, `TC ${node.tcCount} · 수행 ${node.runCount}`), rbar(node.counts)))
   })
-  const world = el('div', { class: 'world', id: 'world', style: `width:${width}px;height:${height}px` }, svg, ...labels, ...nodeEls)
+  const world = el('div', { class: 'world', id: 'world', style: `width:${width}px;height:${height}px` }, svg, ...labels, ...nodeEls, ...modalEls)
   const mini = el('div', { class: 'cv-mini', 'aria-hidden': 'true' }, ...nodes.map((node) => el('i', { style: `left:${(pos[node.id].x / width) * 100}%;top:${(pos[node.id].y / height) * 100}%;width:${(size.w / width) * 100}%;height:${(size.h / height) * 100}%` })), el('b', { id: 'mv' }))
   const zoomBtn = (label, f, name) => el('button', { type: 'button', class: 'ib', 'aria-label': label, title: label, onclick: () => zoomBy(f) }, name)
   const canvas = el('div', { class: `cv${state.flow.full ? ' full' : ''}`, id: 'cv', tabindex: '0', 'aria-label': '흐름 지도 — 끌어서 이동, 휠로 확대, 노드를 누르면 아래에 요약, 두 번 누르면 그 페이지의 TC' }, world,
@@ -1042,12 +1066,18 @@ function flowSections() {
   const page = nodes.find((node) => node.id === sel)
   const pageInfo = state.data.pages.find((item) => item.id === sel)
   const edgesBad = edges.filter((edge) => edge.state === '불일치').length
+  const pageModals = modals.filter((modal) => modal.page === sel)
+  const inbound = edges.filter((edge) => edge.to === sel)
   return [
-    section('흐름 지도', `페이지 ${nodes.length} · 이동 ${edges.length}`, el('div', { class: 'acts' }, link(state.flow.full ? '전체 화면 끄기' : '전체 화면', toggleFull)), canvas, { flush: true }),
-    el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'box-shadow:inset 0 0 0 1.5px var(--primary)' }), '진입점'), el('span', {}, el('i', { style: 'background:var(--chart-s)' }), '성공'), el('span', {}, el('i', { style: 'background:var(--chart-f)' }), '실패'), el('span', {}, el('i', { style: 'background:var(--chart-b)' }), '차단'), el('span', {}, '- - 불일치 이동')),
-    page ? section('선택한 페이지', '', node2badge(page), el('div', { class: 'pick' }, shot(page.capture, `${page.title} 캡처`), el('div', {}, el('b', {}, page.title), el('span', { class: 'mono', style: 'color:var(--ink-3)' }, page.id), el('p', {}, `TC ${page.tcCount}건 · 수행 ${page.runCount}회 · ${countsLine(page.counts)}`), el('div', { class: 'acts' }, btn(`TC ${page.tcCount}건 보기`, () => go({ name: 'page', id: page.id }), { class: 'btn pri' }), pageInfo && !page.tcCount ? link('TC 뽑기', () => ask(derivePrompt(pageInfo))) : null))), { foot: [el('span', {}, '최근 확인 ', el('b', {}, short(page.lastVerified))), el('span', {}, '불일치 이동 ', el('b', {}, String(edgesBad)))] }) : el('div', { class: 'quiet' }, '노드를 누르면 그 페이지의 요약이 여기 나옵니다.'),
+    section('흐름 지도', `페이지 ${nodes.length} · 이동 ${edges.length}${modals.length ? ` · 모달 ${modals.length}` : ''}`, el('div', { class: 'acts' }, link(state.flow.full ? '전체 화면 끄기' : '전체 화면', toggleFull)), canvas, { flush: true }),
+    el('div', { class: 'legend' }, el('span', {}, el('i', { style: 'box-shadow:inset 0 0 0 1.5px var(--primary)' }), '진입점'), el('span', {}, el('i', { style: 'background:var(--chart-s)' }), '성공'), el('span', {}, el('i', { style: 'background:var(--chart-f)' }), '실패'), el('span', {}, el('i', { style: 'background:var(--chart-b)' }), '차단'), el('span', {}, '- - 불일치 이동'), el('span', {}, icon('modal'), '모달')),
+    page ? section('선택한 페이지', '', node2badge(page), el('div', { class: 'pick' }, shot(page.capture, `${page.title} 캡처`), el('div', {}, el('b', {}, page.title), el('span', { class: 'mono', style: 'color:var(--ink-3)' }, page.id), el('p', {}, `TC ${page.tcCount}건 · 수행 ${page.runCount}회 · ${countsLine(page.counts)}`),
+      inbound.length ? el('p', { class: 'thin' }, '들어오는 길: ', inbound.map((edge) => `${edge.from} → ${edgeText(edge)}`).join(' / ')) : null,
+      pageModals.length ? el('ul', { class: 'mlist', 'aria-label': '이 페이지의 모달' }, pageModals.map((modal) => el('li', {}, icon('modal'), el('b', {}, modal.title), el('span', {}, edgeText(modal))))) : null, el('div', { class: 'acts' }, btn(`TC ${page.tcCount}건 보기`, () => go({ name: 'page', id: page.id }), { class: 'btn pri' }), pageInfo && !page.tcCount ? link('TC 뽑기', () => ask(derivePrompt(pageInfo))) : null))), { foot: [el('span', {}, '최근 확인 ', el('b', {}, short(page.lastVerified))), el('span', {}, '불일치 이동 ', el('b', {}, String(edgesBad)))] }) : el('div', { class: 'quiet' }, '노드를 누르면 그 페이지의 요약이 여기 나옵니다.'),
   ]
 }
+/** 이동 · 모달을 여는 동작 — `메뉴 선택: 공정상세 관리 › 개발 › 프로그램 개발`, 대상이 없으면 동작만 */
+const edgeText = (edge) => { const target = (edge.target ?? '').trim(); return `${edge.action || '이동'}${target && target !== '-' ? `: ${target}` : ''}` }
 const node2badge = (node) => (node.worst ? badge(node.worst) : badge('TC 없음', 'idle'))
 let moved = false
 function applyFlow() {
@@ -1227,24 +1257,25 @@ function reportView() {
   const head = section(tcById(tc)?.title || r.title, '', btn([icon('pdf'), 'PDF 저장'], () => savePdf('report', r.id), { disabled: state.pdfBusy }), kv,
     { foot: [el('span', { class: 'mono ellip', style: 'min-width:0' }, `reports/${r.id}.md`), el('span', { class: 'acts' }, link('앱에서 열기', () => openDoc('report', r.id)), tc && (guide || verdict === '성공') ? link('테스트 가이드', () => openGuide(tc, { name: 'report', id: r.id, tc, from: state.screen.from })) : null)] })
   if (!r.steps.length) return [head, section('단계 증적', 0, null, el('div', { class: 'quiet', style: 'padding:0' }, '캡처가 없습니다')), notesSection(r)]
-  const sel = Math.min(state.sel, r.steps.length - 1)
-  const step = r.steps[sel]
-  const before = state.cmp ? pairStep(r.previousPass?.steps, step) : undefined
+  // 단계마다 한 장 — 대상 페이지 다음에 단계를 차례로 잇는다. 단계 캡처는 그 단계를 하기 바로 전 화면(손댄 요소에 붉은 번호 상자)
   const bad = (item) => /다름|멈춤/.test(item.verdict)
-  const pick = (index) => { state.sel = index; pendingFocus = `film:${index}`; render() }
-  const film = el('div', { class: 'film', role: 'list', 'aria-label': '단계 캡처' }, r.steps.map((item, index) => el('button', { type: 'button', role: 'listitem', class: bad(item) ? 'bad' : '', 'aria-current': String(index === sel), 'aria-label': item.title, 'data-fk': `film:${index}`, onclick: () => pick(index) },
-    shot(item.capture, ''), el('small', {}, String(index).padStart(2, '0'), item.verdict ? badge(item.verdict) : null))))
   const compare = r.previousPass ? el('div', { class: 'seg sm', role: 'group', 'aria-label': '비교' }, el('button', { type: 'button', 'aria-pressed': String(!state.cmp), onclick: () => ((state.cmp = false), render()) }, '이번'), el('button', { type: 'button', 'aria-pressed': String(state.cmp), onclick: () => ((state.cmp = true), render()), title: `지난 성공 ${r.previousPass.id}` }, icon('swap'), '지난 성공')) : null
-  const card = el('article', { class: `stepcard${bad(step) ? ' bad' : sel === r.steps.length - 1 ? ' last' : ''}` },
-    el('div', { class: 'sch' }, el('b', {}, String(sel).padStart(2, '0')), el('span', { class: 't' }, step.title.replace(/^\d+\.\s*/, '')), step.verdict ? badge(step.verdict) : null),
-    state.cmp ? (before?.capture ? shot(before.capture, `지난 성공 ${r.previousPass.id} 의 같은 단계`) : el('div', { class: 'shot' }, '지난 성공에 같은 단계 캡처가 없습니다')) : shot(step.capture, step.title),
-    state.cmp ? el('span', { class: 'thin' }, `지난 성공 ${r.previousPass.id} (${short(r.previousPass.at)}) 의 같은 단계`) : null,
-    step.action || step.expected || step.actual ? el('dl', { class: 'sx' }, el('dt', {}, '한 일'), el('dd', {}, step.action || '-'), el('dt', {}, '기대'), el('dd', {}, step.expected || '-'), el('dt', {}, '실제'), el('dd', {}, step.actual || '-'), el('dt', {}, '판정'), el('dd', {}, step.verdict || '-')) : el('p', { class: 'mono', style: 'margin:0;color:var(--ink-3)' }, '이 보고서는 단계별 기대 · 실제를 적지 않은 옛 형식입니다.'))
-  const steps = section('단계 증적', r.steps.length, compare, el('div', { style: 'display:grid;gap:12px' }, film, card),
-    { foot: [link([icon('left'), sel ? String(sel - 1).padStart(2, '0') : ''], () => pick(sel - 1), { disabled: sel === 0, 'aria-label': '앞 단계' }), el('span', {}, `${sel + 1} / ${r.steps.length}`), link([sel < r.steps.length - 1 ? String(sel + 1).padStart(2, '0') : '', icon('chev')], () => pick(sel + 1), { disabled: sel === r.steps.length - 1, 'aria-label': '다음 단계' })] })
+  const oldFormat = !r.steps.some((step) => step.action || step.expected || step.actual)
+  const cards = r.steps.map((step, index) => {
+    const before = state.cmp ? pairStep(r.previousPass?.steps, step) : undefined
+    return el('article', { class: `stepcard${bad(step) ? ' bad' : index === r.steps.length - 1 ? ' last' : ''}`, 'aria-label': step.title },
+      el('div', { class: 'sch' }, stepNo(step.title, index), el('span', { class: 't' }, step.title.replace(/^\d+\.\s*/, '')), step.verdict && step.verdict !== '-' ? badge(step.verdict) : null),
+      step.description ? el('p', { class: 'desc' }, step.description) : null,
+      state.cmp ? (before?.capture ? shot(before.capture, `지난 성공 ${r.previousPass.id} 의 같은 단계`) : el('div', { class: 'shot' }, '지난 성공에 같은 단계 캡처가 없습니다')) : shot(step.capture, step.title),
+      state.cmp ? el('span', { class: 'thin' }, `지난 성공 ${r.previousPass.id} (${short(r.previousPass.at)}) 의 같은 단계`) : null,
+      step.action || step.expected || step.actual ? el('dl', { class: 'sx' }, el('dt', {}, '한 일'), el('dd', {}, step.action || '-'), el('dt', {}, '기대'), el('dd', {}, step.expected || '-'), el('dt', {}, '실제'), el('dd', {}, step.actual || '-'), el('dt', {}, '판정'), el('dd', {}, step.verdict || '-')) : oldFormat ? el('p', { class: 'mono', style: 'margin:0;color:var(--ink-3)' }, '이 보고서는 단계별 기대 · 실제를 적지 않은 옛 형식입니다.') : null)
+  })
+  const steps = section('단계 증적', r.steps.length, compare, el('div', { class: 'stepcards' }, cards))
   return [head, steps, notesSection(r)]
 }
-const notesSection = (r) => section('불일치 · 확인 사항', '', null, el('div', { style: 'white-space:pre-line;font-size:13.5px' }, r.notes || '없음'))
+/** 단계 번호 — 캡처의 표시 상자와 같은 빨간 번호, 대상 페이지 · 판정 화면은 차례만 */
+const stepNo = (title, index) => { const number = /^(\d+)\./.exec(title)?.[1]; return number ? el('b', { class: 'no', 'aria-label': `${number}단계` }, number) : el('b', {}, String(index).padStart(2, '0')) }
+const notesSection = (r) => section('불일치 · 확인 사항', '', null, el('div', { style: 'white-space:pre-line;font-size:14px' }, r.notes || '없음'))
 
 // ── 테스트 가이드 ──
 

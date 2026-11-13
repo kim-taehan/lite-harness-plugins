@@ -27,7 +27,7 @@ const api = new Function(`${source}\nreturn { badgeOf, scriptTagOf, donutArcs, p
   timelineStates(steps: { kind: string }[], report?: unknown): string[]
   pairStep(steps: { title: string; capture?: string }[] | undefined, step: { title: string }): { title: string; capture?: string } | undefined
   causeTitle(fail: unknown, verdict: string): string
-  layoutFlow(nodes: { id: string; entry?: boolean }[], edges: { from: string; to: string }[]): { pos: Record<string, { x: number; y: number }>; width: number; height: number }
+  layoutFlow(nodes: { id: string; entry?: boolean }[], edges: { from: string; to: string }[], modals?: { id: string; page: string }[]): { pos: Record<string, { x: number; y: number }>; mpos: Record<string, { x: number; y: number }>; width: number; height: number; size: { h: number; mh: number } }
   confirmText(tcs: unknown[]): string
   progressText(progress: unknown): { done: number; total: number; text: string }
   finishText(progress: unknown): { tone: string; text: string; detail: string }
@@ -128,6 +128,15 @@ describe('panel pure', () => {
     expect(pos['c']!.x).toBeGreaterThan(pos['a']!.x)
     expect(pos['lost']!.x).toBeGreaterThan(pos['c']!.x)
     expect(width).toBeGreaterThan(pos['lost']!.x)
+  })
+
+  it('흐름 지도 배치 — 모달은 그 페이지 바로 아래에 차례로, 같은 열의 다음 페이지는 그만큼 내려간다', () => {
+    const { pos, mpos, height, size } = api.layoutFlow([{ id: 'main', entry: true }, { id: 'a' }, { id: 'b' }], [{ from: 'main', to: 'a' }, { from: 'main', to: 'b' }], [{ id: 'a__new', page: 'a' }, { id: 'a__edit', page: 'a' }, { id: 'x__lost', page: 'x' }])
+    expect(mpos['a__new']!.y).toBeGreaterThan(pos['a']!.y + size.h)
+    expect(mpos['a__edit']!.y).toBeGreaterThan(mpos['a__new']!.y + size.mh)
+    expect(pos['b']!.y).toBeGreaterThan(mpos['a__edit']!.y + size.mh)
+    expect(mpos['x__lost']).toBeUndefined()
+    expect(height).toBeGreaterThan(pos['b']!.y + size.h)
   })
 
   it('수행 확인 · 진행 · 마침 글', () => {

@@ -92,6 +92,16 @@ export interface FlowNode {
   runCount: number
   lastVerified: string
 }
+/** 페이지 안에서 열리는 대화상자 — system_map 「모달」 */
+export interface FlowModal {
+  id: string
+  page: string
+  title: string
+  action: string
+  target: string
+  capture?: string
+  lastVerified: string
+}
 export interface FlowEdge {
   id: string
   from: string
@@ -119,6 +129,8 @@ export interface ReportView {
 export interface ReportStep {
   title: string
   capture?: string
+  /** 사람이 따라 하는 한 문장 — 옛 보고서는 빈 값 */
+  description: string
   action: string
   expected: string
   actual: string
@@ -231,10 +243,10 @@ export class Evidence {
     return existsSync(this.file(relative))
   }
 
-  async map(): Promise<{ text: string; entries: Record<string, string>[]; pages: Record<string, string>[]; edges: Record<string, string>[] } | undefined> {
+  async map(): Promise<{ text: string; entries: Record<string, string>[]; pages: Record<string, string>[]; edges: Record<string, string>[]; modals: Record<string, string>[] } | undefined> {
     const text = await this.read('system_map.md')
     if (text === undefined) return undefined
-    return { text, entries: table(text, '진입점'), pages: table(text, '페이지 목록'), edges: table(text, '이동 관계') }
+    return { text, entries: table(text, '진입점'), pages: table(text, '페이지 목록'), edges: table(text, '이동 관계'), modals: table(text, '모달') }
   }
 
   private entryIds = new Set<string>()
@@ -334,14 +346,21 @@ export class Evidence {
   }
 
   /** system_map 의 페이지 · 이동 — 흐름 지도 */
-  async flow(pages: PageSummary[]): Promise<{ nodes: FlowNode[]; edges: FlowEdge[] }> {
+  async flow(pages: PageSummary[]): Promise<{ nodes: FlowNode[]; edges: FlowEdge[]; modals: FlowModal[] }> {
     const map = await this.map()
     const worst = (counts: Record<string, number>) => (counts['실패'] ? '실패' : counts['차단'] ? '차단' : counts['성공'] ? '성공' : counts['미수행'] ? '미수행' : '')
     const nodes = pages.map((page) => ({ id: page.id, title: page.title, urlPattern: page.urlPattern, entry: page.entry, capture: page.hasCapture ? `captures/${page.id}/page.png` : undefined, worst: worst(page.counts), counts: page.counts, tcCount: page.tcs.length, runCount: page.runCount, lastVerified: page.lastVerified }))
     const edges = (map?.edges ?? [])
       .filter((row) => row['상태'] !== '폐기')
       .map((row) => ({ id: row['edge_id'] ?? '', from: row['출발'] ?? '', to: row['도착'] ?? '', action: row['동작'] ?? '', target: row['대상 요소(역할·이름)'] ?? '', state: row['상태'] ?? '', lastVerified: row['최근 확인일'] ?? '', script: row['이동 스크립트'] && row['이동 스크립트'] !== '없음' ? row['이동 스크립트'] : undefined }))
-    return { nodes, edges }
+    const known = new Set(nodes.map((node) => node.id))
+    const modals = (map?.modals ?? [])
+      .filter((row) => row['modal_id'] && known.has(row['페이지'] ?? ''))
+      .map((row) => {
+        const capture = evidencePath(row['캡처'] ?? '')
+        return { id: row['modal_id']!, page: row['페이지']!, title: row['모달 이름'] || row['modal_id']!, action: row['여는 동작'] ?? '', target: row['대상 요소(역할·이름)'] ?? '', ...(/^captures\/[^/]+\/[^/]+\.(png|jpe?g|webp)$/i.test(capture) && this.exists(capture) && { capture }), lastVerified: row['최근 확인일'] ?? '' }
+      })
+    return { nodes, edges, modals }
   }
 
   /** 보고서 md → 패널이 그리는 모양. 캡처마다 한 일 · 기대 · 실제 · 판정(옛 보고서는 제목만) */
@@ -355,7 +374,7 @@ export class Evidence {
       const image = block.lines.map((line) => /!\[[^\]]*\]\(([^)]+)\)/.exec(line)?.[1]).find(Boolean)
       const info = fields(block.lines)
       const capture = image && !/^[a-z]+:/i.test(image) ? path.posix.normalize(path.posix.join('reports', image)) : undefined
-      return { title: block.heading, ...(capture && !capture.startsWith('..') && { capture }), action: info['한 일'] ?? '', expected: info['기대'] ?? '', actual: info['실제'] ?? '', verdict: info['판정'] ?? '' }
+      return { title: block.heading, ...(capture && !capture.startsWith('..') && { capture }), description: info['설명'] ?? '', action: info['한 일'] ?? '', expected: info['기대'] ?? '', actual: info['실제'] ?? '', verdict: info['판정'] ?? '' }
     })
     return { id, head, title: /^#\s+(.*)$/m.exec(text)?.[1] ?? id, route: part('경로'), procedure: part('수행 절차'), input: part('입력 데이터'), expected: part('기대 결과'), actual: part('실제 결과'), basis: part('판정 근거'), notes: part('불일치·확인 사항'), related: part('관련 증적'), steps }
   }

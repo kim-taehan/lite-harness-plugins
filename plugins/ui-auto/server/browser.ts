@@ -52,6 +52,33 @@ export interface Caller {
   call(name: string, args: Record<string, unknown>): Promise<ToolResult>
 }
 
+/** 캡처에 표시할 요소 — 스크립트 단계의 target(locator) · element(사람 말) */
+export interface Mark {
+  target: string
+  element?: string
+}
+
+/** 요소 둘레에 붉은 번호 상자를 페이지 안에 그린다 — 캡처에 그대로 남아 패널 · PDF · 가이드 md 어디서 열어도 보인다. 함수 글은 고정이고 번호만 숫자로 넣는다 */
+export function markScript(number?: number): string {
+  const label = Number.isInteger(number) && number! > 0 ? String(number) : ''
+  return `(el) => { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); const r = el.getBoundingClientRect(); if (!r.width && !r.height) return false; const box = document.createElement('div'); box.setAttribute('data-ui-auto-mark', ''); box.style.cssText = 'position:fixed;box-sizing:border-box;left:' + (r.left - 4) + 'px;top:' + (r.top - 4) + 'px;width:' + (r.width + 8) + 'px;height:' + (r.height + 8) + 'px;border:3px solid #e5484d;border-radius:6px;box-shadow:0 0 0 2px rgba(255,255,255,.9);z-index:2147483647;pointer-events:none'; if (${JSON.stringify(label)}) { const tag = document.createElement('span'); tag.textContent = ${JSON.stringify(label)}; tag.style.cssText = 'position:absolute;left:' + Math.max(-14, 2 - r.left) + 'px;top:' + Math.max(-14, 2 - r.top) + 'px;min-width:22px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:11px;background:#e5484d;color:#fff;font:700 12px/22px sans-serif;text-align:center;box-shadow:0 0 0 2px #fff'; box.appendChild(tag) } (el.closest('dialog[open]') || document.body).appendChild(box); return true }`
+}
+const CLEAR_MARKS = `() => { document.querySelectorAll('[data-ui-auto-mark]').forEach((node) => node.remove()); return true }`
+
+/** 표시 → 캡처 → 표시 지우기. 표시하지 못한 요소(없음 · 안 보임)는 건너뛴다 — 그 화면 자체가 증적이다 */
+export async function markedShot(caller: Caller, file: string, marks: readonly Mark[], number?: number): Promise<{ result: ToolResult; marked: number }> {
+  const attempt = (name: string, args: Record<string, unknown>): Promise<ToolResult> =>
+    caller.call(name, args).catch((error: unknown) => ({ content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }], isError: true }))
+  let marked = 0
+  for (const mark of marks) {
+    const done = await attempt('browser_evaluate', { function: markScript(number), target: mark.target, ...(mark.element && { element: mark.element }) })
+    if (!done.isError && /\btrue\b/.test(textOf(done))) marked++
+  }
+  const result = await attempt('browser_take_screenshot', { filename: file })
+  if (marks.length) await attempt('browser_evaluate', { function: CLEAR_MARKS })
+  return { result, marked }
+}
+
 export class Browser implements Caller {
   private client: Promise<Client> | undefined
   private owner: Owner | undefined

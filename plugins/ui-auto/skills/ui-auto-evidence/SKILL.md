@@ -106,13 +106,13 @@ One `[tool]` line per browser call. End the task with this table (`없음` in em
 **C. page_id**: URL path without query → same pattern in `페이지 목록`? use it. Else make one (Ids). Never two page_ids for one screen or one page_id for two screens; if the name is taken by another URL, add the differing path part; if two ids share a URL, merge into the older one.
 
 **D. Record and merge**: read before write and merge, never overwrite a whole file. Existing row: update only 최근 확인일 and 상태; add missing rows. Update map, page doc, scripts, routes, report and run log together. Write only what you observed (`미확인` otherwise). Print one `[증적 갱신]` per file.
-- system_map: new page → a `페이지 목록` row and a page doc (also pages passed on the way); each new move → one `이동 관계` row; then rewrite `흐름도` and the page's `페이지 설명` block.
+- system_map: new page → a `페이지 목록` row and a page doc (also pages passed on the way); each new move → one `이동 관계` row; each dialog seen on a page → one `모달` row; then rewrite `흐름도` and the page's `페이지 설명` block.
 - page doc: new page from `pages/_template.md`; keep `화면 요소`, `테스트 케이스`, `TC 상세` in step; a `확인 사항` row per answer; a `수행 이력` entry per run (newest first; over 10 → move the oldest to `pages/history/<page_id>.md`).
 - ui-auto-run writes `reports/<run_id>.md`; ui-auto-tc and ui-auto-ask write no report.
 
 **E. Mismatch**: a move or arrival check fails → set that edge `불일치`, explore only that part, fix the row and its navigation script, set `유효` again. A script fails → look at the screen and decide: 화면 변경 (fix the script and the map, re-run, record the re-run) · 실제 결함 (keep the script, TC `실패` with captures and reason) · unclear (TC `차단`, ask the user). A script broken by 화면 변경 and not yet fixed is `깨짐`. Print `[불일치]`. In the `수행 이력` entry add `- 자가 복구:` (what broke, each attempt, what worked, changed files) when you repaired something, `- 원인 추적:` (symptom, what you checked, cause) when you dug out a cause. If it took several attempts, write a lesson (section 7).
 
-**F. Integrity check** (end of a task that wrote evidence; fix and log each): 1) every `페이지 목록` row has a page doc and vice versa; 2) every 출발/도착 is in `페이지 목록`; 3) every script, report, capture and image path named exists; 4) every `이동 스크립트` file exists; 5) no duplicate page_id or URL 패턴; 6) `흐름도` = pages as nodes, non-`폐기` edges as arrows; 7) one `페이지 설명` block per page; 8) lessons index rows and blocks match.
+**F. Integrity check** (end of a task that wrote evidence; fix and log each): 1) every `페이지 목록` row has a page doc and vice versa; 2) every 출발/도착 is in `페이지 목록`; 3) every script, report, capture and image path named exists; 4) every `이동 스크립트` file exists; 5) no duplicate page_id or URL 패턴; 6) `흐름도` = pages and modals as nodes, non-`폐기` edges and modal openings as arrows; 7) one `페이지 설명` block per page; 8) lessons index rows and blocks match; 9) no `이동 관계` row with 동작 `URL 이동` — write the user action you saw (menu path, link) from the route file's notes or the run log, `미확인` if none was seen.
 
 ## 5. Utilization levels (use the highest that applies)
 
@@ -131,7 +131,7 @@ Print `[활용 단계]` and `[증적 활용]`.
 - **Login** comes only from the plugin settings, never from `testdata.md`. If `begin` says login is set and no session is saved, call `login` before the first browser call. If a page shows the login screen, call `login` once and navigate again. If `begin` or `login` says an item is missing, tell the user that item (for example "설정의 테스트 계정 아이디가 비어 있습니다") and stop.
 - **Test input**: user's request → `testdata.md` (from `begin`) → `확인 사항` → ask the user once, proposing a value taken from the TC content (for example "요구사항명은 '신규 요구사항 추가 테스트' 로 할까요?"). An empty `testdata.md` is normal; never stop because of it. Record a value you will need again in `testdata.md` as `이름=값` (never an account). In a script write such a value as `$이름`; in `수행 이력` as `name=값 (testdata: NAME)`.
 - **Browser**: use only tools in your list. The UI-AUTO browser shows a navy `UA` tab icon; it is not part of the system. Results may give the snapshot as a `.yml` link: call `browser_snapshot` instead of reading files outside the project. If a tool says the panel is running, wait for the user.
-- **Captures** (target page only, `browser_take_screenshot` with `filename`): `.litecode/ui-auto/captures/<page_id>/page.png` on arrival when missing or at levels 2–4; `.litecode/ui-auto/captures/<page_id>/<run_id>-<tc_id>-step<NN>.png` after every step and of the verdict screen (also of a failed or blocked screen). No upper limit.
+- **Captures** (target page only): `.litecode/ui-auto/captures/<page_id>/page.png` on arrival when missing or at levels 2–4 (`browser_take_screenshot` with `filename`); `.litecode/ui-auto/captures/<page_id>/<run_id>-<tc_id>-step<NN>.png` with the `capture` tool — right before step NN, with `step` = NN and `targets` = that step's `target` / `element` (all fields of a fill_form), so the capture shows the screen where the step is done with a red numbered box on the acted element; after the last step and the verify, one more `capture` without targets of the verdict screen (also of a failed or blocked screen). No upper limit.
 
 ## 7. Lessons learned (`lessons-learned.md`)
 
@@ -171,10 +171,15 @@ id `L-NNN` never reused; 분류: 이동 · 로그인 · 요소 찾기 · 입력 
 ## 이동 관계
 | edge_id | 출발 | 동작 | 대상 요소(역할·이름) | 전제조건 | 도착 | 이동 스크립트 | 최근 확인일 | 상태 |
 |---|---|---|---|---|---|---|---|---|
-| main__orders-list | main | 클릭 | link "주문 목록" | 로그인 상태 | orders-list | scripts/routes/main__orders-list.yaml | 2026-11-10 | 유효 |
+| main__orders-list | main | 메뉴 선택 | 주문 관리 › 주문 목록 | 로그인 상태 | orders-list | scripts/routes/main__orders-list.yaml | 2026-11-10 | 유효 |
+
+## 모달
+| modal_id | 페이지 | 모달 이름 | 여는 동작 | 대상 요소(역할·이름) | 캡처 | 최근 확인일 |
+|---|---|---|---|---|---|---|
+| orders-list__order-new | orders-list | 주문 등록 | 클릭 | button "추가하기" | captures/orders-list/20261110-001-orders-list-TC-001-step02.png | 2026-11-10 |
 
 ## 흐름도
-(mermaid flowchart LR from the two tables)
+(mermaid flowchart LR from the tables)
 
 ## 페이지 설명
 ### orders-list 주문 목록
@@ -185,8 +190,9 @@ id `L-NNN` never reused; 분류: 이동 · 로그인 · 요소 찾기 · 입력 
 - 테스트 케이스: 2건 (성공 1, 미수행 1)
 ```
 
-- 화면명 as the screen shows it. URL 패턴: path only, `*` for data parts. 동작: 클릭 · 입력 후 제출 · 메뉴 선택 · URL 이동. 대상 요소: `<role> "<name>"` from the snapshot, never a `ref`. 상태: 유효 · 불일치 · 폐기. 이동 스크립트 `없음` until the file exists.
-- 흐름도: node id = page_id with `-` → `_`; text `화면명<br/>page_id`, with `<img src='captures/<page_id>/page.png' width='220'/><br/>` in front when the file exists; entry `id(["…"])`, others `id["…"]`; arrow `출발 -->|"<동작>: <대상 요소>"| 도착`; `불일치` as `-.->`; `폐기` not drawn. Rewrite the whole block when a table changes.
+- 화면명 as the screen shows it. URL 패턴: path only, `*` for data parts. 동작 = what a user does to get there: 클릭 · 입력 후 제출 · 메뉴 선택 (대상 요소 = the menu path `상위 › 하위 › 메뉴`). Write the user action even when the navigation script uses a direct URL because the click fails (note it in 전제조건, for example `메뉴 클릭 오류로 스크립트는 URL 이동 (L-001)`); `URL 이동` only when the user really types the address. 대상 요소: `<role> "<name>"` from the snapshot, never a `ref`. 상태: 유효 · 불일치 · 폐기. 이동 스크립트 `없음` until the file exists.
+- 모달: every dialog (`dialog`, `alertdialog`, a layer with its own title) a step opened on a page. modal_id = `<page_id>__<short-name>`. 여는 동작 / 대상 요소 = what opened it. 캡처 = a step capture that shows it open, `-` if none.
+- 흐름도: node id = page_id with `-` → `_`; text `화면명<br/>page_id`, with `<img src='captures/<page_id>/page.png' width='220'/><br/>` in front when the file exists; entry `id(["…"])`, others `id["…"]`; arrow `출발 -->|"<동작>: <대상 요소>"| 도착`; `불일치` as `-.->`; `폐기` not drawn; a modal as `<modal_id with - → _>{{"모달 이름"}}` with `<page> -.->|"<여는 동작>: <대상 요소>"| <modal>`. Rewrite the whole block when a table changes.
 - 페이지 설명: one block per page, in table order; no capture → `캡처 없음 (아직 테스트 대상이 된 적 없음)`.
 
 ### Page doc (`pages/_template.md`, keep headings and columns)
@@ -260,6 +266,7 @@ main → orders-list (edge: main__orders-list)
 ![주문 목록](../captures/orders-list/page.png)
 
 ### 1. 고객명에 "홍길동" 입력
+- 설명: 표시한 ① 고객명 입력란에 "홍길동"을 입력하면 입력란에 그 값이 보여야 합니다.
 ![step01](../captures/orders-list/20261110-001-orders-list-TC-001-step01.png)
 - 한 일: "고객명 입력란"에 "홍길동" 입력
 - 기대: 입력란에 "홍길동"
@@ -273,7 +280,7 @@ main → orders-list (edge: main__orders-list)
 - 페이지 문서 · 스크립트 (상태) · 로그 paths
 ```
 
-- Every step capture, in order, each with exactly the four lines `- 한 일:` `- 기대:` (the step's `expected`, or the TC's 기대 결과 for the verdict screen) `- 실제:` (exact screen text) `- 판정:` (일치 · 다름 · 멈춤, or 수행됨 for a step with no own check). The panel shows them next to each capture.
+- Every step capture, in order: the step's capture is the screen where it was done with the acted element marked; the last block is the verdict screen. Each block has `- 설명:` (one sentence a person can follow: what the marked element is, what to do, what must happen) and exactly the four lines `- 한 일:` `- 기대:` (the step's `expected`, or the TC's 기대 결과 for the verdict screen) `- 실제:` (exact screen text after the step) `- 판정:` (일치 · 다름 · 멈춤, or 수행됨 for a step with no own check). The panel, the PDF and the guide show each block as one page.
 - 판정 근거: for 실패 how actual differs, for 차단 what blocked it. Values equal the `수행 이력` entry. Image files must exist. Print `[증적 갱신] .litecode/ui-auto/reports/<run_id>.md — 보고서 작성`.
 - After the report of a passed run call `guide` with the tc_id: it writes the test guide (a different document for people who follow the steps) from this report. Print `[증적 갱신] .litecode/ui-auto/guides/guide-<tc_id>.md — 테스트 가이드 작성`. So write `- 한 일` / `- 기대` / `- 실제` so that a person can follow them.
 
@@ -313,7 +320,7 @@ changes_data: false
 - `verify`: each item with `pass` (words) and `expect`: `{ ok: true }` (wait_for text/textGone), `{ found: ">=1" }` (find; also `"0"`, `"=2"`), `{ equals: "{이름}" }` (evaluate). Without `expect` the panel cannot replay it. No fixed waits (`time`).
 - `changes_data: true` when the TC creates, changes or deletes data. No account or password anywhere.
 - Valid YAML: a value that starts with a quote must end with it. Write `expected: 등록 대화상자가 열린다` or `expected: '"등록" 대화상자가 열린다'`, never `expected: "등록" 대화상자가 열린다`. Quote a value that contains `: ` (`element: '검색 버튼 (default: 전체)'`). Never write a bare `-` as a value (`최근 통과일: -` is read as a list): leave the line out until the first pass. Update a key in place; never add the same key again at the end.
-- Replay (level 1): navigate to the entry URL → each edge's navigation script → fill `{이름}` (user values override, file unchanged) → each step, capture after each → each verify; all pass → 성공 and a verdict capture; an error or failed check → capture, stop, procedure E. Print `[tool]` per call and `[스크립트] … — 실행 — <결과>`.
+- Replay (level 1): navigate to the entry URL → each edge's navigation script → fill `{이름}` (user values override, file unchanged) → each step, with its marked capture right before it → each verify → the verdict capture; all pass → 성공; an error or failed check → capture, stop, procedure E. Print `[tool]` per call and `[스크립트] … — 실행 — <결과>`.
 - New script = `미검증`, and write its path in the TC row's `스크립트` column at once; replay it once right after saving (ask first if `changes_data`); passed → `검증됨`, update `최근 통과일`; up to 3 fix-and-replay tries, else keep `미검증` with the reason.
 - Data-only change requests: replay with the user's values, do not edit the script; ask for the new expected value if not given.
 

@@ -63,6 +63,19 @@ describe('Evidence', () => {
       ['main', 'process-management-analyze', 'URL 이동', '유효'],
       ['main', 'process-management-systemdesign', 'URL 이동', '유효'],
     ])
+    expect(flow.modals).toEqual([])
+  })
+
+  it('흐름 지도 — 「모달」 표의 대화상자를 그 페이지 아래에. 없는 페이지 · 밖을 가리키는 캡처는 뺀다', async () => {
+    const own = project()
+    const file = path.join(own.evidenceDir, 'system_map.md')
+    const modal = '## 모달\n| modal_id | 페이지 | 모달 이름 | 여는 동작 | 대상 요소(역할·이름) | 캡처 | 최근 확인일 |\n|---|---|---|---|---|---|---|\n| analyze__new | process-management-analyze | 요구사항 정의 등록 | 클릭 | button "추가하기" | captures/process-management-analyze/page.png | 2026-11-12 |\n| analyze__x | process-management-analyze | 바깥 | 클릭 | - | ../../secret.png | - |\n| gone__new | gone | 없는 페이지 | 클릭 | - | - | - |\n\n## 흐름도'
+    writeFileSync(file, readFileSync(file, 'utf8').replace('## 흐름도', modal))
+    const flow = await new Evidence(own.evidenceDir, NOW).flow(await new Evidence(own.evidenceDir, NOW).pages())
+    expect(flow.modals).toEqual([
+      { id: 'analyze__new', page: 'process-management-analyze', title: '요구사항 정의 등록', action: '클릭', target: 'button "추가하기"', capture: 'captures/process-management-analyze/page.png', lastVerified: '2026-11-12' },
+      { id: 'analyze__x', page: 'process-management-analyze', title: '바깥', action: '클릭', target: '-', lastVerified: '-' },
+    ])
   })
 
   it('보고서 — 머리 표 · 절 · 캡처마다 제목과 이미지(옛 형식은 한 일 · 기대 · 실제가 비어 있다)', async () => {
@@ -70,7 +83,7 @@ describe('Evidence', () => {
     expect(report?.head).toMatchObject({ 판정: '성공', '수행 방식': '이동 스크립트+MCP' })
     expect(report?.route).toContain('main → process-management-analyze')
     expect(report?.steps).toHaveLength(7)
-    expect(report?.steps[0]).toEqual({ title: '대상 페이지 (수행 전)', capture: 'captures/process-management-analyze/page.png', action: '', expected: '', actual: '', verdict: '' })
+    expect(report?.steps[0]).toEqual({ title: '대상 페이지 (수행 전)', capture: 'captures/process-management-analyze/page.png', description: '', action: '', expected: '', actual: '', verdict: '' })
     expect(await evidence.report('../system_map')).toBeUndefined()
     expect((await evidence.reports()).map((item) => [item.id, item.tc, item.verdict])).toEqual([
       ['20261110-003', 'process-management-systemdesign-TC-001', '성공'],

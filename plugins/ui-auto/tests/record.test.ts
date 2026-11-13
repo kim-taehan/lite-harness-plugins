@@ -70,6 +70,13 @@ describe('touch', () => {
 })
 
 describe('renderBody', () => {
+  it('### 덩어리는 section.step 으로 묶는다 — PDF 에서 캡처 단계마다 한 쪽', () => {
+    const html = renderBody('## 캡처\n### 1. 클릭\n- 설명: 누릅니다\n![s](a.png)\n### 판정 화면\n![s](a.png)\n## 끝\n문단', () => 'data:image/png;base64,AA')
+    expect(html.match(/<section class="step">/g)).toHaveLength(2)
+    expect(html).toMatch(/<\/section>\n<h2>끝<\/h2>/)
+    expect(html.indexOf('<section')).toBeGreaterThan(html.indexOf('<h2>캡처'))
+  })
+
   it('AI 가 쓴 태그는 글자로, 이미지는 허락한 것만', () => {
     const html = renderBody('# 제목 <script>x</script>\n\n| a | b |\n|---|---|\n| <b>1</b> | 2 |\n\n![s](ok.png)\n![t](no.png)', (src) => (src === 'ok.png' ? 'data:image/png;base64,AA' : undefined))
     expect(html).not.toContain('<script>')

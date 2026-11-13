@@ -63,6 +63,7 @@ export async function guideMarkdown(config: Pick<Config, 'baseUrl'>, evidence: E
     '## 4. 따라 하기',
     ...doing.flatMap((step, index) => [
       `### ${index + 1}단계. ${step.action || step.title.replace(/^\d+\.\s*/, '')}`,
+      ...(step.description ? [`- 이렇게 합니다: ${step.description}`] : []),
       `- 확인할 것: ${step.expected || '-'}`,
       `- 이렇게 보입니다: ${step.actual || '-'}`,
       ...(step.capture ? [`![${index + 1}단계](${toGuide(step.capture)})`] : []),

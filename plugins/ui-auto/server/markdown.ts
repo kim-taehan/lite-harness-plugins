@@ -142,10 +142,16 @@ function inline(text: string, image: (src: string) => string | undefined): strin
     .join('')
 }
 
-/** 증적 md(머리말 뗀 것) → HTML 본문. 제목 · 표 · 목록 · 이미지 · 문단 · 코드 블록 */
+/** 증적 md(머리말 뗀 것) → HTML 본문. 제목 · 표 · 목록 · 이미지 · 문단 · 코드 블록.
+ *  `### ` 덩어리(보고서의 단계 캡처 · 가이드의 따라 하기)는 <section class="step"> 로 묶는다 — PDF 에서 캡처가 있는 단계마다 한 쪽 */
 export function renderBody(markdown: string, image: (src: string) => string | undefined): string {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n')
   const out: string[] = []
+  let open = false
+  const close = () => {
+    if (open) out.push('</section>')
+    open = false
+  }
   let index = 0
   while (index < lines.length) {
     const line = lines[index]!
@@ -160,6 +166,11 @@ export function renderBody(markdown: string, image: (src: string) => string | un
     const heading = /^(#{1,4})\s+(.*)$/.exec(line)
     if (heading) {
       const level = heading[1]!.length
+      if (level <= 3) close()
+      if (level === 3) {
+        out.push('<section class="step">')
+        open = true
+      }
       out.push(`<h${level}>${inline(heading[2]!, image)}</h${level}>`)
       index++
       continue
@@ -193,6 +204,7 @@ export function renderBody(markdown: string, image: (src: string) => string | un
     while (index < lines.length && lines[index]!.trim() && !/^(#{1,4}\s|```|\s*\||\s*(-|\d+\.)\s)/.test(lines[index]!)) para.push(lines[index++]!)
     out.push(`<p>${para.map((text) => inline(text, image)).join('<br>')}</p>`)
   }
+  close()
   return out.join('\n')
 }
 
@@ -221,7 +233,8 @@ img { display: block; max-width: 100%; border: 1px solid var(--rule); border-rad
 .verdict-실패 { color: var(--bad); font-weight: 700; }
 .verdict-차단 { color: var(--warn); font-weight: 700; }
 footer { margin-top: 36px; color: var(--ink-3); font-size: 11px; border-top: 1px solid var(--rule); padding-top: 8px; }
-@media print { main { padding: 0; max-width: none; } h2 { break-after: avoid; } }
+section.step { break-inside: avoid; margin: 0 0 8px; }
+@media print { main { padding: 0; max-width: none; } h2 { break-after: avoid; } section.step:has(img) ~ section.step:has(img) { break-before: page; } section.step img { max-height: 200mm; width: auto; } }
 `
 
 /** 한 파일 HTML — 스크립트 없음, 이미지는 data: 로 들어 있다 */

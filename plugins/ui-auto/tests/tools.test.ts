@@ -20,7 +20,7 @@ function tools(withEvidence = true) {
 describe('server tools', () => {
   it('도구 이름 — 패널 전용은 서비스의 panelTools 와 같다', () => {
     const { names } = tools()
-    expect(names).toEqual(['begin', 'format', 'guide', 'login', 'check', 'list', 'detail', 'replay', 'progress', 'stop', 'shot', 'report', 'guide_read', 'delete', 'view', 'pdf'])
+    expect(names).toEqual(['begin', 'format', 'guide', 'capture', 'login', 'check', 'list', 'detail', 'replay', 'progress', 'stop', 'shot', 'report', 'guide_read', 'delete', 'view', 'pdf'])
     const service = readFileSync(path.resolve(import.meta.dirname, '../service/index.mjs'), 'utf8')
     expect(service).toContain(`const PANEL_TOOLS = ${JSON.stringify(PANEL_TOOLS).replaceAll('"', "'").replaceAll(',', ', ')}`)
   })
@@ -42,6 +42,11 @@ describe('server tools', () => {
     expect(await ensureEvidence(config)).toBe(false)
     expect(readFileSync(path.join(config.evidenceDir, 'system_map.md'), 'utf8')).toBe(before)
     expect(existsSync(path.join(config.evidenceDir, 'lessons-learned.md'))).toBe(true)
+  })
+
+  it('capture — 증적 폴더의 captures/<page_id>/ 아래 png 만', async () => {
+    const { run } = tools()
+    for (const file of ['../x.png', '.litecode/ui-auto/captures/../../x.png', '.litecode/ui-auto/reports/a.png', '.litecode/ui-auto/captures/p/a.md']) expect(await run('capture', { file })).toMatchObject({ isError: true })
   })
 
   it('list · detail · report · shot', async () => {
