@@ -20,7 +20,7 @@
 | `plugin.json` | manifest — 설정 칸(대상 주소 · 브라우저 · 창 · 계정 · 비밀번호 · 로그인 경로 · 칸 이름), `settingsCheck: "check"`, 서비스 선언 |
 | `service/index.mjs` | 서비스 원본 → `service.mjs`. 서버 · 스킬 · 패널 열기 도구를 올리고, 패널의 service.call 을 서버 도구로 넘기고, 패널 수행 중 진행을 밀어 보낸다 |
 | `server/index.ts` | MCP 서버 입구 → `server/ui-auto.mjs`. AI 도구 `browser_*`(중계) · `begin` · `format` · `guide` · `capture`(단계 직전 표시 캡처) · `login` · `check`, 패널 전용 `list` · `detail` · `replay` · `progress` · `stop` · `shot` · `report` · `guide_read` · `delete` · `view` · `pdf` |
-| `server/browser.ts` | 동봉한 Playwright MCP(@playwright/mcp 0.0.83) 자식 프로세스 — opencode 와 같은 옵션(`--isolated --storage-state --save-session --output-dir --init-script`), AI 와 패널 사이 브라우저 잠금 |
+| `server/browser.ts` | 동봉한 Playwright MCP(@playwright/mcp 0.0.83) 자식 프로세스 — opencode 와 같은 옵션(`--isolated --storage-state --save-session --output-dir --init-script`), AI 와 패널 사이 · 같은 프로젝트의 대화끼리 브라우저 잠금(대화는 앱이 요청 `_meta` 에 싣는 id 로 가른다) |
 | `server/evidence.ts` | 증적 읽기 — system_map · 페이지 문서 · 스크립트 · 보고서 · 가이드 · testdata → 패널 모양(원본은 파일, DB 없음) |
 | `server/record.ts` | 패널 수행 결과를 증적에 남기는 줄 고치기(TC 줄 · 수행 이력 · 확인일 · TC 건수 · 최근 통과일) |
 | `server/replay.ts` | 패널 수행 — 진입점 → 이동 스크립트 → 단계마다 바로 전 표시 캡처(`browser.ts` 의 `markedShot`: 요소에 번호 상자 → 캡처 → 지우기) → 판정 → 보고서 · 로그 · 페이지 문서 |

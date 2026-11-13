@@ -1,5 +1,6 @@
 // 동봉한 Playwright MCP(@playwright/mcp 0.0.83)를 자식 프로세스로 띄우고 도구를 부른다 — AI 의 browser_* 중계와 패널 수행이 같은 브라우저를 쓴다.
 // 잠금: 브라우저 하나를 AI 와 패널이 동시에 만지지 않게 한다. AI 는 첫 browser_* 부터 browser_close 까지(또는 오래 쉬면) 쥐고, 패널 수행은 그동안 busy 로 거절된다.
+// 같은 프로젝트의 대화들도 한 탭을 같이 쓰므로 대화끼리 잠근다 — 동시에 돌린 대화가 서로 페이지를 옮기고 창을 닫았다(2026-11-13 실측). 대화는 앱이 요청 `_meta` 에 싣는 id 로 가른다.
 // opencode 하네스의 실행 옵션 그대로: --isolated --storage-state <세션> --save-session --output-dir --init-script <배지>
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -24,6 +25,13 @@ export interface ToolInfo {
 }
 
 export type Owner = 'ai' | 'panel'
+
+/** 앱이 확장 MCP 요청 `_meta` 에 싣는 부른 대화 id 의 키 (desktop CONVERSATION_META) */
+export const CONVERSATION_META = 'litecode/conversation'
+
+/** 다른 대화가 브라우저를 쥐었을 때 AI 에게 돌려주는 글 — 기다리며 다시 부르면 그 대화의 수행을 또 흔들 수 있어 멈추게 한다 */
+export const OTHER_CONVERSATION =
+  '같은 프로젝트의 다른 대화가 UI-AUTO 브라우저로 화면을 수행하는 중이라 이 대화는 브라우저를 쓸 수 없습니다. 브라우저 도구를 더 부르지 말고 이 작업을 멈춘 뒤, 다른 대화의 수행이 끝나면 다시 요청하라고 사용자에게 알리세요.'
 
 export const textOf = (result: ToolResult): string => result.content.map((part) => part.text ?? '').filter(Boolean).join('\n')
 
@@ -82,6 +90,8 @@ export async function markedShot(caller: Caller, file: string, marks: readonly M
 export class Browser implements Caller {
   private client: Promise<Client> | undefined
   private owner: Owner | undefined
+  /** AI 가 쥐었을 때 그 대화 id — 모르면(앱이 싣지 못했다) undefined */
+  private conversation: string | undefined
   private lastAi = 0
   /** 브라우저 창이 떠 있을 수 있다(도구를 불렀고 아직 닫지 않았다) */
   open = false
@@ -132,15 +142,26 @@ export class Browser implements Caller {
     return this.owner
   }
 
-  /** AI 의 browser_* 중계 — 패널이 쥐고 있으면 거절 */
-  async relay(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+  /** 다른 대화가 쥐고 있나 — 둘 다 id 를 알 때만 가른다. id 를 모르는 호출은 예전처럼 막지 않는다(자기 대화의 호출을 스스로 막지 않게) */
+  heldByOther(conversation: string | undefined): boolean {
+    return this.holder() === 'ai' && conversation !== undefined && this.conversation !== undefined && this.conversation !== conversation
+  }
+
+  /** AI 의 browser_* 중계 — 패널이나 다른 대화가 쥐고 있으면 거절 */
+  async relay(name: string, args: Record<string, unknown>, conversation?: string): Promise<ToolResult> {
     if (this.holder() === 'panel') return { content: [{ type: 'text', text: 'UI-AUTO 패널에서 TC 를 수행하는 중이라 브라우저를 쓸 수 없습니다. 패널 수행이 끝난 뒤 다시 부르세요.' }], isError: true }
+    if (this.heldByOther(conversation)) return { content: [{ type: 'text', text: OTHER_CONVERSATION }], isError: true }
+    if (this.owner !== 'ai') this.conversation = undefined
     this.owner = 'ai'
+    this.conversation ??= conversation
     this.lastAi = this.now()
     try {
       return await this.call(name, args)
     } finally {
-      if (name === 'browser_close') this.owner = undefined
+      if (name === 'browser_close') {
+        this.owner = undefined
+        this.conversation = undefined
+      }
     }
   }
 

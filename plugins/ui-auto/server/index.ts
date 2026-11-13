@@ -10,7 +10,7 @@ import { cp, readdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { check, login } from './auth.ts'
-import { Browser, markedShot, type Mark, type ToolInfo, type ToolResult } from './browser.ts'
+import { Browser, CONVERSATION_META, markedShot, OTHER_CONVERSATION, type Mark, type ToolInfo, type ToolResult } from './browser.ts'
 import { configFromEnv, EVIDENCE_DIR, FRESH_DAYS, guardWrite, loginReady, loginState, scrub, stamp, type Config } from './config.ts'
 import { Evidence, failStep } from './evidence.ts'
 import { table, updateRow } from './markdown.ts'
@@ -22,7 +22,8 @@ import { writeGuide } from './guide.ts'
 export const PANEL_TOOLS = ['list', 'detail', 'replay', 'progress', 'stop', 'view', 'pdf', 'shot', 'report', 'guide_read', 'delete']
 
 interface OwnTool extends ToolInfo {
-  run(args: Record<string, unknown>): Promise<ToolResult>
+  /** conversation: 부른 대화 id(앱이 `_meta` 에 실었을 때) — 브라우저를 쓰는 도구가 대화끼리 잠그는 데 쓴다 */
+  run(args: Record<string, unknown>, conversation?: string): Promise<ToolResult>
 }
 
 const text = (value: string, isError = false): ToolResult => ({ content: [{ type: 'text', text: value }], ...(isError && { isError: true }) })
@@ -113,9 +114,9 @@ export function createTools(config: Config, browser: Browser, evidence = new Evi
     {
       name: 'begin',
       description:
-        'Call this FIRST in every ui-auto task (test run, TC derivation, question, guide), before reading evidence or using a browser tool. Creates the evidence folder skeleton when missing and returns: run_id for this task (and guide_id when kind is "guide"), the current date-time, the base URL, the evidence folder, the freshness limit, the non-secret test data values of testdata.md, and the login state. Never guess these values yourself.',
+        'Call this FIRST in every ui-auto task (test run, TC derivation, question, guide), before reading evidence or using a browser tool. Creates the evidence folder skeleton when missing and returns: run_id for this task (and guide_id when kind is "guide"), the current date-time, the base URL, the evidence folder, the freshness limit, the non-secret test data values of testdata.md, the login state, and a 브라우저 line when another conversation of this project is using the browser (then stop and tell the user). Never guess these values yourself.',
       inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['run', 'derive', 'query', 'guide'], description: 'What this task is' } }, required: ['kind'] },
-      async run(args) {
+      async run(args, conversation) {
         const created = await ensureEvidence(config)
         const now = stamp()
         const runId = await ids.next('', ['logs', 'reports'], now.compact)
@@ -135,6 +136,7 @@ export function createTools(config: Config, browser: Browser, evidence = new Evi
             `테스트 데이터: ${names.length ? names.map((name) => `${name}=${data[name]}${from.settings.includes(name) ? ' (플러그인 설정)' : ''}`).join(', ') : '해당 없음 — 필요한 입력값은 TC 내용으로 제안하고 사용자에게 한 번 묻는다'}`,
             `교훈 색인 (${EVIDENCE_DIR}/lessons-learned.md): ${await lessonsIndex(evidence)}`,
             `로그인: ${loginState(config.login)}${loginReady(config.login) ? ` · 세션 ${(await sessionSaved(config.stateFile)) ? '저장되어 있음' : '없음 — 브라우저를 열기 전에 login 도구'}` : ''}`,
+            ...(browser.heldByOther(conversation) ? [`브라우저: ${OTHER_CONVERSATION}`] : []),
           ].join('\n'),
         )
       },
@@ -173,11 +175,11 @@ export function createTools(config: Config, browser: Browser, evidence = new Evi
         },
         required: ['file'],
       },
-      async run(args) {
+      async run(args, conversation) {
         const file = String(args['file'] ?? '')
         if (!CAPTURE_FILE.test(file)) return text(`file 은 ${EVIDENCE_DIR}/captures/<page_id>/<이름>.png 이어야 합니다`, true)
         const marks: Mark[] = (Array.isArray(args['targets']) ? args['targets'] : []).flatMap((item: { target?: unknown; element?: unknown }) => (typeof item?.target === 'string' && item.target ? [{ target: item.target, ...(typeof item.element === 'string' && { element: item.element }) }] : []))
-        const { result, marked } = await markedShot({ call: (name, input) => browser.relay(name, input) }, file, marks, typeof args['step'] === 'number' ? args['step'] : undefined)
+        const { result, marked } = await markedShot({ call: (name, input) => browser.relay(name, input, conversation) }, file, marks, typeof args['step'] === 'number' ? args['step'] : undefined)
         if (result.isError) return result
         return text(`캡처 ${file} — ${marks.length ? `동작 위치 ${marked}/${marks.length}곳 표시` : '표시 없음'}`)
       },
@@ -187,8 +189,10 @@ export function createTools(config: Config, browser: Browser, evidence = new Evi
       description:
         'Log in to the system under test with the account in the plugin settings and save the session. You never see or type the password. Call it when a browser tool shows the login screen, or when begin says there is no saved session. It closes an open browser window, so call browser_navigate again afterwards.',
       inputSchema: { type: 'object', properties: {} },
-      async run() {
+      async run(_args, conversation) {
         if (browser.holder() === 'panel') return text('UI-AUTO 패널에서 TC 를 수행하는 중입니다. 끝난 뒤 다시 부르세요.', true)
+        // 로그인은 열린 창을 닫는다 — 다른 대화가 쓰는 창을 닫지 않게
+        if (browser.heldByOther(conversation)) return text(OTHER_CONVERSATION, true)
         if (!loginReady(config.login)) return text(`${await login(config)} 사용자에게 이 내용을 그대로 알리고 멈추세요.`, Boolean(config.login.user || config.login.password))
         const message = await login(config)
         await browser.closeWindow()
@@ -351,9 +355,11 @@ async function serve(): Promise<void> {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const name = request.params.name
     const args = (request.params.arguments ?? {}) as Record<string, unknown>
+    const meta = request.params._meta?.[CONVERSATION_META]
+    const conversation = typeof meta === 'string' && meta ? meta : undefined
     try {
       const tool = own.find((candidate) => candidate.name === name)
-      const result = tool ? await tool.run(args) : name.startsWith('browser_') ? await browser.relay(name, args) : text(`Unknown tool: ${name}`, true)
+      const result = tool ? await tool.run(args, conversation) : name.startsWith('browser_') ? await browser.relay(name, args, conversation) : text(`Unknown tool: ${name}`, true)
       return { ...result, content: result.content.map((part) => (typeof part.text === 'string' ? { ...part, text: scrub(part.text, secrets) } : part)) }
     } catch (error) {
       return text(scrub(error instanceof Error ? error.message : String(error), secrets), true)
