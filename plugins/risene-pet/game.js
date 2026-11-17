@@ -8,7 +8,7 @@ globalThis.RISENE_PET_GAME = (() => {
   // MEMBERS: 멤버 id → { name, sayMax(AI 도구 say 가 한 번에 보내는 글자 수 상한 — 말이 긴 멤버는 크게), soon?, characters: 캐릭터 id 순서(앞이 졸업하면 다음이 열린다) } · CHARACTERS: 캐릭터 id → { member, name(화면에 보이는 이름), soon? }
   // soon: true 는 "준비중" — 도감에 카드만 보이고 고르거나 키울 수 없다(진행 · 졸업 · 해금 계산에 넣지 않는다). 준비되면 soon 만 지운다.
   // 순서 = 도감 순서: 키울 수 있는 멤버가 먼저, 준비중 멤버는 뒤에(원이 → 메이 → 미나미 → 리브 → 제나).
-  // 메이(매트 · 디렉터 메이)의 대사 · 유행어 · 컷아웃은 저장소 밖 risene-archive/may/ 에 있다(README.md 의 "다시 넣는 방법"). 미나미는 메모의 페르소나 원문과 시트를 쓴다.
+  // 메이(매트 · 디렉터)의 대사 · 유행어 · 컷아웃은 저장소 밖 risene-archive/may/ 에 있다(README.md 의 "다시 넣는 방법"). 미나미는 메모의 페르소나 원문과 시트를 쓴다.
   const MEMBERS = {
     woni: { name: '원이', sayMax: 40, characters: ['woni-a', 'woni-b'] },
     may: { name: '메이', sayMax: 700, characters: ['met', 'mei'] },
@@ -20,8 +20,8 @@ globalThis.RISENE_PET_GAME = (() => {
     'woni-a': { member: 'woni', name: '거제소녀' },
     'woni-b': { member: 'woni', name: '파이리원이' },
     met: { member: 'may', name: '매트' },
-    mei: { member: 'may', name: '디렉터 메이' },
-    'minami-gyaru': { member: 'minami', name: '갸루 미나미', soon: true },
+    mei: { member: 'may', name: '디렉터' },
+    'minami-gyaru': { member: 'minami', name: '갸루상', soon: true },
     'liv-1': { member: 'liv', name: '리트', soon: true },
     'zena-1': { member: 'zena', name: '신라공주', soon: true },
   }

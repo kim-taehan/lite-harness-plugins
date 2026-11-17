@@ -72,7 +72,7 @@ describe('react · voice', () => {
     for (const id of WONI_IDS) for (const stage of STAGES) expect(P.react(id, stage).more).toEqual([])
   })
 
-  it('메이 멤버(매트 · 디렉터 메이)는 말풍선이 2마디다 — more 길이 1, 한 마디 길이는 단계마다 길어진다(약 150~200 · 200~250 · 230~300자)', () => {
+  it('메이 멤버(매트 · 디렉터)는 말풍선이 2마디다 — more 길이 1, 한 마디 길이는 단계마다 길어진다(약 150~200 · 200~250 · 230~300자)', () => {
     const range = [[150, 200], [200, 250], [230, 300]] as const
     for (const id of ['met', 'mei'])
     for (const stage of STAGES)
@@ -102,7 +102,7 @@ describe('react · voice', () => {
   it('RULES[0] 은 길이를 멤버 · 캐릭터 규정에 맡긴다 — 원이 · 메이가 각각 적혀 있다', () => {
     expect(P.RULES[0]).toContain('멤버 공통 말투')
     expect(P.RULES[0]).toContain('원이 = 2~3 단어')
-    expect(P.RULES[0]).toContain('메이(매트 · 디렉터 메이)')
+    expect(P.RULES[0]).toContain('메이(매트 · 디렉터)')
   })
 
   it('영상 근거 말투는 MEMBER_VOICE_VIDEO.may 한 곳에 있고 메이 두 캐릭터의 voice() 에 들어간다', () => {
@@ -209,7 +209,7 @@ describe('react · voice', () => {
     }
   })
 
-  it('메이의 말투는 멤버 단위다 — 매트 · 디렉터 메이의 voice() 가 모두 MEMBER_VOICE.may 로 시작하고, 캐릭터 voice 에는 말투 규칙이 중복되어 있지 않다', () => {
+  it('메이의 말투는 멤버 단위다 — 매트 · 디렉터의 voice() 가 모두 MEMBER_VOICE.may 로 시작하고, 캐릭터 voice 에는 말투 규칙이 중복되어 있지 않다', () => {
     const memberVoice = P.MEMBER_VOICE.may!
     expect(memberVoice).toContain('말이 매우 길고')
     expect(memberVoice).toContain('해요체가 기본')
@@ -374,7 +374,7 @@ describe('유행어', () => {
     expect(P.voice('woni-a', 0).signatureNote).not.toContain('파아~') // 파이리원이 고유 추가분은 앞 캐릭터에 없다
     expect(P.voice('woni-a', 0).signatureNote).not.toContain('햇살')
     expect(P.voice('met', 0).signatureNote).not.toContain('오이쉬에')
-    expect(P.voice('met', 0).signatureNote).not.toContain('중대장') // 디렉터 메이 고유 추가분은 앞 캐릭터(매트)에 없다
+    expect(P.voice('met', 0).signatureNote).not.toContain('중대장') // 디렉터 고유 추가분은 앞 캐릭터(매트)에 없다
     // 메이는 원이처럼 자주 쓰지 않고 상황에 맞을 때만 쓴다
     expect(P.voice('mei', 0).signatureNote).toContain('상황에 맞을 때만') // 나머지 유행어는 상황에 맞을 때만
     expect(P.voice('mei', 0).signatureNote).toContain('세 번 중 한 번') // 나쁜 어른 유행어만 자주
