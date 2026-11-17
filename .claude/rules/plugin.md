@@ -28,12 +28,12 @@
 ## 버전 · 배포
 13. **[필수]** zip 에 들어가는 원본을 바꾸면 `version` 을 올린다. MCP 도구를 더하거나 바꿨으면 반드시 — 앱은 도구 목록을 버전마다 한 번 기억한다. (push 훅이 경고한다)
 14. **[검토]** 사용자가 알아야 할 변경이면 `changes.txt` 에 한 줄씩 적는다. 설치 창에 그대로 보이니 **요약만** — 5줄 안팎, 한 줄 한 문장으로 짧게, 내부 이름·경로·옛 버전 설명은 빼고, 이미 나간 변경은 쌓지 말고 지난 글을 요약해 줄인다.
-15. **[필수]** `dist/` 와 `catalog.json` 은 `npm run release` 로만 바꾼다. 플러그인을 없앨 때도 먼저 `categories.json` 을 `unlisted` 로 두고 release 해 목록에서 내린 뒤 원본 폴더와 분류 줄을 지운다. (편집 훅이 막고, `tests/catalog.test.ts` 가 정합을 본다)
+15. **[필수]** 서버에 올리는 것은 `npm run release` 로만 한다(`litecode-deploy plugin publish`) — 이 저장소에 `dist/` · `catalog.json` 을 두지 않는다(카탈로그 · sha256 · 순번 · 서명은 서버가 만든다). 올리기 전 사용자(리더) 확인을 받는다. 플러그인을 없앨 때는 서버에서 `plugin remove <id>` 로 내린 뒤 원본 폴더와 분류 줄을 지운다. 분류는 `categories.json` 에 있어야 하고 `tests/categories.test.ts` 가 본다.
 16. **[검토]** 도구·서버 로직을 바꾸면 `plugins/<id>/tests/` 에 동작을 보는 테스트를 더하거나 고친다. 실제 DB·서버가 필요한 확인은 테스트 대신 PR 에 "확인 못 한 것" 으로 적는다.
 17. **[필수]** `mcp` 또는 `service` 선언과 `build.mjs` 가 같이 있는 플러그인의 build.mjs 는 `--dir` 을 받아 zip 과 같은 내용을 `build/<id>/` 폴더로 낸다. 원본 폴더는 묶기 전이라 앱이 띄울 수 없어서, 앱의 개발 모드(desktop #1348)는 이 폴더를 연결한다. — 테스트
 18. **[필수]** `mcp.attach` 는 `litecode`(기본) · `server` 만 쓴다. `server` 면 id 가 `litecode` 이면 안 된다(예약 이름, 설치 거절). — 테스트
 19. **[검토]** 도구가 많거나 사용자가 도구를 골라 쓰게 할 플러그인은 `attach: "server"` 를 검토한다. 방식을 바꾸면 스킬에 적힌 도구 이름(`litecode_<id>_<도구>` ↔ `<id>_<도구>`)도 같이 고친다.
-20. **[필수]** 새 플러그인(아직 `catalog.json` 에 없는 id)은 `scope` 를 적는다 — 앱 전체용이면 `"app"`, 프로젝트마다 다르게 켜면 `"project"`. 만들기 전에 가장 먼저 정한다(`docs/README.md` "먼저 정할 것"). 옛 선언 방식 언어 팩 · 문법 팩(`type: "locale" · "grammar"`)은 적지 않는다(설치 거절 `scope-invalid`). 서비스로 만든 팩은 `"app"` 을 적는다 — 언어 · 문법 등록은 앱 전체용 서비스만 된다. — 테스트
+20. **[필수]** 새 플러그인(아직 main 의 `plugins/` 에 없는 id)은 `scope` 를 적는다 — 앱 전체용이면 `"app"`, 프로젝트마다 다르게 켜면 `"project"`. 만들기 전에 가장 먼저 정한다(`docs/README.md` "먼저 정할 것"). 옛 선언 방식 언어 팩 · 문법 팩(`type: "locale" · "grammar"`)은 적지 않는다(설치 거절 `scope-invalid`). 서비스로 만든 팩은 `"app"` 을 적는다 — 언어 · 문법 등록은 앱 전체용 서비스만 된다. — 테스트
 21. **[검토]** 이미 배포된 플러그인은 다음 업데이트 때 `scope` 를 적는다(manifest 를 바꾸면 version 도 올린다 — 13번). `project` 플러그인은 `docs/architecture.md` "적용 범위" 의 주의점(저장 칸 · dataDir · 도구 목록은 프로젝트 없이 물음)을 확인한다.
 
 ## 문서

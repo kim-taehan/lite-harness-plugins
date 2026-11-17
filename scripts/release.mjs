@@ -1,27 +1,23 @@
-// 확장 내보내기 — `npm run release <id 또는 폴더> [--platform darwin-arm64]` · `npm run release -- --all` · `npm run release -- --changed [--dry-run]`
-// 폴더에 build.mjs 가 있으면 그것을 돌려 build/<폴더>[-<platform>].zip 을 받아 --zip 과 같은 길로 올린다 (sonarqube 처럼 플랫폼 전용이면 --platform)
-// 없으면 plugins/<폴더>/ 의 파일을 폴더 없이 zip 으로 묶어 dist/<id>-<version>.zip 에 두고, sha256 과 함께 catalog.json 의 그 항목을 extension.json 으로 갱신한다.
-// 앱(Lite Harness)은 catalog.json 을 읽고, 받은 zip 의 sha256 이 같을 때만 설치한다. 의존성 없음 — 시스템 zip 을 쓴다.
-// 옛 zip 은 지운다(같은 id 의 dist/<id>-*.zip 중 새 버전만 남긴다) — 저장소에 옛 버전이 쌓이지 않게. 되돌리기는 git 기록으로.
-// plugins/<폴더>/changes.txt 에 바뀐 것을 한 줄씩 적으면 catalog 에 실려 앱의 업데이트 창에 보인다 (선택, build.mjs 로 묶는 플러그인도 같음)
-// changes.txt · README.md · tests/ 는 zip 에 넣지 않는다 — 저장소에서 보는 문서와 테스트
-// --changed 는 --all 중에서 catalog 에 없거나 version 이 catalog 와 다른 플러그인만 올린다(안 바뀐 것은 zip 을 다시 만들지 않는다). --dry-run 이면 올릴 목록만 보인다
-// 목록에서 내리기 — categories.json 에 분류 대신 "unlisted" 를 적으면 원본(plugins/<폴더>/)은 두고, release 를 돌릴 때마다 catalog 항목과 dist zip 을 지운다.
-// --all 은 건너뛰고, 이름으로 불러도 묶지 않는다. 다시 올리려면 분류를 적고 release 한다
+// 플러그인 발행 — `npm run release <id 또는 폴더> [--platform darwin-arm64] [--data <서버 데이터 폴더>] [--sign-key 개인키 --key-id 키id] [--dry-run]`
+// zip 만 만들고 `litecode-deploy plugin publish` 로 넘긴다. 카탈로그 · sha256 · 순번 · 서명은 서버가 만든다.
+// 폴더에 build.mjs 가 있으면 그것을 돌려 build/<폴더>[-<platform>].zip 을 받고(sonarqube 처럼 플랫폼 전용이면 --platform),
+// 없으면 plugins/<폴더>/ 의 파일을 폴더 없이 묶어 build/<id>-<version>.zip 에 둔다. `--zip <파일>` 은 따로 묶은 zip 을 그대로 올린다.
+// changes.txt · README.md · tests/ 는 zip 에 넣지 않는다 — changes.txt 는 --changes-file 로 서버에 간다 (분류는 categories.json → --category)
+// categories.json 의 "unlisted" 는 "올리지 않는다" 이다 — 이름으로 불러도 건너뛴다. 이미 서버에 있는 것을 내리는 것은 `litecode-deploy plugin remove <id>` (docs/guides/publish.md)
+// 서버에 올리는 일이라 --dry-run 으로 만들 명령만 먼저 본다. 서버가 있는 PC 에서만 된다 (원격 발행 없음)
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { existsSync, statSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '..')
 const extensionsDir = path.join(root, 'plugins')
-const distDir = path.join(root, 'dist')
-const catalogFile = path.join(root, 'catalog.json')
+const buildDir = path.join(root, 'build')
 const categoriesFile = path.join(root, 'categories.json')
 const VERSION = /^\d+\.\d+\.\d+$/
 const CATEGORIES = ['game', 'dev-tool', 'locale']
 const UNLISTED = 'unlisted'
 const MANIFESTS = ['extension.json', 'plugin.json']
+const DEPLOY = process.env.LITECODE_DEPLOY ?? 'litecode-deploy'
 
 const manifestFile = (folder) => MANIFESTS.map((name) => path.join(extensionsDir, folder, name)).find((file) => existsSync(file))
 
@@ -31,9 +27,7 @@ function folders() {
     .map((entry) => entry.name)
 }
 
-function manifestOf(folder) {
-  return JSON.parse(readFileSync(manifestFile(folder), 'utf8'))
-}
+const manifestOf = (folder) => JSON.parse(readFileSync(manifestFile(folder), 'utf8'))
 
 function zipManifest(file) {
   const listed = execFileSync('unzip', ['-Z1', file], { encoding: 'utf8' }).split('\n')
@@ -42,140 +36,72 @@ function zipManifest(file) {
   return JSON.parse(execFileSync('unzip', ['-p', file, name], { encoding: 'utf8' }))
 }
 
-/** 바뀐 것 — plugins/<폴더>/changes.txt 의 줄(이번 버전 것만 적는다). 없으면 같은 버전 · 같은 플랫폼의 옛 catalog 항목 것 */
-function changesOf(folder, version, previous) {
-  const file = folder && path.join(extensionsDir, folder, 'changes.txt')
-  const lines = file && existsSync(file) ? readFileSync(file, 'utf8').split('\n').map((line) => line.replace(/^[-*·]\s*/, '').trim()).filter(Boolean) : []
-  if (lines.length > 0) return lines
-  return previous && previous.version === version && Array.isArray(previous.changes) && previous.changes.length > 0 ? previous.changes : undefined
-}
-
 const categories = () => JSON.parse(readFileSync(categoriesFile, 'utf8'))
 const isUnlisted = (id) => categories()[id] === UNLISTED
 
 function categoryOf(id) {
   const category = categories()[id]
-  if (category === UNLISTED) throw new Error(`${id} 는 목록에서 내린 플러그인입니다 (categories.json 의 "${UNLISTED}") — 다시 올리려면 분류를 적습니다`)
+  if (category === UNLISTED) throw new Error(`${id} 는 올리지 않는 플러그인입니다 (categories.json 의 "${UNLISTED}") — 올리려면 분류를 적습니다`)
   if (!CATEGORIES.includes(category)) throw new Error(`categories.json 에 ${id} 의 분류(${CATEGORIES.join(' · ')})가 필요합니다`)
   return category
 }
 
-function readCatalog() {
-  if (!existsSync(catalogFile)) return { version: 1, extensions: [] }
-  return JSON.parse(readFileSync(catalogFile, 'utf8'))
-}
-
-/** 설치 전에 앱이 보여 줄 것 — 긴 설명(details) · 요청 권한 · 종류 · zip 크기(바이트). extension.json 에 있는 것만 */
-function extra(manifest, zipFile) {
-  return {
-    ...(typeof manifest.details === 'string' && manifest.details && { details: manifest.details }),
-    ...(Array.isArray(manifest.permissions) && manifest.permissions.length > 0 && { permissions: manifest.permissions }),
-    ...(typeof manifest.type === 'string' && { type: manifest.type }),
-    size: statSync(zipFile).size,
+/** build/ 에 올릴 zip 을 만든다 — build.mjs 가 있으면 그 결과, 없으면 폴더를 그대로 묶은 것 */
+function makeZip(folder, platform) {
+  if (existsSync(path.join(extensionsDir, folder, 'build.mjs'))) {
+    execFileSync(process.execPath, [path.join(extensionsDir, folder, 'build.mjs'), ...(platform ? ['--platform', platform] : [])], { stdio: 'inherit' })
+    return path.join(buildDir, `${folder}${platform ? `-${platform}` : ''}.zip`)
   }
-}
-
-function release(folder, platform, catalog) {
-  const build = path.join(extensionsDir, folder, 'build.mjs')
-  if (existsSync(build)) {
-    execFileSync(process.execPath, [build, ...(platform ? ['--platform', platform] : [])], { stdio: 'inherit' })
-    return releaseZip(path.join(root, 'build', `${folder}${platform ? `-${platform}` : ''}.zip`), platform, catalog)
-  }
-  if (platform) throw new Error(`${folder}: build.mjs 가 없는 확장은 --platform 을 받지 않습니다`)
-  const manifest = manifestOf(folder)
-  const { id, name, description, version } = manifest
-  if (!id || !VERSION.test(version ?? '')) throw new Error(`${folder}: extension.json 의 id·version(1.2.3) 이 필요합니다`)
-  const category = categoryOf(id)
-  const zipName = `${id}-${version}.zip`
-  const zipFile = path.join(distDir, zipName)
+  if (platform) throw new Error(`${folder}: build.mjs 가 없는 플러그인은 --platform 을 받지 않습니다`)
+  const { id, version } = manifestOf(folder)
+  if (!id || !VERSION.test(version ?? '')) throw new Error(`${folder}: manifest 의 id·version(1.2.3) 이 필요합니다`)
+  const zipFile = path.join(buildDir, `${id}-${version}.zip`)
   rmSync(zipFile, { force: true })
-  // -X: 여분 속성 없이 · -r: 하위 폴더 · -q: 조용히. 폴더 안에서 묶어 zip 맨 위에 extension.json 이 오게
+  // -X: 여분 속성 없이 · -r: 하위 폴더 · -q: 조용히. 폴더 안에서 묶어 zip 맨 위에 manifest 가 오게
   execFileSync('zip', ['-qrX', zipFile, '.', '-x', '.DS_Store', '*/.DS_Store', 'changes.txt', 'README.md', 'tests/*'], { cwd: path.join(extensionsDir, folder) })
-  const versioned = new RegExp(`^${id.replace(/[-]/g, '\\-')}-\\d+\\.\\d+\\.\\d+\\.zip$`) // 플랫폼 zip(-darwin-arm64.zip)은 건드리지 않는다
-  for (const old of readdirSync(distDir)) if (versioned.test(old) && old !== zipName) rmSync(path.join(distDir, old))
-  const sha256 = createHash('sha256').update(readFileSync(zipFile)).digest('hex')
-  const previous = catalog.extensions.find((entry) => entry.id === id && !entry.platform)
-  const changes = changesOf(folder, version, previous)
-  const entry = { id, name, description, category, version, zip: `dist/${zipName}`, sha256, ...extra(manifest, zipFile), ...(changes && { changes }) }
-  catalog.extensions = [...catalog.extensions.filter((item) => !(item.id === id && !item.platform)), entry].sort((a, b) => (a.id === b.id ? ((a.platform ?? '') < (b.platform ?? '') ? -1 : 1) : a.id < b.id ? -1 : 1))
-  console.log(`✓ ${id} ${version} → dist/${zipName}`)
+  return zipFile
 }
 
-/** 따로 묶은 zip 을 올린다 (SonarQube 처럼 플랫폼 전용 실행 파일이 든 확장) — zip 안의 extension.json 으로 항목을 만들고, platform 이 있으면
- *  dist/<id>-<version>-<platform>.zip 로 둔다. 앱은 지금 PC 의 `<process.platform>-<process.arch>`(예: darwin-arm64 · win32-x64)와 같은 것만 보인다 */
-function releaseZip(file, platform, catalog) {
-  const manifest = zipManifest(file)
-  const { id, name, description, version } = manifest
-  if (!id || !VERSION.test(version ?? '')) throw new Error(`${file}: zip 안 manifest 의 id·version 이 필요합니다`)
-  if (platform !== undefined && !/^[a-z0-9]+-[a-z0-9]+$/.test(platform)) throw new Error(`--platform 은 darwin-arm64 · win32-x64 꼴입니다`)
-  const category = categoryOf(id)
-  const zipName = `${id}-${version}${platform ? `-${platform}` : ''}.zip`
-  const target = path.join(distDir, zipName)
-  writeFileSync(target, readFileSync(file))
-  const prefix = `${id}-`
-  const suffix = platform ? `-${platform}.zip` : '.zip'
-  for (const old of readdirSync(distDir)) if (old !== zipName && old.startsWith(prefix) && old.endsWith(suffix) && (platform || !/-[a-z0-9]+-[a-z0-9]+\.zip$/.test(old))) rmSync(path.join(distDir, old))
-  const sha256 = createHash('sha256').update(readFileSync(target)).digest('hex')
-  // 원본 폴더는 zip 안 manifest 의 id 로 찾는다 (--zip 으로 직접 올릴 때도)
-  const folder = folders().find((name) => manifestOf(name).id === id)
-  const previous = catalog.extensions.find((entry) => entry.id === id && (entry.platform ?? '') === (platform ?? ''))
-  const changes = changesOf(folder, version, previous)
-  const entry = { id, name, description, category, version, zip: `dist/${zipName}`, sha256, ...extra(manifest, target), ...(platform && { platform }), ...(changes && { changes }) }
-  catalog.extensions = [...catalog.extensions.filter((item) => !(item.id === id && (item.platform ?? '') === (platform ?? ''))), entry].sort((a, b) => (a.id === b.id ? ((a.platform ?? '') < (b.platform ?? '') ? -1 : 1) : a.id < b.id ? -1 : 1))
-  console.log(`✓ ${id} ${version}${platform ? ` (${platform})` : ''} → dist/${zipName}`)
-}
-
-/** 목록에서 내린 플러그인의 catalog 항목과 dist zip(플랫폼 zip 포함)을 지우고 catalog 를 쓴다 — 검사가 다 끝난 뒤에만 부른다 */
-function finish(catalog) {
-  for (const [id, category] of Object.entries(categories())) {
-    if (category !== UNLISTED) continue
-    const zip = new RegExp(`^${id.replace(/[-]/g, '\\-')}-\\d+\\.\\d+\\.\\d+(-[a-z0-9]+-[a-z0-9]+)?\\.zip$`)
-    const zips = readdirSync(distDir).filter((file) => zip.test(file))
-    const listed = catalog.extensions.some((entry) => entry.id === id)
-    if (zips.length === 0 && !listed) continue
-    for (const file of zips) rmSync(path.join(distDir, file))
-    catalog.extensions = catalog.extensions.filter((entry) => entry.id !== id)
-    console.log(`- ${id} 목록에서 내림 (${UNLISTED})`)
-  }
-  writeFileSync(catalogFile, `${JSON.stringify(catalog, null, 2)}\n`)
+/** `litecode-deploy plugin publish` 인자 — 분류는 categories.json, 바뀐 것은 changes.txt */
+function publishArgs(zipFile, platform, options) {
+  const manifest = zipManifest(zipFile)
+  if (!manifest.id || !VERSION.test(manifest.version ?? '')) throw new Error(`${zipFile}: zip 안 manifest 의 id·version 이 필요합니다`)
+  const folder = folders().find((name) => manifestOf(name).id === manifest.id)
+  const changes = folder && path.join(extensionsDir, folder, 'changes.txt')
+  return [
+    'plugin', 'publish', zipFile, '--category', categoryOf(manifest.id),
+    ...(changes && existsSync(changes) ? ['--changes-file', changes] : []),
+    ...(platform ? ['--platform', platform] : []),
+    ...(options.data ? ['--data', options.data] : []),
+    ...(options.signKey ? ['--sign-key', options.signKey, '--key-id', options.keyId] : []),
+  ]
 }
 
 const args = process.argv.slice(2)
-if (args.length === 0) {
-  console.error('쓰는 법: npm run release <id 또는 폴더> [--platform darwin-arm64] · npm run release -- --all · npm run release -- --changed [--dry-run] · npm run release -- --zip <묶은.zip> [--platform darwin-arm64]')
+const valueOf = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined)
+const valueFlags = ['--platform', '--zip', '--data', '--sign-key', '--key-id']
+const named = args.filter((arg, index) => !arg.startsWith('--') && !valueFlags.includes(args[index - 1]))
+const zip = valueOf('--zip')
+const platform = valueOf('--platform')
+const options = { data: valueOf('--data'), signKey: valueOf('--sign-key'), keyId: valueOf('--key-id') }
+if (named.length === 0 && !zip) {
+  console.error('쓰는 법: npm run release <id 또는 폴더…> [--platform darwin-arm64] [--dry-run] · npm run release -- --zip <묶은.zip> [--platform darwin-arm64]\n  공통: [--data <서버 데이터 폴더>] [--sign-key <개인키> --key-id <키id>]  (개인키는 저장소 밖에 둔다)')
   process.exit(1)
 }
-mkdirSync(distDir, { recursive: true })
-const catalog = readCatalog()
-const valueOf = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined)
-const platform = valueOf('--platform')
-const zip = valueOf('--zip')
-if (zip) {
-  releaseZip(path.resolve(zip), platform, catalog)
-  finish(catalog)
-  process.exit(0)
-}
+if (options.signKey && !options.keyId) throw new Error('--sign-key 는 --key-id 와 같이 줍니다')
+const dryRun = args.includes('--dry-run')
+mkdirSync(buildDir, { recursive: true })
+
 const all = folders()
-const unlisted = all.filter((folder) => isUnlisted(manifestOf(folder).id))
-const named = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--platform')
-const platformOnly = (folder) => catalog.extensions.some((entry) => entry.id === manifestOf(folder).id && entry.platform)
-const changedOnly = args.includes('--changed')
-const allMode = args.includes('--all') || changedOnly
-const skipped = allMode && !platform ? all.filter(platformOnly) : []
-for (const folder of skipped) console.log(`- ${folder} 건너뜀 (플랫폼 전용 — --platform 으로 따로 올린다)`)
-const chosen = allMode ? all.filter((folder) => !skipped.includes(folder)) : named.map((arg) => all.find((folder) => folder === arg || manifestOf(folder).id === arg) ?? arg)
-for (const folder of chosen.filter((folder) => unlisted.includes(folder))) console.log(`- ${folder} 건너뜀 (${UNLISTED} — 목록에서 내린 플러그인)`)
-const isChanged = (folder) => {
-  const manifest = manifestOf(folder)
-  const entry = catalog.extensions.find((candidate) => candidate.id === manifest.id && !candidate.platform)
-  return !entry || entry.version !== manifest.version
-}
-const targets = chosen.filter((folder) => !unlisted.includes(folder)).filter((folder) => !changedOnly || isChanged(folder))
-if (changedOnly) console.log(targets.length ? `올릴 플러그인: ${targets.join(' · ')}` : '올릴 플러그인이 없습니다(모두 catalog 와 같은 version)')
-if (args.includes('--dry-run')) process.exit(0)
+const targets = zip ? [] : named.map((arg) => all.find((folder) => folder === arg || manifestOf(folder).id === arg) ?? arg)
 for (const folder of targets) {
   if (!all.includes(folder)) throw new Error(`plugins/${folder} 가 없습니다`)
-  categoryOf(manifestOf(folder).id)
+  if (isUnlisted(manifestOf(folder).id)) console.log(`- ${folder} 건너뜀 (${UNLISTED} — 올리지 않는 플러그인)`)
+  else categoryOf(manifestOf(folder).id)
 }
-for (const folder of targets) release(folder, platform, catalog)
-finish(catalog)
+const zips = zip ? [path.resolve(zip)] : targets.filter((folder) => !isUnlisted(manifestOf(folder).id)).map((folder) => makeZip(folder, platform))
+for (const zipFile of zips) {
+  const publish = publishArgs(zipFile, platform, options)
+  console.log(`${dryRun ? '(dry-run) ' : ''}${DEPLOY} ${publish.join(' ')}`)
+  if (!dryRun) execFileSync(DEPLOY, publish, { stdio: 'inherit' })
+}

@@ -269,7 +269,7 @@ node plugins/ruby-grammar/build.mjs         # → build/ruby-grammar.zip (plugin
 node plugins/ruby-grammar/build.mjs --dir   # → build/ruby-grammar/ (개발 모드에서 폴더 연결)
 ```
 
-묶기(`packGrammar`)는 서비스를 `grammars.json` 째 `service.mjs` 한 파일로 묶고, `grammars.json` 이 가리키는 wasm 을 `node_modules` 의 문법 패키지에서 꺼내 같이 zip 에 넣습니다. 저장소로 올릴 때는 `categories.json` 에 `"ruby-grammar": "dev-tool"` 한 줄을 더합니다 — [저장소로 내보내기](publish.md).
+묶기(`packGrammar`)는 서비스를 `grammars.json` 째 `service.mjs` 한 파일로 묶고, `grammars.json` 이 가리키는 wasm 을 `node_modules` 의 문법 패키지에서 꺼내 같이 zip 에 넣습니다. 서버에 올릴 때는 `categories.json` 에 `"ruby-grammar": "dev-tool"` 한 줄을 더합니다 — [서버로 내보내기](publish.md).
 
 ### 10. 테스트하고 설치
 
@@ -285,4 +285,4 @@ node plugins/ruby-grammar/build.mjs --dir   # → build/ruby-grammar/ (개발 �
 ## 다음
 
 - [서비스 플러그인 만들기](service-plugin.md) — 서비스의 소식 · 호스트 API 전체
-- [저장소로 내보내기](publish.md) — 팩을 [플러그인 둘러보기] 에 올리기
+- [서버로 내보내기](publish.md) — 팩을 [플러그인 둘러보기] 에 올리기

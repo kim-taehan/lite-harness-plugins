@@ -395,5 +395,5 @@ You review greetings written in Korean. Point out anything rude or too casual, a
 ## 다음
 
 - [서비스 플러그인 만들기](service-plugin.md) — 소식 받기 · 상태 · 패널과 말하기
-- [저장소로 내보내기](publish.md) — build.mjs 가 있는 플러그인 올리기
+- [서버로 내보내기](publish.md) — build.mjs 가 있는 플러그인 올리기
 - [언어 팩 · 문법 팩](locale-grammar.md) — 코드 없는 플러그인

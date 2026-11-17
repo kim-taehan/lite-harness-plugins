@@ -26,4 +26,4 @@
 - 개발 모드: 앱 설정 › 기능 › 플러그인 › 개발 중 › [폴더 연결] 로 `build/tetris/` 를 연결해 고치며 확인한다. 고친 뒤 다시 묶는다.
 - 테스트: `npm test -- --project tetris` — 가짜 host 로 서비스 로직을 본다. 앱이 서비스를 올려 패널과 주고받는 것은 앱에서 확인한다.
 - 앱에서 못 본 것: 개발 모드에서 패널이 `service.call` 로 최고 점수를 읽고 쓰는 종단 확인은 하지 않았다(가짜 host 시험만).
-- 배포: 아직 목록에 내지 않는다(`categories.json` 에 `unlisted`). 낼 때 분류를 적고 `docs/guides/publish.md` 의 절차(dev 에서는 release 하지 않고 `release/<날짜>` 브랜치에서 `npm run release -- --changed`)를 따른다.
+- 배포: 아직 목록에 내지 않는다(`categories.json` 에 `unlisted`). 낼 때 분류를 적고 `docs/guides/publish.md` 의 절차(머지 뒤 서버 PC 에서 사용자 확인을 받고 `npm run release -- tetris`)를 따른다.
