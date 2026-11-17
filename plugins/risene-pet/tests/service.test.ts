@@ -202,7 +202,7 @@ describe('game.js', () => {
     expect(G.feed(state, 100)).toEqual({ type: 'eat', id: 'woni-b' })
   })
 
-  it('메이는 선택해서 키울 수 있다 — 매트가 먼저, 졸업하면 디렉터 메이가 열린다 (다른 멤버는 멈춘다)', () => {
+  it('메이는 선택해서 키울 수 있다 — 매트가 먼저, 졸업하면 디렉터가 열린다 (다른 멤버는 멈춘다)', () => {
     const state = grown('woni', { 'woni-a': 10 })
     G.select(state, 'may')
     expect(G.activeCharacter(state)).toBe('met')
@@ -272,7 +272,7 @@ describe('game.js', () => {
         memberId: 'may', name: '메이', current: 'met', active: false, finished: false,
         characters: [
           { id: 'met', name: '매트', stage: 0, feed: 0, graduated: false, locked: false, isNew: false },
-          { id: 'mei', name: '디렉터 메이', stage: null, feed: 0, graduated: false, locked: true, isNew: false },
+          { id: 'mei', name: '디렉터', stage: null, feed: 0, graduated: false, locked: true, isNew: false },
         ],
       },
       {
