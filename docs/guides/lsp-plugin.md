@@ -145,7 +145,7 @@ export default (host) =>
   ```sh
   node plugins/<id>/build.mjs --platform darwin-arm64          # → build/<id>-darwin-arm64.zip
   node plugins/<id>/build.mjs --platform darwin-arm64 --dir    # → build/<id>-darwin-arm64/ (개발 모드에서 연결)
-  npm run release -- <id> --platform darwin-arm64               # dist · catalog 까지
+  npm run release -- <id> --platform darwin-arm64               # 서버에 발행까지
   ```
 
 ## 6. 확인
@@ -168,4 +168,4 @@ export default (host) =>
 ## 다음
 
 - [서비스 플러그인 만들기](service-plugin.md) — 서비스 번들과 호스트 API 전체
-- [저장소로 내보내기](publish.md) — 플랫폼 전용 플러그인을 올리는 법과 버전 규칙.
+- [서버로 내보내기](publish.md) — 플랫폼 전용 플러그인을 올리는 법과 버전 규칙.

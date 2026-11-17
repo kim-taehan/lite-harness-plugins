@@ -76,17 +76,15 @@ function serviceSourceFiles(folder: string, main: unknown): string[] {
   return [...seen]
 }
 
-// 이미 배포된 id — 20번(scope 필수)은 새 플러그인에만. 이 브랜치의 catalog.json 은 새 플러그인을 release 한 PR 에서 이미 그 id 를
-// 담으므로 기준으로 쓰지 않는다: main(origin/main)의 catalog + 목록에서 내린(unlisted) id. origin/main 을 못 읽으면 이 브랜치의 catalog
+// 이미 있는 플러그인 — 20번(scope 필수)은 새 플러그인에만. main(origin/main)의 plugins/ 폴더가 기준이다.
+// origin/main 을 못 읽으면 올리지 않는(unlisted) 것이 아닌 분류가 있는 id 를 기준으로 한다.
 function publishedIds(): Set<string> {
-  let catalog: string
   try {
-    catalog = execFileSync('git', ['show', 'origin/main:catalog.json'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    return new Set(execFileSync('git', ['ls-tree', '--name-only', 'origin/main', 'plugins/'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean).map((entry) => entry.replace(/^plugins\//, '')))
   } catch {
-    catalog = readFileSync(path.join(root, 'catalog.json'), 'utf8')
+    const categories = JSON.parse(readFileSync(path.join(root, 'categories.json'), 'utf8')) as Record<string, string>
+    return new Set(Object.keys(categories).filter((id) => categories[id] !== 'unlisted'))
   }
-  const categories = JSON.parse(readFileSync(path.join(root, 'categories.json'), 'utf8')) as Record<string, string>
-  return new Set([...(JSON.parse(catalog) as { extensions: { id: string }[] }).extensions.map((entry) => entry.id), ...Object.keys(categories).filter((id) => categories[id] === 'unlisted')])
 }
 const published = publishedIds()
 

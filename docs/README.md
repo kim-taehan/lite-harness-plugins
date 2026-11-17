@@ -10,7 +10,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 2. **뼈대를 만듭니다.** `npm ci`(처음 한 번) 뒤 `npm run new-plugin -- <id> --name "<이름>" [--scope app|project]`. `plugins/<id>/` 에 `plugin.json` · `service/index.mjs` · `build.mjs` · 패널 `index.html` · `tests/service.test.ts` · `README.md` 가 생기고, 새 id 는 `categories.json` 에 `unlisted` 로 적혀 release 에 실수로 나가지 않습니다.
 3. **앱 없이 시험합니다.** `npm test -- --project <id>` — 가짜 host 로 서비스를 시험합니다.
 4. **앱에 연결해 고칩니다.** `node plugins/<id>/build.mjs --dir` 로 `build/<id>/` 를 낸 뒤, 앱의 설정 › 기능 › 플러그인 › 개발 중 › [폴더 연결] 로 그 폴더를 연결합니다(개발 모드는 개발 실행 `npm run dev` 나 플러그인 개발자용 설치본에서만 있습니다). 고친 뒤 `build.mjs --dir` 를 다시 돌리면 앱이 1초 조용해진 뒤 다시 읽습니다. 막히면 [막혔을 때](guides/troubleshooting.md).
-5. **올립니다.** 커밋 전에 `/convention-review` 로 표준과 대조하고, PR 을 `dev` 로 보냅니다(`gh pr create --base dev`). 목록에 내는 배포는 승격 때 따로 합니다 — [저장소로 내보내기](guides/publish.md).
+5. **올립니다.** 커밋 전에 `/convention-review` 로 표준과 대조하고, PR 을 `dev` 로 보냅니다(`gh pr create --base dev`). 목록에 내는 배포는 머지 뒤 서버 PC 에서 사용자 확인을 받고 따로 합니다 — [서버로 내보내기](guides/publish.md).
 
 자세한 설명은 아래 각 절과 [서비스 플러그인 만들기](guides/service-plugin.md)에 있습니다.
 
@@ -58,7 +58,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 
 - 묶기: `build.mjs` 가 하는 일과 `--dir` 개발 폴더 (없으면 "폴더를 그대로 묶음"). 서비스 플러그인은 `service.mjs` 한 파일로 묶는다
 - 테스트: `npm test -- --project <id>` 가 보는 것, 실제 서버 · DB 가 필요해 못 보는 것
-- 배포: 목록에 낼 때 `npm run release -- --changed`(dev 에서는 돌리지 않고 승격 때 — [작업 흐름](https://github.com/kim-taehan/lite-harness-plugins/blob/dev/.claude/rules/workflow.md)), 플랫폼 전용이면 `npm run release <id> --platform …`
+- 배포: 올릴 때 `npm run release -- <id>`(머지 뒤 서버 PC 에서 사용자 확인을 받고 — [작업 흐름](https://github.com/kim-taehan/lite-harness-plugins/blob/dev/.claude/rules/workflow.md)), 플랫폼 전용이면 `npm run release <id> --platform …`
 ````
 
 ## 시작하기
@@ -72,7 +72,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 | [MCP 플러그인 만들기](guides/mcp-plugin.md) | AI 가 부를 수 있는 도구를 MCP 서버로 싣습니다. 설정 칸 · 비밀 값 · [연결 확인] · 같이 설치되는 스킬, 그리고 `build.mjs` 로 한 파일에 묶기까지. | 30분 · mcp · settings · skills |
 | [언어 팩 · 문법 팩 만들기](guides/locale-grammar.md) | 앱 문구를 다른 언어로 바꾸는 언어 팩과, 파일 개요가 새 언어를 읽게 하는 tree-sitter 문법 팩. 데이터를 앱에 올리기만 하는 작은 서비스로 만듭니다. | 20분 · service · host.locale · host.grammars |
 | [언어 서버(LSP) 플러그인 만들기](guides/lsp-plugin.md) | 언어 서버를 실어 파일 보기와 AI 가 그 언어의 오류 · 정의 · 참조 · 설명을 정확하게 얻게 합니다. 서비스의 `host.lsp.register` · `${lspWorkspaceDir}` · 런타임 동봉 · 폐쇄망 설정 · 플랫폼 전용 묶기. | 30분 · service · host.lsp · build.mjs |
-| [저장소로 내보내기](guides/publish.md) | 만든 플러그인을 이 저장소에 올려 앱의 [플러그인 둘러보기] 에 보이게 합니다. `dev` 에서 브랜치 · 분류 · 바뀐 것 · 변경분만 `npm run release -- --changed` · 승격 · 버전 규칙. | 10분 · catalog.json · dist |
+| [서버로 내보내기](guides/publish.md) | 만든 플러그인을 litecode-deploy 서버에 올려 앱의 [플러그인 둘러보기] 에 보이게 합니다. 분류 · 바뀐 것 · `npm run release -- <id>` · 되돌리기 · 내리기 · 버전 규칙. | 10분 · categories.json · litecode-deploy |
 | [막혔을 때 — 오류 원인 · 해결](guides/troubleshooting.md) | 설치가 거절되거나(`field-unknown` · `service-invalid` …) 패널 호출이 실패할 때(`service-off` · `not-on` · `method-unknown` …) 코드마다 원인과 고치는 법. | 찾아보기 · 오류 코드 |
 
 ## 참고
@@ -81,7 +81,7 @@ Lite Harness 에 화면 · AI 도구 · 언어를 더하는 플러그인을 만�
 
 - [플러그인 구조](architecture.md) — 닿는 곳 · 닿지 못하는 곳 · 서비스와 호스트 API · 격리 · 수명 · 새 자리 더하기
 - [플러그인 표준](https://github.com/kim-taehan/lite-harness-plugins/blob/dev/.claude/rules/plugin.md) — 만들거나 고칠 때 지키는 규칙 (커밋 전 심사 · 머지 전 테스트가 확인)
-- [저장소 README](https://github.com/kim-taehan/lite-harness-plugins#readme) — 구조 · catalog.json · 버전 규칙 · 앱이 읽는 법
+- [저장소 README](https://github.com/kim-taehan/lite-harness-plugins#readme) — 구조 · 서버 배포 · 버전 규칙 · 앱이 읽는 법
 - [실제 플러그인 원본](https://github.com/kim-taehan/lite-harness-plugins/tree/main/plugins) — token-pet · sql-tuning · ui-test …
 - [앱 아키텍처 5절 · 플러그인](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/docs/architecture.md) — 격리 · 권한 · 설치 검사 · 적용 범위 · 5-2 설치형 서비스
 - [플러그인 서비스 작성 안내 (docs/plugin-sdk)](https://github.com/kim-taehan/lite-harness-desktop/blob/dev/docs/plugin-sdk/README.md) — 서비스 타입 · 호스트 API · 가짜 host (이 저장소의 `sdk/` 는 그 사본)

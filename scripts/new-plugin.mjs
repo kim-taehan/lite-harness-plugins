@@ -1,7 +1,7 @@
 // 새 서비스 플러그인 뼈대 — `npm run new-plugin -- <id> [--name <이름>] [--scope app|project]`
 // plugins/<id>/ 에 서비스 플러그인의 최소 구성을 만든다: plugin.json · service/index.mjs · build.mjs · index.html(패널) · tests/service.test.ts · README.md · changes.txt.
 // 만든 플러그인은 바로 `npm test -- --project <id>` 와 저장소 표준 검사를 통과하고, `node plugins/<id>/build.mjs --dir` 로 묶어 앱 개발 모드(폴더 연결)에서 확인할 수 있다.
-// categories.json 에는 새 id 를 `unlisted` 로 적는다 — 목록에 낼 준비가 되기 전에 release 가 올리지 않게. 낼 때 분류(game · dev-tool · locale)로 바꾼다(docs/guides/publish.md).
+// categories.json 에는 새 id 를 `unlisted` 로 적는다 — 올릴 준비가 되기 전에 release 가 올리지 않게. 낼 때 분류(game · dev-tool · locale)로 바꾼다(docs/guides/publish.md).
 // 템플릿은 plugins/service-example · token-pet · ja-pack 의 모양이다(표준 17 · 20 · 22 · 23 · 24번).
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -204,7 +204,7 @@ __NAME__ — 무엇을 하는 플러그인인지 한두 줄로 고쳐 쓰세요(
 - 묶기: \`node plugins/__ID__/build.mjs\` → \`build/__ID__.zip\`, \`--dir\` 이면 \`build/__ID__/\` 폴더(앱 개발 모드가 연결한다).
 - 개발 모드: 앱 설정 › 기능 › 플러그인 › 개발 중 › [폴더 연결] 로 \`build/__ID__/\` 를 연결해 고치며 확인한다. 고친 뒤 다시 묶는다.
 - 테스트: \`npm test -- --project __ID__\` — 가짜 host 로 서비스 로직을 본다. 앱이 서비스를 올려 패널과 주고받는 것은 앱에서 확인한다.
-- 배포: 아직 목록에 내지 않는다(\`categories.json\` 에 \`unlisted\`). 낼 때 분류를 적고 \`docs/guides/publish.md\` 의 절차(dev 에서는 release 하지 않고 \`release/<날짜>\` 브랜치에서 \`npm run release -- --changed\`)를 따른다.
+- 배포: 아직 목록에 내지 않는다(\`categories.json\` 에 \`unlisted\`). 낼 때 분류를 적고 \`docs/guides/publish.md\` 의 절차(머지 뒤 서버 PC 에서 사용자 확인을 받고 \`npm run release -- <id>\`)를 따른다.
 `
 
 /** 뼈대를 만든다 — root 는 저장소 루트(테스트는 임시 폴더). 만든 파일의 상대 경로 목록을 돌려준다. 잘못된 입력은 던진다 */

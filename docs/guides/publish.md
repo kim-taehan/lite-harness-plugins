@@ -1,35 +1,36 @@
 [← 가이드 목록](../README.md)
 
-# 저장소로 내보내기
+# 서버로 내보내기
 
-만든 플러그인을 이 저장소에 올려, 앱의 [플러그인 둘러보기] 에 보이고 새 버전이 나오면 업데이트로 받게 합니다.
+만든 플러그인을 litecode-deploy 서버에 올려, 앱의 [플러그인 둘러보기] 에 보이고 새 버전이 나오면 업데이트로 받게 합니다.
 
-*약 10분 · catalog.json · dist/ · categories.json*
+*약 10분 · categories.json · changes.txt · litecode-deploy*
 
 ## 만들 것
 
-[첫 패널 플러그인](first-panel.md)의 `hello-panel` 을 저장소에 올립니다. 끝나면
+[첫 패널 플러그인](first-panel.md)의 `hello-panel` 을 서버에 올립니다. 끝나면
 
-- `dist/hello-panel-0.1.0.zip` 이 생기고
-- `catalog.json` 에 그 항목(버전 · sha256 · 권한 · 크기 …)이 들어가고
-- 앱에서 **플러그인 저장소**를 켠 사람의 [플러그인 둘러보기] 에 메모장이 보입니다.
+- 서버 카탈로그에 그 항목(버전 · sha256 · 권한 · 크기 …)이 들어가고
+- 앱에서 업데이트 서버 주소를 설정한 사람의 [플러그인 둘러보기] 에 메모장이 보입니다.
 
 ## 준비물
 
-- 이 저장소에 push 할 수 있는 권한, Node.js 22+, `zip` 명령
-- 브랜치 흐름: **`dev` 에서 브랜치를 따고 PR 은 `dev` 로** 보냅니다. `main` · `dev` 에는 직접 push 하지 않습니다(훅이 막습니다). 배포는 `dev` 에서 하지 않고 승격 때 합니다 — 아래 4번과 [작업 흐름](https://github.com/kim-taehan/lite-harness-plugins/blob/dev/.claude/rules/workflow.md)
+- **서버가 있는 PC** 에서 `litecode-deploy` CLI 를 쓸 수 있어야 합니다. 올리는 일은 그 PC 의 CLI 로만 됩니다(원격 발행 아직 없음). 서버 사용법은 litecode-deploy 저장소의 `README.md` · `docs/SUPPORT.md`
+- Node.js 22+, `zip` 명령
 - `plugins/<id>/` 에 있는 플러그인 원본 (폴더 이름 = id)
 - 빌드가 필요한 플러그인이면 처음 한 번 `npm ci`
+- 서명하려면 개인키(`--sign-key`). **개인키는 저장소 밖에 둡니다.** 서명 안 하면 서명 없음으로 올라갑니다
 
-## 앱이 저장소를 읽는 법
+## 서버가 하는 일
 
-- 앱은 PC 의 `git` 으로 저장소를 얕게(`--depth 1`) 받아 `catalog.json` 을 읽습니다. 사내 git 서버 미러나 USB 로 옮긴 폴더도 됩니다.
-- 설치할 때 받은 zip 이 `catalog.json` 의 `sha256` 과 같아야 하고, 그 뒤 zip 설치와 같은 검사를 거칩니다.
-- 설치한 것보다 **버전이 높을 때만** 업데이트를 띄웁니다. 그래서 `dist/` 와 `catalog.json` 은 손으로 고치지 않고 `npm run release` 로만 바꿉니다.
+- 카탈로그(`catalog.json`) · sha256 · 순번(`sequence`) · 서명은 **서버가 만듭니다.** 이 저장소는 zip 만 만들어 넘깁니다 — `dist/` · `catalog.json` 을 쓰지 않습니다.
+- 앱은 서버의 `GET /plugins/catalog.json` 을 읽고, 받은 zip 의 `sha256` 이 같을 때만 설치합니다. 그 뒤 zip 설치와 같은 검사를 거칩니다.
+- 설치한 것보다 **버전이 높을 때만** 업데이트를 띄웁니다.
+- 같은 id(·platform)의 zip 은 **3개까지만** 보관하고, 발행 때 초과분을 자동으로 지웁니다. 되돌릴 수 있는 옛 버전은 최대 3개입니다.
 
 ## 1. 분류 한 줄
 
-`categories.json` 에 id 마다 분류를 하나 적습니다 — `game` · `dev-tool` · `locale`. 없으면 release 가 멈춥니다.
+`categories.json` 에 id 마다 분류를 하나 적습니다 — `game` · `dev-tool` · `locale`. 없으면 release 가 멈춥니다. release 가 `--category` 로 넘깁니다.
 
 `categories.json`
 
@@ -45,7 +46,7 @@
 
 ## 2. 바뀐 것 적기 (선택)
 
-업데이트 창에 보일 글을 플러그인 폴더의 `changes.txt` 에 한 줄에 하나씩 적습니다. zip 에는 들어가지 않고 catalog 의 `changes` 로만 갑니다.
+업데이트 창에 보일 글을 플러그인 폴더의 `changes.txt` 에 한 줄에 하나씩 적습니다. zip 에는 들어가지 않고 release 가 `--changes-file` 로 서버에 넘깁니다.
 
 `plugins/hello-panel/changes.txt`
 
@@ -54,68 +55,39 @@
 [AI 에게 보내기] 가 입력창만 채우고 보내지는 않음
 ```
 
-## 3. release
+## 3. 만들 명령 먼저 보기
 
 터미널 (저장소 맨 위에서)
 
 ```sh
-npm run release hello-panel                   # 하나만
-npm run release -- --changed --dry-run        # 올라갈 플러그인 목록만 보기(아무것도 쓰지 않음)
-npm run release -- --changed                  # catalog 에 없거나 version 이 다른 플러그인만
-npm run release -- --all                      # 전부 (바뀌지 않은 것도 zip 을 다시 만든다 — 보통 --changed 를 쓴다)
+npm run release -- hello-panel --dry-run     # zip 을 build/ 에 만들고, 서버에 넘길 명령만 보인다 (서버는 부르지 않는다)
 ```
-
-`--changed` 는 소스의 `version` 이 `catalog.json` 과 다른(또는 catalog 에 없는) 플러그인만 올립니다. 그래서 원본을 바꿨으면 **`version` 을 올려야** 올라갑니다. 목록에서 내린(`unlisted`) 것과 플랫폼 전용(`--platform`)은 건너뜁니다.
 
 release 가 하는 일:
 
-1. 대상 전부의 분류를 먼저 확인합니다. 하나라도 빠지면 `dist` · `catalog` 를 건드리지 않고 멈춥니다.
-2. 폴더에 `build.mjs` 가 있으면 그것을 돌려 `build/<id>[-<platform>].zip` 을 받고(zip 에 들어가는 파일은 `build.mjs` 가 정합니다 — 서비스는 `service.mjs` 로 묶어 싣습니다), 없으면 폴더 안의 파일을 그대로 묶습니다(`changes.txt` · `README.md` · `.DS_Store` · `tests/` 빼고 — 문서와 테스트는 zip 에 들어가지 않습니다).
-3. zip 을 `dist/<id>-<version>.zip` 에 두고 같은 id 의 옛 zip 은 지웁니다 — 되돌리기는 git 기록으로.
-4. sha256 · 크기 · details · permissions · type · category · changes 를 담아 `catalog.json` 의 그 항목을 갱신합니다.
+1. 분류를 먼저 확인합니다. 빠지면 아무것도 하지 않고 멈춥니다. `unlisted` 는 올리지 않고 건너뜁니다.
+2. 폴더에 `build.mjs` 가 있으면 그것을 돌려 `build/<id>[-<platform>].zip` 을 받고(서비스는 `service.mjs` 로 묶어 싣습니다), 없으면 폴더 안의 파일을 그대로 묶어 `build/<id>-<version>.zip` 에 둡니다(`changes.txt` · `README.md` · `.DS_Store` · `tests/` 빼고).
+3. `litecode-deploy plugin publish <zip> --category <분류> [--changes-file <changes.txt>] …` 를 부릅니다.
 
-`catalog.json 에 들어간 항목 (모양)`
+## 4. 올리기 — 서버에, 올리기 전 사용자(리더) 확인
 
-```json
-{
-  "id": "hello-panel", "name": "메모장", "description": "…", "category": "dev-tool",
-  "version": "0.1.0", "zip": "dist/hello-panel-0.1.0.zip", "sha256": "4e5a2dfa…",
-  "details": "…", "permissions": ["project", "chat"], "size": 1524,
-  "changes": ["메모를 적으면 0.4초 뒤 저절로 저장", "[AI 에게 보내기] 가 입력창만 채우고 보내지는 않음"]
-}
-```
+서버에 올리는 일은 사용자에게 나가는 일입니다. **올리기 전에 사용자(리더) 확인을 받습니다.**
 
-## 4. 올리기 — `dev` 에서 브랜치, 배포는 승격 때
+작업은 `dev` 에서 브랜치를 따서 하고 PR 은 `dev` 로 보냅니다(`main` · `dev` 에는 직접 push 하지 않습니다). PR 머지가 끝난 뒤, 서버가 있는 PC 에서 올립니다.
 
-작업은 늘 **`dev` 에서 브랜치를 따서** 합니다. PR 은 `dev` 로 보내고, `main` · `dev` 에는 직접 push 하지 않습니다.
-
-**① 원본을 고치는 PR** — release 를 돌리지 않고, `catalog.json` · `dist/` 는 이 PR 에 넣지 않습니다.
-
-터미널
+터미널 (서버 PC 의 저장소 맨 위에서)
 
 ```sh
 git switch dev && git pull
-git switch -c feat/hello-panel
-git add plugins/hello-panel categories.json
-git commit -m "hello-panel 0.1.0"
-git push -u origin feat/hello-panel
-gh pr create --base dev
+npm run release -- hello-panel --dry-run                    # 만들 명령 먼저 확인
+npm run release -- hello-panel                              # 올리기
+npm run release -- hello-panel --data /srv/deploy/data      # 서버 데이터 폴더가 기본(./data)이 아닐 때
+npm run release -- hello-panel --sign-key ~/keys/dev.key --key-id dev-release   # 서명할 때
 ```
 
-**② 배포 PR** — 목록에 낼 준비가 되면 `dev` 에서 `release/<날짜>` 브랜치를 따서 변경분만 올립니다.
+이름을 여러 개 줄 수 있습니다(`npm run release -- a b c`). 직접 묶은 zip 은 `npm run release -- --zip <파일> [--platform …]`. 올린 뒤 앱에서 [새로 확인] 을 눌러 목록에 보이는지 봅니다. 올라간 것은 `litecode-deploy plugin list` 로 봅니다.
 
-```sh
-git switch dev && git pull
-git switch -c release/2026-11-09
-npm run release -- --changed --dry-run     # 올라갈 목록을 먼저 확인
-npm run release -- --changed
-git add catalog.json dist categories.json
-git commit -m "release: hello-panel 0.1.0"
-git push -u origin release/2026-11-09
-gh pr create --base dev
-```
-
-**③ 승격** — 배포 PR 이 `dev` 에 머지된 뒤 `dev` → `main` 승격 PR 을 올립니다. 사용자에게 나가는 일이라 올리기 전에 사용자(리더) 확인을 받습니다. `main` 에 머지되면 앱에서 [새로 확인] 을 눌러 목록에 보이는지 봅니다.
+> 서명 키를 처음 켤 때는 공개키가 든 앱을 먼저 배포한 뒤 서명된 항목을 올립니다(앱에 키가 없으면 "알 수 없는 서명 키"로 거절됩니다).
 
 ## 버전 규칙
 
@@ -138,7 +110,7 @@ gh pr create --base dev
 
 ## 플랫폼 전용 플러그인
 
-런타임을 싣는 플러그인(예: sonarqube)은 플랫폼마다 zip 이 다릅니다. `--platform` 을 주고 플랫폼마다 따로 돌리면, catalog 에 같은 id 가 플랫폼마다 한 줄씩 들어갑니다. `--all` 은 이런 플러그인을 건너뜁니다.
+런타임을 싣는 플러그인(예: sonarqube)은 플랫폼마다 zip 이 다릅니다. `--platform` 을 주고 플랫폼마다 따로 돌리면, 서버 카탈로그에 같은 id 가 플랫폼마다 한 줄씩 들어갑니다.
 
 터미널
 
@@ -148,36 +120,37 @@ npm run release -- sonarqube --platform darwin-arm64     # darwin-arm64 · darwi
 
 `platform` 이 없는 항목은 모든 PC 에, 있는 항목은 `<os>-<cpu>`(Node 의 `process.platform`-`process.arch`)가 같은 PC 에만 보입니다.
 
-## 목록에서 내리기
+## 되돌리기 · 내리기
 
-원본은 두고 [플러그인 둘러보기] 에서만 내리려면 `categories.json` 에 분류 대신 `unlisted` 를 적고 release 를 한 번 돌립니다.
+서버 CLI 로 합니다(서버 PC 에서, 사용자 확인 뒤).
 
-`categories.json · 터미널`
+터미널
 
-```json
-"vi-pack": "unlisted"
-
-npm run release vi-pack      # → - vi-pack 목록에서 내림 (unlisted)
+```sh
+litecode-deploy plugin list               # 카탈로그와 순번 이력
+litecode-deploy plugin rollback 4         # 카탈로그를 순번 4 때의 모습으로
+litecode-deploy plugin remove vi-pack     # 카탈로그에서만 내린다 (--platform 으로 플랫폼 하나만)
 ```
 
-- release 는 돌 때마다 `unlisted` 의 catalog 항목과 dist zip(플랫폼 zip 포함)을 지웁니다. `plugins/<id>/` 는 그대로 둡니다.
-- `--all` 은 건너뛰고, 이름으로 불러도 묶지 않습니다. 다시 올리려면 분류를 적고 release 합니다.
-- 아예 없애려면 먼저 위처럼 `unlisted` 로 두고 release 해 catalog 항목과 dist zip 을 내린 뒤, 원본 폴더와 categories 한 줄을 지웁니다. catalog 는 이때도 손으로 고치지 않습니다.
-- 어느 쪽이든 **이미 설치한 PC 에서는 그대로 남습니다** — 앱은 catalog 에서 빠진 플러그인을 지우지 않습니다.
+- `rollback` 은 낮은 버전을 더 높은 `sequence` 와 `rollback: true` 로 다시 가리킵니다. 보관 한도(같은 id 의 zip 3개) 안의 옛 버전만 되살릴 수 있습니다.
+- `remove` 는 카탈로그에서만 내립니다. zip 과 이력은 남아 있어 `rollback` 으로 되살릴 수 있습니다.
+- **이미 설치한 PC 에서는 그대로 남습니다** — 앱은 카탈로그에서 빠진 플러그인을 지우지 않습니다.
+- `categories.json` 의 `unlisted` 는 **"이 저장소가 올리지 않는다"** 는 표시일 뿐 서버를 바꾸지 않습니다. 이미 올라간 것을 내리려면 `plugin remove` 를 하고, 다시 올리지 않게 `unlisted` 로 둡니다. 아예 없애려면 `plugin remove` 한 뒤 원본 폴더와 categories 한 줄을 지웁니다.
 
 ## 올리기 전 확인
 
 - 폴더 이름과 manifest 의 `id` 가 같다
 - `version` 을 올렸다 (새 플러그인이면 `0.1.0` 부터)
 - 서비스 플러그인이면 `build.mjs --dir` 로 낸 폴더가 되고, zip 으로 설치해 동의 · 켜기까지 한 번 돌려 봤다
-- `categories.json` 에 한 줄 있다
+- `categories.json` 에 분류 한 줄이 있다
 - zip 으로 직접 설치해 한 번 돌려 봤다
 - 권한은 쓰는 것만 적었다
 - 테스트가 있는 플러그인은 `npm test -- --project <id>` 로 그 플러그인 테스트가 통과한다. 머지 훅은 `npm run test:changed`(바뀐 플러그인 + 공통 검사)를 돌린다
+- `--dry-run` 으로 본 명령이 맞고, 올리기 전 사용자(리더) 확인을 받았다
 
 ## 정리
 
-`dev` 에서 브랜치 → 분류 한 줄 → (바뀐 것) → 커밋 · PR(`dev` 로) → 승격 때 `npm run release -- --changed` → 배포 PR → `dev` → `main` 승격. `dist/` 와 `catalog.json` 은 늘 release 가 만듭니다. 저장소 구조와 폐쇄망에서 쓰는 법은 [README](https://github.com/kim-taehan/lite-harness-plugins#readme) 에 있습니다.
+`dev` 에서 브랜치 → 분류 한 줄 → (바뀐 것) → 커밋 · PR(`dev` 로) → 머지 → 서버 PC 에서 `npm run release -- <id>`(사용자 확인 뒤). 카탈로그 · 순번 · 서명은 서버가 만듭니다. 저장소 구조와 폐쇄망에서 쓰는 법은 [README](https://github.com/kim-taehan/lite-harness-plugins#readme) 에 있습니다.
 
 ## 다음
 

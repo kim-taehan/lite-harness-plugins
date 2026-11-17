@@ -26,7 +26,7 @@ SonarQube 확장 — 이미 돌고 있는 SonarQube 서버에 주소 + 계정(�
 분석기(약 100MB, 풀었을 때)는 레포에 넣지 않는다. `build.mjs` 가 `fetch-runtime.mjs` 로 망 밖에서 받아(버전 · sha256 고정, `build/vendor/sonarqube/<타깃>/`) 확장 파일과 함께 묶는다:
 
 ```bash
-npm run release -- sonarqube --platform darwin-arm64  # 묶고 dist · catalog 까지
+npm run release -- sonarqube --platform darwin-arm64  # 묶고 서버에 발행까지(litecode-deploy plugin publish)
 node plugins/sonarqube/build.mjs --platform darwin-arm64   # 묶기만 → build/sonarqube-darwin-arm64.zip
 ```
 

@@ -1,5 +1,5 @@
 // 바뀐 플러그인의 테스트만 돌린다 — `npm run test:changed [기준 브랜치]` (기본 origin/dev, 없으면 origin/main).
-// 저장소 공통 검사(repo 프로젝트: 표준 · catalog ↔ dist 정합)는 늘 돌린다.
+// 저장소 공통 검사(repo 프로젝트: 표준 · 분류)는 늘 돌린다.
 // 플러그인 밖의 공통 파일(의존성 · vitest 설정 · scripts/)이 바뀌었으면 전부 돌린다 — 모든 플러그인에 닿을 수 있어서.
 // 바뀐 것 = 기준 브랜치와 갈라진 곳부터 지금까지의 커밋 + 커밋 안 된 변경.
 import { execFileSync, spawnSync } from 'node:child_process'

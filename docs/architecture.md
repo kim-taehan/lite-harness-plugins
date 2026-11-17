@@ -213,24 +213,24 @@ data/<id>/           storage · secrets · 허용한 주소 · 바깥 연결 · 
                      · service-install.json(서비스 번들 sha256) · .service-cache/<해시>.mjs(올리는 번들 사본)
 ```
 
-## 플러그인 저장소
+## 플러그인 서버
 
-앱의 **플러그인 저장소** 기능(베타 · 기본 꺼짐)은 이 저장소를 목록 겸 배포처로 씁니다. 꺼져 있으면 서비스 자체가 없어 저장소에 닿지 않습니다.
+앱은 litecode-deploy **서버**를 목록 겸 배포처로 읽습니다(읽기 전용 `GET`). 서버 주소가 설정돼 있지 않으면 아무 요청도 하지 않습니다. 이 저장소는 원본을 두고 zip 을 서버에 발행합니다.
 
 `저장소에서 앱까지`
 
 ```
-plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.json
-                                          │  git clone --depth 1 (이 PC 의 git · 로그인, 창 없음, 15초)
-                                          │  또는 폴더를 그대로 읽기 (폐쇄망 반입)
+plugins/<id>/ ──npm run release──▶ build/<id>.zip ──litecode-deploy plugin publish──▶ 서버(catalog.json · dist/*.zip · 순번 · 서명)
+                                          │  GET /plugins/catalog.json · /plugins/dist/*.zip
+                                          │  서버가 없는 폐쇄망은 오프라인 번들(export → import)
                                           ▼
-                          userData/extension-repo ──▶ [플러그인 둘러보기]
+                                   앱 ──▶ [플러그인 둘러보기]
                                           │  sha256 이 catalog 와 같을 때만
                                           ▼
                                    zip 설치와 같은 길 (staging 검사 → 확인 카드 → 설치)
 ```
 
-닿지 못하면 마지막 목록을 그대로 보이고 둘러보기 화면에만 사유를 적습니다. 자세한 것은 [README](https://github.com/kim-taehan/lite-harness-plugins#readme).
+닿지 못하면 마지막 목록을 그대로 보이고 둘러보기 화면에만 사유를 적습니다. 자세한 것은 [README](https://github.com/kim-taehan/lite-harness-plugins#readme) · [서버로 내보내기](guides/publish.md).
 
 ## 새 자리를 더하려면 (desktop 쪽)
 
@@ -262,6 +262,6 @@ plugins/<id>/ ──npm run release──▶ dist/<id>-<version>.zip + catalog.j
 | 에이전트 | `agents/register.ts` · 검사는 `manifest.ts` (`agents-invalid`) |
 | 패널 자산 (같은 zip 의 js · css · 이미지) | `install/panelAssets.ts` · 참조 고르기는 `renderer/htmlPreview.ts` |
 | 패널 탭 · 통로 · CSP | `renderer/ExtensionTab.tsx` · `extensionBridge.ts` · `htmlPreview.ts` |
-| 플러그인 저장소 | `src/services/extensionRepo/` |
+| 플러그인 서버 읽기 | `src/services/extensionRepo/` (옛 이름) |
 
 이 문서와 코드가 다르면 코드가 맞습니다 — [이슈](https://github.com/kim-taehan/lite-harness-plugins/issues)로 알려 주세요.

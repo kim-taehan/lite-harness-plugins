@@ -365,4 +365,4 @@ await call('events.subscribe', { events: ['panel.args'] })
 
 - [서비스 플러그인 만들기](service-plugin.md) — 앱 소식 · 상태 · AI 도구를 서비스로
 - [MCP 플러그인 만들기](mcp-plugin.md) — 오래 걸리는 일 · 비밀을 별도 프로세스로
-- [저장소로 내보내기](publish.md) — 메모장을 [플러그인 둘러보기] 에 올리기
+- [서버로 내보내기](publish.md) — 메모장을 [플러그인 둘러보기] 에 올리기

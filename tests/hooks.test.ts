@@ -76,17 +76,3 @@ describe('require-convention-review — 심사 상태가 지금 변경과 같을
     expect(run('require-convention-review', { command: `${G} log` }, other)).toBe(0)
   })
 })
-
-describe('block-hand-edit — catalog.json · dist/ 손편집을 막는다 (이 저장소의 worktree 포함)', () => {
-  const edit = (file: string) => run('block-hand-edit', { file_path: file }, repo, { CLAUDE_PROJECT_DIR: repo })
-  it('프로젝트 폴더 · 그 worktree 의 catalog.json · dist/ 는 막음', () => {
-    expect(edit('catalog.json')).toBe(2)
-    expect(edit(path.join(repo, 'dist', 'a.zip'))).toBe(2)
-    expect(edit(path.join(worktree, 'catalog.json'))).toBe(2)
-    expect(edit(path.join(worktree, 'dist', 'new', 'a.zip'))).toBe(2)
-  })
-  it('다른 파일, 다른 저장소의 catalog.json 은 통과', () => {
-    expect(edit(path.join(worktree, 'plugins', 'a', 'plugin.json'))).toBe(0)
-    expect(edit(path.join(other, 'catalog.json'))).toBe(0)
-  })
-})
