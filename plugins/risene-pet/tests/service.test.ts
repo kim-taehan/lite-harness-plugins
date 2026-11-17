@@ -278,7 +278,7 @@ describe('game.js', () => {
       {
         memberId: 'minami', name: '미나미', soon: true, current: null, active: false, finished: false,
         characters: [
-          { id: 'minami-gyaru', name: '갸루 미나미', soon: true, stage: null, feed: 0, graduated: false, locked: true, isNew: false },
+          { id: 'minami-gyaru', name: '갸루상', soon: true, stage: null, feed: 0, graduated: false, locked: true, isNew: false },
         ],
       },
       {

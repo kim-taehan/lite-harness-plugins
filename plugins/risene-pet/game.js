@@ -21,7 +21,7 @@ globalThis.RISENE_PET_GAME = (() => {
     'woni-b': { member: 'woni', name: '파이리원이' },
     met: { member: 'may', name: '매트' },
     mei: { member: 'may', name: '디렉터' },
-    'minami-gyaru': { member: 'minami', name: '갸루 미나미', soon: true },
+    'minami-gyaru': { member: 'minami', name: '갸루상', soon: true },
     'liv-1': { member: 'liv', name: '리트', soon: true },
     'zena-1': { member: 'zena', name: '신라공주', soon: true },
   }
