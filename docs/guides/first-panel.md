@@ -273,7 +273,7 @@ await call('events.subscribe', { events: ['usage.changed', 'project.filesChanged
 | 이벤트 | 필요한 권한 | `data` | 언제 · 어느 탭에 |
 |---|---|---|---|
 | `chat.turnEnded` | `chat` | `{ conversationId, outcome }` — `done` · `failed` · `interrupted` | 그 프로젝트의 대화에서 AI 턴이 끝날 때, 그 프로젝트의 탭에만 |
-| `project.filesChanged` | `project` | `{ paths, truncated? }` — 프로젝트 기준 상대 경로, 정렬, 최대 200개 | **AI 의 write · edit 도구가 쓴 파일만**, 0.5초씩 모아서. 셸 · 외부 편집기 · git 으로 바뀐 것은 아직 안 잡습니다 |
+| `project.filesChanged` | `project` | `{ paths, truncated? }` — 프로젝트 기준 상대 경로, 정렬, 최대 200개. 지워진 파일 · 폴더도 들어올 수 있으니 없는 경로(ENOENT)를 처리합니다 | AI 의 쓰기 · 고치기 도구, 셸 · 외부 편집기 · git · 플러그인 도구로 바뀐 것 모두(앱 0.2.9 부터 — 그 전 앱은 AI 의 쓰기 · 고치기 도구가 쓴 파일만), 0.5초씩 모아서. `.git` · `node_modules` · 숨김 폴더는 빠지고, 많이 바뀌거나 놓친 바뀜이 있으면 `truncated` — 그때는 통째로 다시 읽습니다. 자기가 쓴 파일도 소식으로 돌아오니 받을 때마다 같은 파일을 다시 쓰지 않게 합니다 |
 | `project.openTabsChanged` | `project` | `{ paths }` | 오른쪽 패널에 연 파일 탭 목록이 바뀔 때만 |
 | `usage.changed` | `usage` | `{}` — 숫자는 `usage.summary` 로 읽습니다 | 사용량이 늘 때, 모든 탭에 |
 | `settings.saved` | (없음) | `{}` | 이 플러그인의 설정 값을 저장할 때, 그 플러그인 탭에만. 설치 때 넣은 값으로는 오지 않습니다 |
