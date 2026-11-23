@@ -108,15 +108,14 @@ describe('도구', () => {
     expect((await tools['captured_sql']!.run({ contains: 'nothing' })).text).toContain('No recorded SQL contains "nothing"')
   })
 
-  it('compare — 바인드 묶음마다 원래 → 후보 순으로 실행, 결과 동일 여부 표', async () => {
+  it('compare — 바인드 묶음마다 데우기 한 번씩 → 번갈아 세 번, 결과 동일 여부 표', async () => {
     const adapter = fakeAdapter()
     const text = (await toolsOf(adapter)['compare']!.run({ original: 'select * from t where id = :id', candidate: 'select /* rewrite */ * from t where id = :id', binds_list: [{ id: 1 }, { id: 2 }] })).text
-    expect(adapter.calls).toEqual([
-      'measure select * from t where id = :id {"id":1}',
-      'measure select /* rewrite */ * from t where id = :id {"id":1}',
-      'measure select * from t where id = :id {"id":2}',
-      'measure select /* rewrite */ * from t where id = :id {"id":2}',
-    ])
+    const o = (id: number) => `measure select * from t where id = :id {"id":${id}}`
+    const c = (id: number) => `measure select /* rewrite */ * from t where id = :id {"id":${id}}`
+    // 데우기(원래 · 후보) → 원래 먼저 → 후보 먼저 → 원래 먼저
+    expect(adapter.calls).toEqual([o(1), c(1), o(1), c(1), c(1), o(1), o(1), c(1), o(2), c(2), o(2), c(2), c(2), o(2), o(2), c(2)])
+    expect(text).toContain('then 3 times alternating which runs first; ms and buffers are the median')
     // 체크섬 앞 8자도 같이 보인다 — AI 가 report 도구의 checksum 칸을 채울 수 있게
     expect(text).toMatch(/\{"id":1\} \| 2 rows · 160ms · 33,551 buffers · sum \w{1,8} \| 2 rows · 2ms · 6 buffers · sum \w{1,8} \| yes/)
     expect(text).not.toContain('WARNING')
@@ -143,7 +142,34 @@ describe('도구', () => {
   it('compare — 한 묶음에 두 쿼리의 바인드를 다 적으면 쿼리마다 쓰는 것만 넘긴다', async () => {
     const adapter = fakeAdapter()
     await toolsOf(adapter)['compare']!.run({ original: 'select * from t where d = :d', candidate: 'select /* rewrite */ * from t where x >= :d1 and x < :d2', binds_list: [{ d: '20261101', d1: '2026-11-01', d2: '2026-11-02' }] })
-    expect(adapter.calls).toEqual(['measure select * from t where d = :d {"d":"20261101"}', 'measure select /* rewrite */ * from t where x >= :d1 and x < :d2 {"d1":"2026-11-01","d2":"2026-11-02"}'])
+    expect(adapter.calls.slice(0, 2)).toEqual(['measure select * from t where d = :d {"d":"20261101"}', 'measure select /* rewrite */ * from t where x >= :d1 and x < :d2 {"d1":"2026-11-01","d2":"2026-11-02"}'])
+    expect(new Set(adapter.calls).size).toBe(2)
+  })
+
+  it('compare — 시간 · 버퍼는 데우기를 뺀 세 번의 중앙값', async () => {
+    // 데우기는 크게(재지 않음), 그다음 원래 300 · 100 · 200ms, 후보 9 · 1 · 5ms
+    const times: Record<string, number[]> = { o: [5000, 300, 100, 200], c: [5000, 9, 1, 5] }
+    const adapter = fakeAdapter({ measure: async (sql) => { const ms = times[sql.includes('rewrite') ? 'c' : 'o']!.shift()!; return { rows: 1, checksum: 'aa', ms, buffers: ms * 10 } } })
+    const text = (await toolsOf(adapter)['compare']!.run({ original: 'select a from t', candidate: 'select /* rewrite */ a from t' })).text
+    expect(text).toContain('(none) | 1 rows · 200ms · 2,000 buffers · sum aa | 1 rows · 5ms · 50 buffers · sum aa | yes')
+  })
+
+  it('compare — 행은 같고 순서만 다르면 알리고, 회마다 결과가 다르면 경고', async () => {
+    const reordered = fakeAdapter({ measure: async (sql) => ({ rows: 2, checksum: 'aa', ordered: sql.includes('rewrite') ? 'o2' : 'o1', ms: 1 }) })
+    const text = (await toolsOf(reordered)['compare']!.run({ original: 'select a from t', candidate: 'select /* rewrite */ a from t' })).text
+    expect(text).toContain('| yes (order differs)')
+    expect(text).toContain('same rows, different row order')
+    expect(text).not.toContain('WARNING')
+
+    let n = 0
+    const unstable = fakeAdapter({ measure: async (sql) => ({ rows: 2, checksum: sql.includes('rewrite') ? 'aa' : `x${n++}`, ms: 1 }) })
+    expect((await toolsOf(unstable)['compare']!.run({ original: 'select a from t where rownum < 3', candidate: 'select /* rewrite */ a from t' })).text).toContain('different results on repeated runs')
+  })
+
+  it('compare — 시간 제한은 실행 횟수만큼 늘어난다 (데우기 2 + 3×2 = 8번)', async () => {
+    // 한 번에 10ms, 시간 제한 20ms — 실행 한 번 기준으로는 넘지 않으니 8번 돌아도 끝나야 한다
+    const adapter = fakeAdapter({ measure: async () => (await new Promise((resolve) => setTimeout(resolve, 10)), { rows: 1, checksum: 'aa', ms: 10 }) })
+    expect((await toolsOf(adapter, 20)['compare']!.run({ original: 'select a from t', candidate: 'select b from t' })).text).toContain('| yes')
   })
 
   it('동시에 부른 도구는 한 줄로 — 앞 호출이 끝난 뒤 다음이 시작한다', async () => {

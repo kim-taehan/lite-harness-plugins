@@ -232,6 +232,34 @@ describe('입력 검사', () => {
     expect(parseReport({ ...hold, cause: undefined })).toMatchObject({ ok: false, error: expect.stringContaining('cause is required') })
   })
 
+  it('조건 조합은 나빠짐이 있으면 ok 를 거절하고, compare 는 20세트까지 받는다', () => {
+    const combos = [{ label: '전부', result: 'better' }, { label: '날짜만', result: 'worse', note: '느려짐' }]
+    expect(parseReport({ ...win, combinations: combos })).toMatchObject({ ok: false, error: expect.stringContaining('a condition combination got worse') })
+    expect(parseReport({ ...win, combinations: [{ label: '전부', result: 'bad' }] })).toMatchObject({ ok: false, error: expect.stringContaining('combinations[0].result') })
+    const many = Array.from({ length: 18 }, () => win.compare[0])
+    expect(parseReport({ ...win, compare: many }).ok).toBe(true)
+  })
+
+  it('분리 · 구조 검토는 필수이고, 결과서에 해당 없음 · 제안 있음으로 나온다', () => {
+    const { structure_check: _drop, ...without } = win
+    expect(parseReport(without)).toMatchObject({ ok: false, error: expect.stringContaining('structure_check is required') })
+    expect(parseReport({ ...win, structure_check: { result: 'maybe', text: 'x' } })).toMatchObject({ ok: false, error: expect.stringContaining('structure_check.result') })
+    expect(render(win)).toContain('분리 · 구조 검토')
+    expect(render(win)).toContain('해당 없음')
+    expect(render(hold)).toContain('제안 있음')
+  })
+
+  it('조건 조합 표가 결과서에 들어간다', () => {
+    const parsed = parseReport({ ...win, combinations: [{ label: '조건 전부', result: 'better' }, { label: '날짜만', result: 'same', note: '<b>그대로</b>' }] })
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      const html = render(parsed.input)
+      expect(html).toContain('조건 조합')
+      expect(html).toContain('좋아짐')
+      expect(html).toContain('&lt;b&gt;그대로&lt;/b&gt;')
+    }
+  })
+
   it('hold 에 인덱스 제안이 오면 빼고 알린다', () => {
     const parsed = parseReport({ ...hold, index: win.index })
     expect(parsed.ok && parsed.input.index).toBeUndefined()
@@ -285,7 +313,7 @@ describe('report 도구', () => {
 
   it('접속 주소의 비밀번호 · 호스트가 결과서 파일에 없다', async () => {
     const cwd = temp()
-    await reportTool(cwd, { databaseUrl: 'postgres://dev_ro:Pw0rd-xyz@pg.internal.example:5432/shop' }).run({ ...win, source: { file: 'pg.internal.example/Pw0rd-xyz' } } as unknown as Record<string, unknown>)
+    await reportTool(cwd, { databaseUrl: 'oracle://dev_ro:Pw0rd-xyz@pg.internal.example:1521/shop' }).run({ ...win, source: { file: 'pg.internal.example/Pw0rd-xyz' } } as unknown as Record<string, unknown>)
     const html = readFileSync(path.join(cwd, 'sql-tuning-reports/20261109-143205/index.html'), 'utf8')
     for (const secret of ['Pw0rd-xyz', 'pg.internal.example', 'dev_ro']) expect(html).not.toContain(secret)
   })

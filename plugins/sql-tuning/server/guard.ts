@@ -3,7 +3,7 @@
 
 export type GuardResult = { ok: true; sql: string } | { ok: false; reason: string }
 
-/** 읽기 문장에 나오면 안 되는 낱말 — 데이터 바꾸는 CTE(PG), SELECT INTO(PG 는 테이블을 만든다), FOR UPDATE(잠금) */
+/** 읽기 문장에 나오면 안 되는 낱말 — DML · DDL · 트랜잭션 · SELECT INTO · FOR UPDATE(잠금) */
 const FORBIDDEN = ['insert', 'update', 'delete', 'merge', 'truncate', 'drop', 'alter', 'create', 'grant', 'revoke', 'call', 'execute', 'exec', 'begin', 'commit', 'rollback', 'lock', 'into', 'copy', 'vacuum', 'analyze', 'refresh', 'set']
 
 /** 주석 · 문자열 · 따옴표 이름을 공백으로 바꾼 글 — 낱말 검사용 (길이는 그대로) */
@@ -24,12 +24,6 @@ export function blankLiterals(sql: string): string {
         else j++
       }
       end = Math.min(j + 1, sql.length)
-    } else {
-      const dollar = /^\$([A-Za-z_]\w*)?\$/.exec(rest)
-      if (dollar) {
-        const close = sql.indexOf(dollar[0], i + dollar[0].length)
-        end = close === -1 ? sql.length : close + dollar[0].length
-      }
     }
     if (end === -1) {
       out += sql[i]
@@ -78,9 +72,7 @@ export function bindsFor(sql: string, binds: unknown[] | Record<string, unknown>
   if (binds === undefined) return undefined
   const blank = blankLiterals(sql)
   if (Array.isArray(binds)) {
-    const dollar = [...blank.matchAll(/\$(\d+)/g)].map((match) => Number(match[1]))
-    const colon = new Set([...blank.matchAll(/(?<![:\w]):(\d+)/g)].map((match) => match[1]))
-    const count = dollar.length ? Math.max(...dollar) : colon.size
+    const count = new Set([...blank.matchAll(/(?<![:\w]):(\d+)/g)].map((match) => match[1])).size
     return binds.slice(0, count).map((value) => structuredClone(value))
   }
   const names = new Set([...blank.matchAll(/(?<![:\w]):([A-Za-z_][\w$#]*)/g)].map((match) => match[1]!.toLowerCase()))
@@ -90,10 +82,10 @@ export function bindsFor(sql: string, binds: unknown[] | Record<string, unknown>
 /** DB 오류 글에 덧붙일 안내 — 문법 · 이름 오류는 도구가 아니라 보낸 SQL 의 오타(식별자 중간의 공백 · 빠진 글자)인 경우가 흔하다.
  *  AI 가 "도구가 이 문법을 못 읽는다" 고 잘못 결론 내리지 않게 원인을 먼저 보라고 알려 준다. 해당 없으면 빈 글 */
 export function sqlErrorHint(message: string): string {
-  if (/ORA-00907|ORA-00933|ORA-00923|ORA-00936|ORA-00905|syntax error at or near/i.test(message)) {
+  if (/ORA-00907|ORA-00933|ORA-00923|ORA-00936|ORA-00905/i.test(message)) {
     return 'Hint: this is a SQL syntax error. The tool passes the SQL to the database as written, so first compare the SQL you sent with your source character by character — a space inside an identifier (AD BK_ID instead of ADBK_ID), a missing comma or parenthesis, a typo in a keyword. Do not conclude that the tool cannot parse a construct; confirm column names with table_info and send the corrected SQL again.'
   }
-  if (/ORA-00904|ORA-00942|ORA-00911|column .* does not exist|relation .* does not exist/i.test(message)) {
+  if (/ORA-00904|ORA-00942|ORA-00911/i.test(message)) {
     return 'Hint: the database does not know that name. Check the spelling against table_info (and the schema: a table of another schema needs its prefix, or the connection setting "schema" must name it) before changing the query.'
   }
   return ''

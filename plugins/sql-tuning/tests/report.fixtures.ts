@@ -3,6 +3,7 @@ import type { ReportInput } from '../server/report.ts'
 
 export const win: ReportInput = {
   verdict: 'ok',
+  structure_check: { result: 'none', text: '같은 테이블 반복 · 반복 컬럼 · 큰 집계 없음 — 해당 없음' },
   target: 'OrderMapper.selectRecentOrders',
   kind: 'MyBatis 매퍼',
   project: 'shop-api',
@@ -38,11 +39,12 @@ export const win: ReportInput = {
 }
 
 export const hold: ReportInput = {
+  structure_check: { result: 'found', text: '주문 목록을 키 조회와 상세 조회 두 단계로 나누는 안 (제안만)' },
   verdict: 'hold',
   target: 'OrderRepository.findCouponOrders',
   kind: 'JPA @Query',
   project: 'shop-api',
-  db: 'postgres',
+  db: 'oracle',
   schema: 'public',
   original_sql: 'SELECT o.id\n  FROM orders o\n  LEFT JOIN order_coupons oc\n    ON oc.order_id = o.id\n WHERE o.status = :status',
   candidate_sql: 'SELECT o.id\n  FROM orders o\n  JOIN order_coupons oc\n    ON oc.order_id = o.id\n WHERE o.status = :status',

@@ -37,7 +37,6 @@ export default (host) =>
       host.mcp.register({
         command: 'server/sql-tuning.mjs',
         env: {
-          SQL_TUNING_DB: '${storage:db}',
           SQL_TUNING_HOST: '${storage:host}',
           SQL_TUNING_PORT: '${storage:port}',
           SQL_TUNING_SERVICE: '${storage:service}',

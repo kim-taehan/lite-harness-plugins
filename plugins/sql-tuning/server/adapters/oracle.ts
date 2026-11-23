@@ -289,7 +289,7 @@ export class OracleAdapter implements Adapter {
       const ms = Math.round((performance.now() - started) * 10) / 10
       const after = before === undefined ? undefined : await reads().catch(() => undefined)
       const columns = (result.metaData ?? []).map((column) => column.name)
-      return { rows: checksum.rows, checksum: checksum.value(), ms, ...(before !== undefined && after !== undefined && { buffers: after - before }), ...(partial && { partial }), ...(columns.length > 0 && { columns }) }
+      return { rows: checksum.rows, checksum: checksum.value(), ordered: checksum.ordered(), ms, ...(before !== undefined && after !== undefined && { buffers: after - before }), ...(partial && { partial }), ...(columns.length > 0 && { columns }) }
     } finally {
       await connection.rollback().catch(() => undefined)
     }

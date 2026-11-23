@@ -24,7 +24,6 @@ describe('checkReadOnly', () => {
   it('문자열 · 주석 · 따옴표 이름 안의 낱말과 ; 는 보지 않는다', () => {
     expect(checkReadOnly("SELECT 'delete; drop' AS note FROM t")).toMatchObject({ ok: true })
     expect(checkReadOnly('SELECT "update" FROM t -- insert here')).toMatchObject({ ok: true })
-    expect(checkReadOnly('SELECT $$; delete$$ FROM t')).toMatchObject({ ok: true })
     expect(checkReadOnly("SELECT 'it''s' FROM t")).toMatchObject({ ok: true })
   })
 })
@@ -40,7 +39,7 @@ describe('blankLiterals · redact', () => {
 
   it('접속 주소의 비밀번호를 지운다', () => {
     expect(redact('cannot reach oracle://tuner:s3cret@db:1521/x', 'oracle://tuner:s3cret@db:1521/x')).toBe('cannot reach oracle://tuner:***@db:1521/x')
-    expect(redact('password s3cret rejected', 'postgres://tuner:s3cret@db/shop')).toBe('password *** rejected')
+    expect(redact('password s3cret rejected', 'oracle://tuner:s3cret@db:1521/x')).toBe('password *** rejected')
   })
 })
 
@@ -53,8 +52,7 @@ describe('bindsFor — compare 가 쿼리마다 넘길 바인드', () => {
     expect(original).not.toBe(binds)
   })
 
-  it('배열은 자리 수만큼 — $n 은 가장 큰 번호, :n 은 서로 다른 자리 수', () => {
-    expect(bindsFor('SELECT * FROM t WHERE a = $1 AND b = $2', [1, 2, 3])).toEqual([1, 2])
+  it('배열은 자리 수만큼 — :n 은 서로 다른 자리 수', () => {
     expect(bindsFor('SELECT * FROM t WHERE a = :1', [1, 2])).toEqual([1])
     expect(bindsFor('SELECT 1 FROM dual', undefined)).toBeUndefined()
   })
@@ -62,14 +60,14 @@ describe('bindsFor — compare 가 쿼리마다 넘길 바인드', () => {
 
 describe('sqlErrorHint', () => {
   it('문법 오류는 보낸 SQL 의 오타(식별자 중간의 공백)부터 보라고 알려 준다', () => {
-    for (const message of ['ORA-00907: missing right parenthesis', 'ORA-00933: SQL command not properly ended', 'ERROR: syntax error at or near "FROM"']) {
+    for (const message of ['ORA-00907: missing right parenthesis', 'ORA-00933: SQL command not properly ended']) {
       expect(sqlErrorHint(message)).toContain('character by character')
       expect(sqlErrorHint(message)).toContain('cannot parse')
     }
   })
 
   it('모르는 이름 오류는 table_info 와 스키마를 보라고 알려 준다', () => {
-    for (const message of ['ORA-00904: "AD": invalid identifier', 'ORA-00942: table or view does not exist', 'ERROR: relation "orders" does not exist']) {
+    for (const message of ['ORA-00904: "AD": invalid identifier', 'ORA-00942: table or view does not exist']) {
       expect(sqlErrorHint(message)).toContain('table_info')
     }
   })

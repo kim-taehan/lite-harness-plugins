@@ -254,8 +254,7 @@ const QUIET_MS = 1500 // 마지막 소식 뒤 이만큼 조용하면 읽는다
 const MAX_WAIT_MS = 5000 // 소식이 계속 와도 첫 소식 뒤 이 안에는 읽는다
 const SLOW_MS = 300 // 읽기가 이보다 오래 걸릴 때만 "읽는 중…"
 const MARK_MS = 6000 // 새로 · 바뀜 칩이 보이는 시간
-const DB_NAMES = { oracle: 'Oracle', postgres: 'PostgreSQL' }
-const LABELS = { db: 'DB 종류', host: '호스트', port: '포트', service: '서비스 이름', user: '아이디', password: '비밀번호', schema: '스키마' }
+const LABELS = { host: '호스트', port: '포트', service: '서비스 이름', user: '아이디', password: '비밀번호', schema: '스키마' }
 const ERRORS = {
   'no-project': '열린 프로젝트가 없습니다',
   'not-on': '이 프로젝트에서 SQL 튜닝이 꺼져 있습니다',
@@ -975,7 +974,7 @@ function stripView() {
   const checking = state.busy === 'check'
   const missing = view && !view.error ? view.missing ?? [] : []
   const v = view?.values ?? {}
-  const db = DB_NAMES[v.db] ?? v.db ?? ''
+  const db = 'Oracle'
   const who = `${v.user ? `${v.user}@` : ''}${v.host ?? ''}`
   let tone = ''
   let text
@@ -990,7 +989,7 @@ function stripView() {
   } else if (state.check) {
     const ms = responseMs(state.check.text)
     ;[tone, text] = ['ok', [bold(`${db} 연결됨`), ms ? ` · 응답 ${ms}ms` : '', who ? ` · ${who}` : '', ' · ', standardText()]]
-  } else text = [bold(db || '연결'), who ? ` · ${who}` : '', ' · 연결 확인 전 · ', standardText()]
+  } else text = [bold(db), who ? ` · ${who}` : '', ' · 연결 확인 전 · ', standardText()]
   const dot = tone === 'bad' ? ' bad' : tone === 'ok' ? ' ok' : ''
   return el(
     'div',
@@ -1008,7 +1007,7 @@ function connectionRow() {
   const v = view?.values ?? {}
   const checking = state.busy === 'check'
   const needFix = !error && (state.check?.isError || missing.length > 0)
-  const where = `${DB_NAMES[v.db] ?? v.db ?? ''} · ${v.user ? `${v.user}@` : ''}${v.host || '호스트 없음'}${v.port ? `:${v.port}` : ''}${v.service ? `/${v.service}` : ''}`
+  const where = `Oracle · ${v.user ? `${v.user}@` : ''}${v.host || '호스트 없음'}${v.port ? `:${v.port}` : ''}${v.service ? `/${v.service}` : ''}`
   const saved = view?.saved?.includes('password')
   return [
     el(

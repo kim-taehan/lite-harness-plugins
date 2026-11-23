@@ -17,6 +17,11 @@ export type Level = 'low' | 'medium' | 'high' | 'unknown'
 export type RuleStatus = 'applied' | 'already' | 'failed' | 'not_fixed'
 export interface PlanSide { op: string; detail?: string }
 export interface RunSide { rows: number; checksum: string; ms: number }
+export type ComboResult = 'better' | 'same' | 'worse'
+/** 동적 쿼리 조건 조합 하나의 전후 결과 — compare 세트와 별개로 조합마다 한 줄 */
+export interface Combination { label: string; result: ComboResult; note?: string }
+/** 분리 · 구조(정규화) 검토 — 신호를 보고 제안이 있는지(found) 없는지(none). 항상 채운다 */
+export interface StructureCheck { result: 'found' | 'none'; text: string }
 export interface CompareSet { label: string; binds?: unknown; original: RunSide; candidate: RunSide; partial?: boolean }
 
 export interface ReportInput {
@@ -24,7 +29,7 @@ export interface ReportInput {
   target: string
   kind?: string
   project?: string
-  db: 'oracle' | 'postgres'
+  db: 'oracle'
   schema?: string
   source?: { file: string; line?: number }
   original_sql: string
@@ -36,6 +41,8 @@ export interface ReportInput {
   plan?: { what: string; before: PlanSide; after: PlanSide; changed?: boolean }[]
   plan_full?: { before: string; after: string }
   compare: CompareSet[]
+  combinations?: Combination[]
+  structure_check: StructureCheck
   cause?: { title: string; text: string }
   index?: { ddl: string; write_load: { level: Level; note: string }; other_queries: { level: Level; note: string }; effect_verified: boolean; effect_note?: string }
   standard?: { file: string; rules_total?: number }
@@ -133,7 +140,10 @@ class Check {
   }
 }
 
+/** 결과서에 넣을 compare 세트 수 — 조건 조합 여러 개 × 바인드 여러 개를 담는다 */
+const MAX_COMPARE_ITEMS = 20
 const LEVELS = ['low', 'medium', 'high', 'unknown'] as const
+const COMBO_RESULT = ['better', 'same', 'worse'] as const
 const RULE_STATUS = ['applied', 'already', 'failed', 'not_fixed'] as const
 const same = (set: CompareSet): boolean => set.original.rows === set.candidate.rows && set.original.checksum === set.candidate.checksum
 
@@ -159,11 +169,11 @@ export function parseReport(args: Record<string, unknown>): Parsed {
   const c = new Check()
   const verdict = c.oneOf(args, 'verdict', '', ['ok', 'hold'], true)
   const target = c.str(args, 'target', '', true, 300)
-  const db = c.oneOf(args, 'db', '', ['oracle', 'postgres'], true)
+  const db = c.oneOf(args, 'db', '', ['oracle'], true)
   const original = c.str(args, 'original_sql', '', true, MAX_TEXT)
   const candidate = c.str(args, 'candidate_sql', '', true, MAX_TEXT)
   const sets: CompareSet[] = []
-  ;(c.list(args, 'compare', '', true, 10) ?? []).forEach((item, at) => {
+  ;(c.list(args, 'compare', '', true, MAX_COMPARE_ITEMS) ?? []).forEach((item, at) => {
     const where = `compare[${at}].`
     if (!isObj(item)) return void c.errors.push(`compare[${at}] must be an object`)
     const label = c.str(item, 'label', where, true, 300)
@@ -171,6 +181,20 @@ export function parseReport(args: Record<string, unknown>): Parsed {
     const n = runSide(c, item, 'candidate', where)
     if (label !== undefined && o && n) sets.push({ label, binds: item['binds'], original: o, candidate: n, ...(item['partial'] === true && { partial: true }) })
   })
+
+  const combinations: Combination[] = []
+  c.list(args, 'combinations', '', false, 12)?.forEach((item, at) => {
+    const where = `combinations[${at}].`
+    if (!isObj(item)) return void c.errors.push(`combinations[${at}] must be an object`)
+    const label = c.str(item, 'label', where, true, 300)
+    const result = c.oneOf(item, 'result', where, COMBO_RESULT, true)
+    const note = c.str(item, 'note', where, false, 500)
+    if (label !== undefined && result) combinations.push({ label, result, ...(note && { note }) })
+  })
+
+  const structure = c.obj(args, 'structure_check', '', true)
+  const structureResult = structure && c.oneOf(structure, 'result', 'structure_check.', ['found', 'none'], true)
+  const structureText = structure && c.str(structure, 'text', 'structure_check.', true, 1500)
 
   const input: Partial<ReportInput> = {}
   for (const key of ['kind', 'project', 'schema', 'diff_note'] as const) {
@@ -268,6 +292,7 @@ export function parseReport(args: Record<string, unknown>): Parsed {
   }
 
   if (verdict === 'ok' && sets.some((set) => !same(set))) c.errors.push("verdict is 'ok' but a compare set returned different rows or checksum — use 'hold' and fill cause")
+  if (verdict === 'ok' && combinations.some((item) => item.result === 'worse')) c.errors.push("verdict is 'ok' but a condition combination got worse — use 'hold', or change the fix and run it again")
   if (verdict === 'hold' && !input.cause) c.errors.push("cause is required when verdict is 'hold' (what went wrong, from the tool results)")
   if (c.errors.length) return { ok: false, error: `report input is not valid:\n- ${c.errors.join('\n- ')}\nFill the fields from the tool results (compare, explain, impact_check); do not guess.` }
 
@@ -279,7 +304,7 @@ export function parseReport(args: Record<string, unknown>): Parsed {
     delete input.cause
     c.notices.push("cause was left out because the verdict is 'ok'.")
   }
-  return { ok: true, input: { verdict: verdict!, target: target!, db: db!, original_sql: original!, candidate_sql: candidate!, compare: sets, ...input }, notices: c.notices }
+  return { ok: true, input: { verdict: verdict!, target: target!, db: db!, original_sql: original!, candidate_sql: candidate!, compare: sets, ...(combinations.length > 0 && { combinations }), structure_check: { result: structureResult!, text: structureText! }, ...input }, notices: c.notices }
 }
 
 // ── 지우기 · 이스케이프 ───────────────────────────────────────────────────────
@@ -623,7 +648,7 @@ const median = (values: number[]): number => {
   return sorted.length % 2 ? sorted[mid]! : Math.round((sorted[mid - 1]! + sorted[mid]!) / 2)
 }
 const pad = (value: number): string => String(value).padStart(2, '0')
-const DB_LABEL = { oracle: 'Oracle', postgres: 'PostgreSQL' } as const
+const DB_LABEL = { oracle: 'Oracle' } as const
 const LEVEL: Record<Level, [string, string]> = { low: ['낮음', 'ok'], medium: ['보통', 'warn'], high: ['높음', 'bad'], unknown: ['확인 못 함', 'off'] }
 const RULE: Record<RuleStatus, [string, string]> = { applied: ['적용', 'ok'], already: ['이미 지킴', 'off'], failed: ['적용했으나 결과가 달라짐', 'bad'], not_fixed: ['해당하나 고치지 않음', 'warn'] }
 
@@ -742,8 +767,12 @@ export function renderReport(input: ReportInput, context: RenderContext): string
     .join('')
   const partial = input.compare.some((set) => set.partial)
   const cause = input.cause ? `<div class="cause" role="alert"><b>${clean(input.cause.title)}</b><p>${clean(input.cause.text)}</p></div>` : ''
+  const comboLabel: Record<ComboResult, string> = { better: '<span class="chip ok">좋아짐</span>', same: '<span class="chip off">같음</span>', worse: '<span class="chip bad">나빠짐</span>' }
+  const comboTable = input.combinations?.length
+    ? `<table class="cmp"><thead><tr class="g"><th class="set" style="text-align:left">조건 조합</th><th>전후</th><th style="text-align:left">비고</th></tr></thead><tbody>${input.combinations.map((item) => `<tr class="${item.result === 'worse' ? 'differ' : ''}"><td class="set"><b>${clean(item.label)}</b></td><td class="v">${comboLabel[item.result]}</td><td>${item.note ? clean(item.note) : ''}</td></tr>`).join('')}</tbody></table>`
+    : ''
   const cmp = `<section class="sec long" aria-labelledby="s5"><div class="h"><h2 id="s5"><span class="no">05</span>결과 동일 확인</h2><span class="meta">바인드 값 ${input.compare.length}개로 원래 · 고친 SQL 을 실제로 실행 (compare)</span></div>
-    <table class="cmp"><thead><tr class="g"><th class="set" rowspan="2" style="text-align:left">바인드 값</th><th colspan="3">원래</th><th colspan="3" class="sep">고친 SQL</th><th rowspan="2" class="sep">결과</th></tr>
+    ${comboTable}<table class="cmp"><thead><tr class="g"><th class="set" rowspan="2" style="text-align:left">바인드 값</th><th colspan="3">원래</th><th colspan="3" class="sep">고친 SQL</th><th rowspan="2" class="sep">결과</th></tr>
       <tr class="s"><th>행 수</th><th>체크섬</th><th>시간</th><th class="sep">행 수</th><th>체크섬</th><th>시간</th></tr></thead><tbody>${cmpRows}</tbody></table>
     <p class="cmp-foot"><span>행 수 · 체크섬 · 걸린 시간만 기록합니다. <b style="color:var(--ink-2);font-weight:600">데이터 행은 이 결과서에 담지 않습니다.</b></span><span>바인드 값 중 문자열은 길이만 적었습니다.</span>${partial ? '<span>행 수 뒤의 + 는 행 수 상한까지만 읽었다는 뜻입니다.</span>' : ''}</p>${cause}</section>`
 
@@ -763,10 +792,13 @@ export function renderReport(input: ReportInput, context: RenderContext): string
     <div class="impact">${row('쓰기 부하', i.write_load.level, i.write_load.note)}${row('기존 쿼리 영향', i.other_queries.level, i.other_queries.note)}${effect}</div></section>`
   }
 
+  const structureSec = `<section class="sec" aria-labelledby="s7"><div class="h"><h2 id="s7"><span class="no">07</span>분리 · 구조 검토</h2><span class="meta">SQL 분리 · 합치기, 테이블 구조(정규화) — 제안만, 실행하지 않음</span></div>
+    <div class="${input.structure_check.result === 'found' ? 'cause' : 'empty'}"><b>${input.structure_check.result === 'found' ? '검토 결과 — 제안 있음' : '검토 결과 — 해당 없음'}</b><p>${clean(input.structure_check.text)}</p></div></section>`
+
   const rulesSec = (): string => {
-    const head7 = '<section class="sec" aria-labelledby="s7"><div class="h"><h2 id="s7"><span class="no">07</span>근거 — 적용한 사내 표준</h2>'
+    const head8 = '<section class="sec" aria-labelledby="s8"><div class="h"><h2 id="s8"><span class="no">08</span>근거 — 적용한 사내 표준</h2>'
     if (!input.standard) {
-      return `${head7}<span class="meta">표준 판정 없음</span></div>
+      return `${head8}<span class="meta">표준 판정 없음</span></div>
     <div class="empty"><b>표준 판정 없음</b><p>이 프로젝트에 사내 SQL 표준이 설치되어 있지 않아 규칙 번호로 근거를 달지 않았습니다.</p></div></section>`
     }
     const list = input.rules ?? []
@@ -777,7 +809,7 @@ export function renderReport(input: ReportInput, context: RenderContext): string
       })
       .join('')
     const total = input.standard.rules_total
-    return `${head7}<span class="meta">규칙 번호는 표준 문서의 번호입니다</span></div>
+    return `${head8}<span class="meta">규칙 번호는 표준 문서의 번호입니다</span></div>
     ${items ? `<div class="rules">${items}</div>` : '<div class="empty"><b>해당하는 규칙이 없습니다</b><p>표준은 있었지만 이번 SQL 에 적용되는 규칙을 찾지 못했습니다.</p></div>'}
     <p class="src-line">표준 파일 <code>${clean(input.standard.file)}</code>${total !== undefined ? ` (규칙 ${total}개 중 ${list.length}개 해당)` : ''}</p></section>`
   }
@@ -789,7 +821,7 @@ export function renderReport(input: ReportInput, context: RenderContext): string
   ]
   const li = (text: string, html = false): string => `<li>${html ? text : clean(text)}</li>`
   const unknown = [li('고친 SQL 을 코드에 옮긴 뒤의 동작(코드는 바꾸지 않았습니다)'), ...(input.index ? [li('인덱스를 만든 뒤의 실행계획과 쓰기 속도(제안만 했고 실행하지 않았습니다)')] : []), ...(input.unknown ?? []).map((text) => li(text))]
-  const limitSec = `<section class="sec" aria-labelledby="s8"><div class="h"><h2 id="s8"><span class="no">08</span>한계와 확인하지 못한 것</h2></div>
+  const limitSec = `<section class="sec" aria-labelledby="s9"><div class="h"><h2 id="s9"><span class="no">09</span>한계와 확인하지 못한 것</h2></div>
     <div class="two"><div><h3>한계</h3><ul>${limits.map((text) => li(text, true)).join('')}${(input.limits ?? []).map((text) => li(text)).join('')}${(input.estimates ?? []).map((text) => `<li><span class="chip warn">추정</span> ${clean(text)}</li>`).join('')}</ul></div>
     <div><h3>확인하지 못한 것</h3><ul>${unknown.join('')}</ul></div></div></section>`
 
@@ -802,7 +834,7 @@ export function renderReport(input: ReportInput, context: RenderContext): string
 <style>${STYLE}</style>
 </head>
 <body>
-<article aria-label="SQL 튜닝 최종 결과서 — ${clean(input.target)}">${head}${overviewSec}${verdict}${diff}${planSec}${cmp}${indexSec()}${rulesSec()}${limitSec}
+<article aria-label="SQL 튜닝 최종 결과서 — ${clean(input.target)}">${head}${overviewSec}${verdict}${diff}${planSec}${cmp}${indexSec()}${structureSec}${rulesSec()}${limitSec}
 <footer class="foot"><span>AI 는 DB 와 프로젝트 소스를 바꾸지 않았습니다. 조회만 했습니다.</span><span>비밀번호 · 접속 정보와 데이터 행은 이 문서에 들어 있지 않습니다. 인쇄하면 PDF 결과서입니다.</span></footer></article>
 </body>
 </html>
@@ -825,7 +857,7 @@ export interface ReportMeta {
   target: string
   kind?: string
   project?: string
-  db: 'oracle' | 'postgres'
+  db: 'oracle'
   verdict: Verdict
   cost?: { before: number; after: number }
   compare: { sets: number; same: number; partial: number }
