@@ -9,8 +9,8 @@ const base = { target: 'Oracle tuner@127.0.0.1:1521/FREEPDB1', redact: (text: st
 describe('serverStatusTool', () => {
   it('칸이 비면 접속하지 않고 빈 칸 이름을 한 줄로', async () => {
     let pinged = false
-    const tool = serverStatusTool({ ...base, missing: ['db', 'host', 'service', 'user'], ping: async () => (pinged = true) })
-    expect(await tool.run({})).toEqual({ text: '연결 정보가 모자랍니다 — 비어 있는 칸: DB 종류 · 호스트 · 서비스 이름 / DB 이름 · 아이디', isError: true })
+    const tool = serverStatusTool({ ...base, missing: ['host', 'service', 'user'], ping: async () => (pinged = true) })
+    expect(await tool.run({})).toEqual({ text: '연결 정보가 모자랍니다 — 비어 있는 칸: 호스트 · 서비스 이름 · 아이디', isError: true })
     expect(pinged).toBe(false)
   })
 

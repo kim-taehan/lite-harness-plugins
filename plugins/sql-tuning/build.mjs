@@ -1,7 +1,7 @@
 // SQL 튜닝 플러그인 묶기 — `node plugins/sql-tuning/build.mjs [--standard <사내 표준.md>] [--dir]` → build/sql-tuning.zip
 // --dir: zip 대신 같은 내용을 build/sql-tuning/ 폴더로 낸다 — 앱의 개발 모드에서 이 폴더를 연결해 바로 확인한다
 // --standard: 사내 SQL 개발 표준(md)을 스킬의 references/sql-standard.md 로 넣는다 — 우리는 표준을 정하지 않고 받은 문서를 그대로 싣는다
-// MCP 서버(server/index.ts)를 드라이버(oracledb thin · pg)째 server/sql-tuning.mjs 한 파일로 묶는다 — 서비스(service.mjs)가 host.mcp.register 로
+// MCP 서버(server/index.ts)를 드라이버(oracledb thin)째 server/sql-tuning.mjs 한 파일로 묶는다 — 서비스(service.mjs)가 host.mcp.register 로
 // 등록하면 앱이 그 파일을 Node 로 띄우므로 PC 에 Node · npm 이 없어도 된다. 서비스(service/index.mjs)는 service.mjs 한 파일로 묶는다(cordis 를 가져오지 않는다).
 // zip 에는 plugin.json · index.html(패널) · service.mjs · server/ · skills/
 import { execFileSync } from 'node:child_process'

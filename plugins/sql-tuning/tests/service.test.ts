@@ -104,7 +104,7 @@ describe('service', () => {
     expect(fake.skills()).toEqual([{ name: 'sql-tuning', dir: 'skills/sql-tuning' }])
     const folder = path.join(here, 'skills/sql-tuning')
     expect(/^name: sql-tuning$/m.test(readFileSync(path.join(folder, 'SKILL.md'), 'utf8'))).toBe(true)
-    for (const file of ['references/oracle.md', 'references/postgresql.md']) expect(() => readFileSync(path.join(folder, file), 'utf8')).not.toThrow()
+    for (const file of ['references/oracle.md']) expect(() => readFileSync(path.join(folder, file), 'utf8')).not.toThrow()
   })
 
   it('스킬 본문은 도구 이름의 접두어를 직접 적지 않는다 — 기본 attach 라 앱이 litecode_sql-tuning_ 을 붙인다', () => {

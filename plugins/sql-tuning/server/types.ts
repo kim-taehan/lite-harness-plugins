@@ -83,10 +83,14 @@ export interface RunStats {
   rows: number
   /** 순서와 상관없는 결과 체크섬 — 원래 쿼리와 고친 쿼리의 결과가 같은지 */
   checksum: string
+  /** 행 순서까지 본 체크섬 — Oracle 만. 결과는 같은데 순서만 다른지 */
+  ordered?: string
   /** 행을 끝까지 읽은 시간(ms) — 앱 쪽에서 잰 값 */
   ms: number
   /** 읽은 블록(논리 읽기) — Oracle 만 */
   buffers?: number
+  /** compare 가 같은 바인드로 여러 번 돌렸는데 결과가 회마다 달랐다 */
+  unstable?: boolean
   /** 행 수 상한에서 멈췄다 — 체크섬은 앞부분만 */
   partial?: boolean
   /** 결과 열 이름 — 열 목록이 다르면 체크섬은 늘 다르다 (#1074) */
@@ -95,7 +99,7 @@ export interface RunStats {
 
 /** captured_sql — DB 에 실제로 들어온 SQL 하나 */
 export interface CapturedSql {
-  /** Oracle sql_id · PostgreSQL queryid */
+  /** Oracle sql_id */
   id: string
   sql: string
   executions: number
@@ -110,7 +114,7 @@ export interface ImpactInfo {
   name: string
   /** 그 테이블 이름이 나오는 기록된 쿼리 (느린 순) */
   queries: (TopQuery & { kind: 'select' | 'dml' })[]
-  /** 쓰기 수 — Oracle 은 마지막 통계 이후(ALL_TAB_MODIFICATIONS), PostgreSQL 은 통계 초기화 이후 */
+  /** 쓰기 수 — 마지막 통계 이후(ALL_TAB_MODIFICATIONS) */
   writes?: { inserts: number; updates: number; deletes: number; since?: string }
   /** 기존 인덱스가 쓰인 횟수 — 못 읽으면 없다 */
   indexUsage?: { name: string; uses: number; lastUsed?: string }[]
@@ -120,7 +124,7 @@ export type TopBy = 'elapsed' | 'cpu' | 'executions'
 
 /** DB 하나 — 접속은 어댑터가 쥐고 다시 쓴다. 문장 검사(guard.ts)는 도구가 먼저 한다 */
 export interface Adapter {
-  readonly kind: 'oracle' | 'postgres'
+  readonly kind: 'oracle'
   explain(sql: string): Promise<Plan>
   runtimePlan(sql: string, binds?: Binds): Promise<Plan>
   tableInfo(table: string, schema?: string): Promise<TableInfo | undefined>
@@ -141,7 +145,7 @@ export interface AdapterOptions {
   timeoutMs: number
   /** 연결 수 상한 (기본 1) — 2 이상이면 도구 호출이 연결을 하나씩 빌려 동시에 돈다 */
   pool?: number
-  /** 스키마 없는 이름을 찾을 기본 스키마 — 애플리케이션 SQL(매퍼 등)은 보통 테이블 이름만 쓴다 (Oracle CURRENT_SCHEMA · PostgreSQL search_path) */
+  /** 스키마 없는 이름을 찾을 기본 스키마 — 애플리케이션 SQL(매퍼 등)은 보통 테이블 이름만 쓴다 (Oracle CURRENT_SCHEMA) */
   schema?: string
 }
 

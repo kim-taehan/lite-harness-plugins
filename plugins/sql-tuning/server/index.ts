@@ -1,5 +1,5 @@
 // SQL 튜닝 MCP 서버 입구 (#1051, 설계 docs/guide/superpowers/specs/2026-11-02-sql-tuning-design.md) — stdio.
-// 접속 주소는 DATABASE_URL 또는 나눠 받은 env(connect.ts databaseUrlFromEnv), 스킴으로 어댑터를 고른다(oracle:// · postgres://).
+// 접속 주소는 DATABASE_URL 또는 나눠 받은 env(connect.ts databaseUrlFromEnv), Oracle 만(oracle://).
 // 접속은 첫 도구 호출 때 열고 다시 쓰고, 쉬면 닫는다. litecode 는 플러그인의 mcp 선언으로 앱이 띄우고(#1086), davis-code 는 플러그인 MCP 로 띄운다
 
 /// <reference path="./drivers.d.ts" />

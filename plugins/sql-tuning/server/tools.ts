@@ -36,7 +36,7 @@ export interface ToolOptions {
 export const MAX_COMPARE_SETS = 5
 
 const SQL_ARG = { type: 'string', description: 'One SELECT or WITH statement.' }
-const BINDS_ARG = { description: 'Bind values — an array for positional ($1, :1) or an object for named (:name) placeholders.', anyOf: [{ type: 'array' }, { type: 'object' }] }
+const BINDS_ARG = { description: 'Bind values — an array for positional (:1, :2) or an object for named (:name) placeholders.', anyOf: [{ type: 'array' }, { type: 'object' }] }
 
 const RUN_SIDE = {
   type: 'object',
@@ -53,7 +53,7 @@ const REPORT_SCHEMA = {
     target: { type: 'string', description: 'What was tuned, e.g. OrderMapper.selectRecentOrders.' },
     kind: { type: 'string', description: 'e.g. "MyBatis mapper", "JPA @Query", "SQL".' },
     project: { type: 'string' },
-    db: { type: 'string', enum: ['oracle', 'postgres'] },
+    db: { type: 'string', enum: ['oracle'] },
     schema: { type: 'string' },
     source: { type: 'object', description: 'Where the SQL came from, project-relative.', properties: { file: { type: 'string' }, line: { type: 'number' } }, required: ['file'] },
     original_sql: { type: 'string', description: 'The original SQL, exactly as tuned. The report shows it; the server builds the line diff.' },
@@ -85,8 +85,19 @@ const REPORT_SCHEMA = {
     plan_full: { type: 'object', description: 'Whole explain output of each query, as printed.', properties: { before: { type: 'string' }, after: { type: 'string' } }, required: ['before', 'after'] },
     compare: {
       type: 'array',
-      description: 'One item per compare bind set, copied from the compare result. No data rows. String bind values are shown only by length in the report; do not put personal data in label.',
+      description: 'One item per compare bind set (at most 20 — with several condition combinations keep the sets you ran per combination small), copied from the compare result. No data rows. String bind values are shown only by length in the report; do not put personal data in label.',
       items: { type: 'object', properties: { label: { type: 'string', description: 'Short description of the set, e.g. "last 7 days, paid".' }, binds: { description: 'The bind values you passed to compare (array or object).', anyOf: [{ type: 'array' }, { type: 'object' }] }, original: RUN_SIDE, candidate: RUN_SIDE, partial: { type: 'boolean', description: 'True when compare stopped at the row cap.' } }, required: ['label', 'original', 'candidate'] },
+    },
+    structure_check: {
+      type: 'object',
+      description: 'Always fill. The split and structure check from your answer: result "found" with the split, merge or structure (normalizing, denormalizing, partitioning) proposal, or "none" with the one-line reason. Proposal only — nothing was changed.',
+      properties: { result: { type: 'string', enum: ['found', 'none'] }, text: { type: 'string' } },
+      required: ['result', 'text'],
+    },
+    combinations: {
+      type: 'array',
+      description: 'Dynamic SQL only: one item per condition combination you checked, with how the fix did on it. Any "worse" means verdict must be hold.',
+      items: { type: 'object', properties: { label: { type: 'string', description: 'The combination, e.g. "all conditions" or "date only".' }, result: { type: 'string', enum: ['better', 'same', 'worse'] }, note: { type: 'string' } }, required: ['label', 'result'] },
     },
     cause: { type: 'object', description: "Required when verdict is 'hold': what went wrong, from tool results. Say what you could not check.", properties: { title: { type: 'string' }, text: { type: 'string' } }, required: ['title', 'text'] },
     index: {
@@ -101,7 +112,7 @@ const REPORT_SCHEMA = {
     unknown: { type: 'array', items: { type: 'string' }, description: 'What you could not check.' },
     estimates: { type: 'array', items: { type: 'string' }, description: 'Anything you estimated instead of measuring, with the reason. Shown with an "estimate" label.' },
   },
-  required: ['verdict', 'target', 'db', 'original_sql', 'candidate_sql', 'compare'],
+  required: ['verdict', 'target', 'db', 'original_sql', 'candidate_sql', 'compare', 'structure_check'],
 }
 
 function fail(text: string): ToolResult {
@@ -220,6 +231,39 @@ export function formatCaptured(found: CapturedSql[], fragment: string): string {
   return lines.join('\n')
 }
 
+/** compare 가 바인드 묶음마다 재는 횟수 — 데우기 뒤 번갈아 이만큼, 중앙값을 낸다(홀수) */
+export const COMPARE_ROUNDS = 3
+
+const median = (values: number[]): number => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!
+
+/** 같은 쿼리를 여러 번 잰 값 하나로 — 시간 · 버퍼는 중앙값, 결과가 회마다 다르면 unstable */
+function summarize(runs: RunStats[]): RunStats {
+  const { buffers: _buffers, ...last } = runs[runs.length - 1]!
+  const buffers = runs.every((run) => run.buffers !== undefined) ? median(runs.map((run) => run.buffers!)) : undefined
+  const unstable = runs.some((run) => run.checksum !== last.checksum || run.rows !== last.rows)
+  return { ...last, ms: median(runs.map((run) => run.ms)), ...(buffers !== undefined && { buffers }), ...(unstable && { unstable }) }
+}
+
+/** 데우기 한 번씩(재지 않음) → 번갈아(원래 먼저 · 후보 먼저) COMPARE_ROUNDS 번 → 중앙값. 먼저 돈 쪽만 하드 파스 · 디스크 읽기를 떠안지 않게 */
+async function measureBoth(db: Adapter, original: { sql: string; binds: Binds | undefined }, candidate: { sql: string; binds: Binds | undefined }, cap: number): Promise<{ original: RunStats; candidate: RunStats }> {
+  // 드라이버가 넘긴 바인드 객체를 바꿀 수 있어 실행마다 새 사본
+  const run = (side: { sql: string; binds: Binds | undefined }) => db.measure(side.sql, side.binds === undefined ? undefined : structuredClone(side.binds), cap)
+  await run(original)
+  await run(candidate)
+  const originalRuns: RunStats[] = []
+  const candidateRuns: RunStats[] = []
+  for (let round = 0; round < COMPARE_ROUNDS; round++) {
+    if (round % 2 === 0) {
+      originalRuns.push(await run(original))
+      candidateRuns.push(await run(candidate))
+    } else {
+      candidateRuns.push(await run(candidate))
+      originalRuns.push(await run(original))
+    }
+  }
+  return { original: summarize(originalRuns), candidate: summarize(candidateRuns) }
+}
+
 export interface CompareRow {
   label: string
   original: RunStats
@@ -232,7 +276,8 @@ export function formatCompare(rows: CompareRow[]): string {
   const lines = ['Comparison (both queries were executed; rows discarded, only counts and checksums kept):', '', 'binds | original | candidate | same result']
   for (const row of rows) {
     const same = row.original.checksum === row.candidate.checksum && row.original.rows === row.candidate.rows
-    lines.push(`${row.label} | ${stat(row.original)} | ${stat(row.candidate)} | ${same ? 'yes' : 'NO'}${row.original.partial || row.candidate.partial ? ' (partial — row cap reached)' : ''}`)
+    const reordered = same && row.original.ordered !== undefined && row.candidate.ordered !== undefined && row.original.ordered !== row.candidate.ordered
+    lines.push(`${row.label} | ${stat(row.original)} | ${stat(row.candidate)} | ${same ? (reordered ? 'yes (order differs)' : 'yes') : 'NO'}${row.original.partial || row.candidate.partial ? ' (partial — row cap reached)' : ''}`)
   }
   const differ = rows.some((row) => row.original.checksum !== row.candidate.checksum || row.original.rows !== row.candidate.rows)
   // 열 목록이 다르면(예: 원래 쪽에만 ROWNUM 별칭 RN) 값이 같아도 체크섬이 다르다 — 이유를 알려 준다 (#1074)
@@ -243,7 +288,10 @@ export function formatCompare(rows: CompareRow[]): string {
     lines.push('', `NOTE: the column lists differ — only in original: ${only(a, b).join(', ') || '(none)'}; only in candidate: ${only(b, a).join(', ') || '(none)'}${only(a, b).length + only(b, a).length === 0 ? ' (same names, different order)' : ''}. The checksum covers every column in order, so results can never match. Select the same columns in the same order in both (e.g. wrap both as SELECT <same columns> FROM (...)) and compare again.`)
   }
   if (differ) lines.push('', 'WARNING: results differ for at least one bind set — the candidate is not equivalent. Do not propose it as is.')
-  lines.push('', 'Timings include fetching all rows. The first run of each query may include a cold cache; buffers (Oracle) are the steadier measure.')
+  if (rows.some((row) => row.original.unstable || row.candidate.unstable)) lines.push('', 'WARNING: a query returned different results on repeated runs with the same binds (for example ROWNUM or paging without a unique ORDER BY, or SYSDATE). The result check cannot be trusted until that query is deterministic.')
+  if (rows.some((row) => row.original.partial || row.candidate.partial)) lines.push('', 'NOTE: a run stopped at the row cap, so the result check covers only the first rows. Do not accept the candidate on a partial set: pick binds that return fewer rows, or say so in limits.')
+  if (rows.some((row) => row.original.ordered !== undefined && row.candidate.ordered !== undefined && row.original.ordered !== row.candidate.ordered && row.original.checksum === row.candidate.checksum)) lines.push('', 'NOTE: same rows, different row order. This matters when the query has ORDER BY or paging — then the candidate is not equivalent.')
+  lines.push('', `Each query ran once to warm up (not measured), then ${COMPARE_ROUNDS} times alternating which runs first; ms and buffers are the median. Timings include fetching all rows; buffers (Oracle) are the steadier measure.`)
   return lines.join('\n')
 }
 
@@ -267,10 +315,11 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
     }, options.idleMs)
     idle.unref?.()
   }
-  const timed = <T>(work: (db: Adapter) => Promise<T>): Promise<T> => {
+  // runs — work 안에서 쿼리를 몇 번 실행하나. 타임아웃은 실행 한 번마다라 그만큼 늘린다(compare 의 데우기 · 반복)
+  const timed = <T>(work: (db: Adapter) => Promise<T>, runs = 1): Promise<T> => {
     clearTimeout(idle)
     // 풀이 있으면 연결 하나를 빌려 그 안에서 (한 호출의 문장들은 한 연결 · 한 트랜잭션)
-    const exec = (): Promise<T> => withTimeout(adapter().then((db) => (db.run ? db.run(() => work(db)) : work(db))), options.timeoutMs)
+    const exec = (): Promise<T> => withTimeout(adapter().then((db) => (db.run ? db.run(() => work(db)) : work(db))), options.timeoutMs * runs)
     const run = options.serial === false ? exec() : line.then(exec)
     if (options.serial !== false) line = run.catch(() => undefined)
     void run.finally(armIdle).catch(() => undefined)
@@ -293,7 +342,7 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
       name: 'table_info',
       description:
         'Describe a table for tuning: row count, blocks, last statistics time, columns with distinct/null counts, indexes (columns, unique, status, clustering factor) and constraints. For a view, returns its definition and base tables. Returns no table data.',
-      inputSchema: { type: 'object', properties: { table: { type: 'string' }, schema: { type: 'string', description: 'Owner/schema. Defaults to the connected user (Oracle) or the search path (PostgreSQL).' } }, required: ['table'] },
+      inputSchema: { type: 'object', properties: { table: { type: 'string' }, schema: { type: 'string', description: 'Owner/schema. Defaults to the connected user.' } }, required: ['table'] },
       async run(args) {
         const table = args['table']
         const schema = args['schema']
@@ -305,7 +354,7 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
     },
     {
       name: 'top_queries',
-      description: 'List the slowest or most frequent queries recorded by the database (Oracle V$SQLAREA, PostgreSQL pg_stat_statements).',
+      description: 'List the slowest or most frequent queries recorded by the database (V$SQLAREA).',
       inputSchema: { type: 'object', properties: { by: { type: 'string', enum: ['elapsed', 'cpu', 'executions'], default: 'elapsed' }, limit: { type: 'number', default: 10 } } },
       async run(args) {
         const by = (args['by'] ?? 'elapsed') as TopBy
@@ -356,7 +405,7 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
     },
     {
       name: 'compare',
-      description: `RUN the original query and a rewritten/hinted candidate for real, once per bind set (up to ${MAX_COMPARE_SETS}; pick values from the statistics — a frequent value, a rare one, one with no rows). Returns row counts, timings, buffers (Oracle) and whether the results are identical. Rows are not returned. The user approves each call.`,
+      description: `RUN the original query and a rewritten/hinted candidate for real, per bind set: one unmeasured warm-up each, then ${COMPARE_ROUNDS} runs alternating the order, reporting the median (up to ${MAX_COMPARE_SETS} sets; pick values from the statistics — a frequent value, a rare one, one with no rows, and NULL or a boundary value when the rewrite touches NVL, OR or a range). Returns row counts, timings, buffers (Oracle) and whether the results are identical (Oracle also flags a different row order). Rows are not returned. The user approves each call.`,
       inputSchema: {
         type: 'object',
         properties: {
@@ -380,7 +429,7 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
         for (const binds of list as (Binds | undefined)[]) {
           const label = binds === undefined ? '(none)' : JSON.stringify(binds)
           // 쿼리마다 그 쿼리에 나오는 바인드만, 새 객체로 (드라이버가 넘긴 객체를 바꾼다)
-          const measured = await timed(async (db) => ({ original: await db.measure(original.sql, bindsFor(original.sql, binds), cap), candidate: await db.measure(candidate.sql, bindsFor(candidate.sql, binds), cap) }))
+          const measured = await timed((db) => measureBoth(db, { sql: original.sql, binds: bindsFor(original.sql, binds) }, { sql: candidate.sql, binds: bindsFor(candidate.sql, binds) }, cap), 2 + 2 * COMPARE_ROUNDS)
           rows.push({ label, ...measured })
         }
         return { text: formatCompare(rows) }
@@ -389,7 +438,7 @@ export function createTools(adapter: () => Promise<Adapter>, options: ToolOption
     {
       name: 'report',
       description:
-        'Write the final tuning report as one HTML file in the project folder (sql-tuning-reports/<time>/index.html) and return its path. Call it only after tuning is finished and the user asked for a report. Fill it only with values from explain, compare and impact_check; label estimates. It never contains passwords, connection details or data rows, and string bind values are reduced to their length.',
+        'Write the final tuning report as one HTML file in the project folder (sql-tuning-reports/<time>/index.html) and return its path. Call it once, on your own without asking, after tuning is finished and at least one candidate was run with compare — unless the user said not to make reports. Fill it only with values from explain, compare and impact_check; label estimates. It never contains passwords, connection details or data rows, and string bind values are reduced to their length.',
       inputSchema: REPORT_SCHEMA,
       async run(args) {
         const parsed = parseReport(args)

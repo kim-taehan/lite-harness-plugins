@@ -4,7 +4,7 @@
 import type { Tool } from './tools.ts'
 
 /** 접속에 꼭 있어야 하는 칸 — plugin.json settings 의 label 과 같은 글 */
-const LABELS: Record<string, string> = { db: 'DB 종류', host: '호스트', service: '서비스 이름 / DB 이름', user: '아이디' }
+const LABELS: Record<string, string> = { host: '호스트', service: '서비스 이름', user: '아이디' }
 
 export interface StatusInput {
   /** 비어 있는 칸 키 (connect.ts missingConnectionFields) */

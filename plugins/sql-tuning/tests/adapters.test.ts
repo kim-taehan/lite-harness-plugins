@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { OracleAdapter, oracleConfig, oraclePlanSteps, placeholderBinds, withPlanStatsHint, type OracleConnection } from '../server/adapters/oracle.ts'
-import { PostgresAdapter, pgPlanSteps, pgTextArray, type PgClient } from '../server/adapters/postgres.ts'
 import { blankLiterals } from '../server/guard.ts'
 import { RowChecksum } from '../server/checksum.ts'
 import { schemaName } from '../server/types.ts'
@@ -98,87 +97,6 @@ describe('Oracle', () => {
   })
 })
 
-describe('PostgreSQL', () => {
-  const json = [
-    {
-      Plan: {
-        'Node Type': 'Sort',
-        'Total Cost': 900,
-        'Plan Rows': 40,
-        'Sort Key': ['o.created_at DESC'],
-        Plans: [
-          {
-            'Node Type': 'Hash Join',
-            'Total Cost': 880,
-            'Plan Rows': 40,
-            'Hash Cond': '(o.customer_id = c.id)',
-            Plans: [
-              { 'Node Type': 'Seq Scan', 'Relation Name': 'customers', 'Total Cost': 850, 'Plan Rows': 1000, Filter: "(lower(email) = 'kim@example.com'::text)", 'Actual Rows': 1, 'Actual Total Time': 120.456, 'Actual Loops': 1 },
-              { 'Node Type': 'Index Scan', 'Relation Name': 'orders', 'Index Name': 'orders_created_at_idx', 'Total Cost': 20, 'Plan Rows': 4100 },
-            ],
-          },
-        ],
-      },
-    },
-  ]
-
-  it('EXPLAIN JSON → 단계 (깊이 우선, 조건 · 정렬 키 · 실측)', () => {
-    const steps = pgPlanSteps(json)
-    expect(steps.map((step) => [step.id, step.parentId, step.depth, step.operation, step.object])).toEqual([
-      [1, null, 0, 'Sort', undefined],
-      [2, 1, 1, 'Hash Join', undefined],
-      [3, 2, 2, 'Seq Scan', 'customers'],
-      [4, 2, 2, 'Index Scan', 'orders (orders_created_at_idx)'],
-    ])
-    expect(steps[0]!.access).toBe('sort: o.created_at DESC')
-    expect(steps[2]).toMatchObject({ filter: "(lower(email) = 'kim@example.com'::text)", actualRows: 1, actualMs: 120.46 })
-  })
-
-  function fakePg(): { factory: () => Promise<PgClient>; sent: { text: string; values?: unknown[] }[] } {
-    const sent: { text: string; values?: unknown[] }[] = []
-    const client: PgClient = {
-      async connect() {},
-      async query(text, values) {
-        sent.push({ text: text.replace(/\s+/g, ' ').trim(), ...(values && { values }) })
-        if (text.startsWith('EXPLAIN')) return { rows: [{ 'QUERY PLAN': json }] }
-        if (text.startsWith('SELECT * FROM (')) return { rows: [{ grade: 'A' }, { grade: 'B' }], fields: [{ name: 'grade' }] }
-        return { rows: [] }
-      },
-      async end() {},
-    }
-    return { factory: async () => client, sent }
-  }
-
-  it('접속하면 읽기 전용 · statement_timeout, $1 이 있으면 GENERIC_PLAN', async () => {
-    const pg = fakePg()
-    const adapter = new PostgresAdapter(pg.factory, 'postgres://tuner:x@db/shop', { timeoutMs: 5000 })
-    await adapter.explain('SELECT * FROM orders WHERE id = $1')
-    expect(pg.sent.map((call) => call.text)).toEqual(['SET default_transaction_read_only = on', 'SET statement_timeout = 5000', 'EXPLAIN (FORMAT JSON, GENERIC_PLAN) SELECT * FROM orders WHERE id = $1'])
-    await adapter.explain('SELECT 1')
-    expect(pg.sent.at(-1)!.text).toBe('EXPLAIN (FORMAT JSON) SELECT 1')
-  })
-
-  it('runtime_plan 은 BEGIN READ ONLY … ROLLBACK, binds 는 배열로', async () => {
-    const pg = fakePg()
-    const adapter = new PostgresAdapter(pg.factory, 'postgres://tuner:x@db/shop', { timeoutMs: 5000 })
-    await adapter.runtimePlan('SELECT * FROM orders WHERE id = $1', { id: 7 })
-    expect(pg.sent.slice(2)).toEqual([{ text: 'BEGIN READ ONLY' }, { text: 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT * FROM orders WHERE id = $1', values: [7] }, { text: 'ROLLBACK' }])
-  })
-
-  it('text[] 는 배열 그대로, 풀리지 않은 {a,b} 글도 받는다', () => {
-    expect(pgTextArray(['id'])).toEqual(['id'])
-    expect(pgTextArray('{customer_id,"Created At"}')).toEqual(['customer_id', 'Created At'])
-    expect(pgTextArray(null)).toEqual([])
-  })
-
-  it('query 는 하위 질의로 감싸 LIMIT 행 수 + 1', async () => {
-    const pg = fakePg()
-    const adapter = new PostgresAdapter(pg.factory, 'postgres://tuner:x@db/shop', { timeoutMs: 5000 })
-    expect(await adapter.query('SELECT grade FROM customers', 1)).toEqual({ columns: ['grade'], rows: [['A']], truncated: true })
-    expect(pg.sent.find((call) => call.text.startsWith('SELECT * FROM ('))!.text).toBe('SELECT * FROM (SELECT grade FROM customers) AS q LIMIT 2')
-  })
-})
-
 describe('결과 체크섬', () => {
   it('행 순서와 상관없고, 값이 다르면 달라진다', () => {
     const sum = (rows: unknown[][]) => {
@@ -189,9 +107,20 @@ describe('결과 체크섬', () => {
     expect(sum([[1, 'a'], [2, 'b']])).toBe(sum([[2, 'b'], [1, 'a']]))
     expect(sum([[1, 'a'], [2, 'b']])).not.toBe(sum([[1, 'a'], [2, 'c']]))
     expect(sum([[new Date(0), 10n]])).toHaveLength(16)
+
     // 드라이버 객체(순환 참조) · 바이트도 깨지지 않는다
     class Lob { self = this }
     expect(sum([[new Lob(), Buffer.from('ab')]])).toHaveLength(16)
+  })
+
+  it('ordered() 는 순서까지 본다 — 같은 행 · 다른 순서면 달라진다', () => {
+    const ordered = (rows: unknown[][]) => {
+      const checksum = new RowChecksum()
+      for (const row of rows) checksum.add(row)
+      return checksum.ordered()
+    }
+    expect(ordered([[1, 'a'], [2, 'b']])).toBe(ordered([[1, 'a'], [2, 'b']]))
+    expect(ordered([[1, 'a'], [2, 'b']])).not.toBe(ordered([[2, 'b'], [1, 'a']]))
   })
 })
 
@@ -222,14 +151,10 @@ describe('기본 스키마 (SQL_TUNING_SCHEMA)', () => {
     expect(() => schemaName('com; drop')).toThrow('not a plain schema name')
   })
 
-  it('Oracle 은 접속 때 CURRENT_SCHEMA, PostgreSQL 은 search_path', async () => {
+  it('Oracle 은 접속 때 CURRENT_SCHEMA', async () => {
     const sent: string[] = []
     const connection: OracleConnection = { callTimeout: 0, execute: async (sql) => (sent.push(sql.replace(/\s+/g, ' ').trim()), { rows: [] }), rollback: async () => undefined, close: async () => undefined }
     await new OracleAdapter(async () => ({ getConnection: async () => connection }), 'oracle://tuner:x@db:1521/FREEPDB1', { timeoutMs: 1000, schema: 'COM' }).query('SELECT 1 FROM dual', 1)
     expect(sent[0]).toBe('ALTER SESSION SET CURRENT_SCHEMA = COM')
-    const pgSent: string[] = []
-    const client: PgClient = { connect: async () => undefined, query: async (text) => (pgSent.push(text), { rows: [], fields: [] }), end: async () => undefined }
-    await new PostgresAdapter(async () => client, 'postgres://tuner:x@db/shop', { timeoutMs: 1000, schema: 'com' }).query('SELECT 1', 1)
-    expect(pgSent.slice(0, 3)).toEqual(['SET default_transaction_read_only = on', 'SET statement_timeout = 1000', 'SET search_path = com, public'])
   })
 })

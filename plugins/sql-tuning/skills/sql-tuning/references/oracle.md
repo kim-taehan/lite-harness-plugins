@@ -1,15 +1,16 @@
 # Oracle notes
 
-Read this before tuning when the database is Oracle. It adds to SKILL.md; where they overlap, follow this file for Oracle.
+Read this before tuning. It adds to SKILL.md; where they overlap, follow this file.
 
 ## Plans and numbers
 
 - `explain` uses `EXPLAIN PLAN` + `DBMS_XPLAN`. Costs are optimizer units, not time.
-- `compare` reports buffers (logical reads). They are steadier than milliseconds; judge by buffers first.
+- `compare` reports buffers (logical reads), the median of the measured runs. They are steadier than milliseconds; judge by buffers first.
+- `runtime_plan` prints `DBMS_XPLAN.DISPLAY_CURSOR` with `ALLSTATS LAST`. Read per step: `E-Rows` (estimate) against `A-Rows` (actual, summed over `Starts`) — a gap of about 10 times or more is an estimate problem; `Starts` far above 1 means the step repeats per row (nested loop inner side, scalar subquery); `Buffers` shows where the reads go; `Used-Tmp` (or a `1Pass`/`Multi-pass` count in `O/1/M`) means a sort or hash spilled to temp — reduce the rows or columns before the sort, or avoid the sort with an index in `ORDER BY` order.
 - Operation names: a lookup on a non-unique index is an INDEX RANGE SCAN, even when the values happen to be distinct. Only a UNIQUE index or a primary key gives INDEX UNIQUE SCAN. INDEX SKIP SCAN means the filtered column is not the leading column of the index.
 - A low-selectivity index: a full scan may be correct. Check the index's clustering factor in `table_info`.
 - An index that does not exist cannot be simulated here. Label any cost after a proposed index as an estimate.
-- Bind peeking: with skewed data, the plan for the first bind value is reused. Include a skewed value in `compare`.
+- Bind peeking: with skewed data, the plan for the first bind value is reused. Include a skewed value in `compare`. Adaptive cursor sharing (11g and later) can later add a child cursor with another plan for a different bind range, but only after a bad run; `captured_sql` may show the same SQL more than once for that reason. Do not rely on it to fix skew.
 
 ## Binds
 
@@ -31,6 +32,14 @@ Read this before tuning when the database is Oracle. It adds to SKILL.md; where 
 
 - A hint goes right after `SELECT` in one `/*+ … */` comment. Oracle reads only the first hint comment, so put several hints in the same comment.
 - `runtime_plan` merges its own `GATHER_PLAN_STATISTICS` into your hint comment; your hint still applies.
+
+## Index options
+
+- Composite index: equality columns first, then the range or `ORDER BY` columns. An index in `ORDER BY` order with `ROWNUM`/`FETCH FIRST` gives `SORT ORDER BY STOPKEY` or no sort at all (`WINDOW NOSORT STOPKEY`, `COUNT STOPKEY`).
+- Covering: adding the few selected columns to the index removes `TABLE ACCESS BY INDEX ROWID`. Weigh the index size and write cost.
+- Function-based index (`CREATE INDEX … ON t (UPPER(name))`) only when the function cannot be removed from the condition. The SQL must use the exact same expression.
+- Unindexed foreign key columns: joins from the parent scan the child, and a parent delete or key update locks the whole child table. Check with `table_info` constraints and indexes.
+- An index that exists but is not used: the leading column is not in the condition (`INDEX SKIP SCAN` or a full scan), a function or implicit conversion on the column, `IS NULL` on a single-column B-tree (all-NULL keys are not stored — `(col, 0)` would index them), low selectivity or a poor clustering factor.
 
 ## Verifying an index proposal
 
